@@ -78,14 +78,24 @@ jobs:
           zip -r CalcForge-macos.zip CalcForge.app
         fi
         cd ..
+    
+    - name: Rename files for release
+      run: |
+        # Create a releases directory
+        mkdir -p releases
+        
+        # Copy and rename files with platform labels
+        cp CalcForge-windows/CalcForge.exe releases/CalcForge-Windows.exe
+        cp CalcForge-macos/CalcForge-macos.zip releases/CalcForge-macOS.zip
+        cp CalcForge-linux/CalcForge releases/CalcForge-Linux
       
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          CalcForge-windows/CalcForge.exe
-          CalcForge-macos/CalcForge-macos.zip
-          CalcForge-linux/CalcForge
+          releases/CalcForge-Windows.exe
+          releases/CalcForge-macOS.zip
+          releases/CalcForge-Linux
         draft: false
         prerelease: false
       env:
