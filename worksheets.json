@@ -1,0 +1,7 @@
+{
+  "commentsonly": ":::hello this is a comment\n:::yes\n300\nLN03\ncount()\nsum(3-4)\nmin(3-4)\nmean()\nmax()\nmedian()\ncos(LN4)\nLN3\n4500+99\n40/6\nsum(13-14)\nS.sheet 1.LN03+S.sheet 1.LN06\n-0.0220966\n4500+99\nmax()\nmedian()\ncos(LN4)\n30\nLN04\n",
+  "Sheet 1": "999+2*(005*(10*2))\n11\n200\n400\n10\n10000000\n100\nmean()\n:::hello world\nsum()\nLN4+LN5+LN2\n1 mile to km\n10 miles to kilometers\nTR(1 gram to oz,2)\n100 tons to lbs\nLN13+LN2\ntruncate(LN13+LN2,3)\ntruncate(LN16/2,3)\n9*(90-(20/4))\n9*(90-(20/4))\ntruncate(1/3, 2)\nmean(1-7) ",
+  "mysheet": "2000-2\n100+4\n400*3\nsum(1,3)\n499*(320-(100*03))\nsum()\n001+002\n50*800\n",
+  "Sheet 5": "32\n56\n22\n82\n11\n40\n64\nmean()\nD.03.05.1976-D.8.5.1976\nD.July 12,1985 + 101\nD.October 2,2012 W- DJanuary 12, 2036\n40/(499*(320-(100*03))) \nLN05\nLN02\nLN02\nLN02+LN05+LN04\nLN04 \nsum(1-5)\nLN03+LN02\nD.03.05.1976\nD.05.09.2030\nD.05092030\nD.592030-D.10202030\n\n\n",
+  "Sheet 4": "TC(59.97, 250)\nTC(29.97, 01:02:12:19)\nTC(29.97, 1:2:12:19)\nTC(29.97, 00:22:11:27 + 00:00:01:02)\nTC(24, 01.00.00.00 - 00.59.59.23)\nTC(23.976, 00.22.15.22 + 01.12.40.15)\n:::test comment\nsqrt(10)\ntan(10)\n100+(tan(10))\ntan(293)\ntan(92)\nsum(10,11)\nTC(24, 01.29.22.12)\nTR(1/3,2)\ncount(7-13)\nTC(24,120)\nTC(24,120)\ncount(7-13)\n250/60\n\n\n\n"
+}

@@ -1,0 +1,81 @@
+name: Build Executables
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            extension: .exe
+          - os: macos-latest
+            platform: macos
+            extension: ''
+          - os: ubuntu-latest
+            platform: linux
+            extension: ''
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PySide6 pint pyinstaller
+
+    - name: Build executable (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        pyinstaller --onefile --windowed --icon=calcforge.ico --name=CalcForge CalcForge.3.0.py
+
+    - name: Build executable (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        pyinstaller --onefile --windowed --icon=calcforge.ico --name=CalcForge CalcForge.3.0.py
+
+    - name: Build executable (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        pyinstaller --onefile --name=CalcForge CalcForge.3.0.py
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: CalcForge-${{ matrix.platform }}
+        path: |
+          dist/CalcForge${{ matrix.extension }}
+          dist/CalcForge.app/
+        if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          CalcForge-windows/CalcForge.exe
+          CalcForge-macos/CalcForge
+          CalcForge-linux/CalcForge
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
