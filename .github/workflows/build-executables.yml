@@ -68,12 +68,20 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       
+    - name: Create macOS archive
+      run: |
+        cd CalcForge-macos
+        if [ -d "CalcForge.app" ]; then
+          zip -r CalcForge-macos.zip CalcForge.app
+        fi
+        cd ..
+      
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           CalcForge-windows/CalcForge.exe
-          CalcForge-macos/CalcForge
+          CalcForge-macos/CalcForge-macos.zip
           CalcForge-linux/CalcForge
         draft: false
         prerelease: false
