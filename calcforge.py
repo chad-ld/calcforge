@@ -3466,6 +3466,10 @@ class Calculator(QWidget):
             current_widget.editor.setFocus()
             current_widget.editor.activateWindow()
 
+    def on_tab_changed(self, index):
+        """Disabled to prevent cursor synchronization issues with cross-sheet highlighting"""
+        pass
+
 def verify_icon_file(icon_path):
     """Verify that the icon file contains all required sizes."""
     try:
