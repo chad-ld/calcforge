@@ -4,6 +4,8 @@ from collections import Counter
 from datetime import datetime, timedelta
 import calendar
 import statistics  # Add statistics import at top level
+import time
+import traceback
 
 import pint
 ureg = pint.UnitRegistry()
@@ -489,15 +491,10 @@ def AR(original, target):
 
 def preprocess_expression(expr):
     """Pre-process expression to handle padded numbers and other special cases"""
-    # Debug: Print original expression if it contains TC
-    if 'TC(' in expr:
-        print(f"DEBUG: Original TC expression: {expr}")
-    
     # Handle timecode arithmetic first (BEFORE comma removal to preserve function arguments)
     tc_match = re.match(r'TC\((.*?)\)', expr)
     if tc_match:
         tc_args = tc_match.group(1)
-        print(f"DEBUG: TC args extracted: '{tc_args}'")
         
         # Split on commas that aren't inside arithmetic expressions
         parts = []
@@ -515,8 +512,6 @@ def preprocess_expression(expr):
                 current += char
         if current:
             parts.append(current.strip())
-        
-        print(f"DEBUG: TC parts after splitting: {parts}")
         
         # Process each part
         processed_parts = []
@@ -556,11 +551,8 @@ def preprocess_expression(expr):
                     part = f'"{cleaned}"'
                 processed_parts.append(part)
         
-        print(f"DEBUG: TC processed parts: {processed_parts}")
-        
         # Reconstruct the TC call
         expr = f"TC({','.join(processed_parts)})"
-        print(f"DEBUG: TC reconstructed expression: {expr}")
     
     # Handle aspect ratio calculations
     ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
@@ -601,10 +593,6 @@ def preprocess_expression(expr):
         return str(int(m.group(1)))
     
     expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
-    
-    # Debug: Print final expression if it contains TC
-    if 'TC(' in expr:
-        print(f"DEBUG: Final TC expression: {expr}")
     
     return expr
 
@@ -1025,6 +1013,33 @@ class FormulaEditor(QPlainTextEdit):
         # Add highlight selection tracking
         self.current_highlight = None  # Store current highlight selection
         
+        # Add performance optimizations for highlighting
+        self._last_highlighted_line = -1  # Track which line was last highlighted
+        self._highlighted_sheets = set()  # Track which sheets have highlights to clear
+        self._cross_sheet_cache = {}  # Cache for cross-sheet lookups: sheet_name -> {line_id: line_number}
+        self._highlight_timer = QTimer(self)  # Debounce timer for highlighting
+        self._highlight_timer.setInterval(100)  # 100ms debounce for more aggressive debouncing
+        self._highlight_timer.setSingleShot(True)
+        self._highlight_timer.timeout.connect(self._do_highlight_current_line)
+        
+        # Add rapid navigation detection to avoid highlighting during fast movement
+        self._rapid_nav_timer = QTimer(self)
+        self._rapid_nav_timer.setInterval(150)  # 150ms to detect end of rapid navigation
+        self._rapid_nav_timer.setSingleShot(True)
+        self._rapid_nav_timer.timeout.connect(self._end_rapid_navigation)
+        self._is_rapid_navigation = False
+        self._nav_move_count = 0
+        self._last_nav_time = 0
+        
+        # Cache LN reference parsing to avoid regex on every move
+        self._line_ln_cache = {}  # line_number -> list of ln_matches
+        
+        # Add debugging tools for performance analysis
+        self._debug_enabled = True  # Set to False to disable debugging
+        self._perf_log = []  # Store performance measurements
+        self._last_perf_time = 0
+        self._call_stack = []  # Track what methods are being called
+        
         # Add truncate function to the editor instance
         self.truncate = self.truncate_func
         
@@ -1280,21 +1295,57 @@ class FormulaEditor(QPlainTextEdit):
         return sorted(completions)
 
     def on_cursor_position_changed(self):
+        start_time = self._log_perf("on_cursor_position_changed")
+        
         # Store current cursor and scroll position
         cursor = self.textCursor()
         scrollbar = self.verticalScrollBar()
         current_scroll = scrollbar.value()
         
         # Always update the current line tracking
-        self._last_line = cursor.blockNumber()
+        current_line = cursor.blockNumber()
+        self._last_line = current_line
         self._current_block = cursor.block()
         
-        # Always highlight the current line
-        self.highlightCurrentLine()
+        # Detect rapid navigation
+        current_time = time.time() * 1000  # Convert to milliseconds
+        
+        if self._last_nav_time > 0:
+            time_diff = current_time - self._last_nav_time
+            if time_diff < 100:  # Less than 100ms between moves = rapid navigation
+                self._nav_move_count += 1
+                if self._nav_move_count >= 2:  # 2+ rapid moves = rapid navigation mode
+                    self._is_rapid_navigation = True
+                    if self._debug_enabled:
+                        print(f"RAPID NAV: Started (move #{self._nav_move_count}, {time_diff:.1f}ms gap)")
+            else:
+                self._nav_move_count = 0
+        
+        self._last_nav_time = current_time
+        
+        # Start rapid navigation timer to detect when user stops
+        if self._is_rapid_navigation:
+            self._rapid_nav_timer.start()
+        
+        # Only highlight if we've moved to a different line AND not in rapid navigation
+        if (self._last_highlighted_line != current_line and 
+            not self._is_rapid_navigation):
+            # Use debounced highlighting for normal navigation
+            self._highlight_timer.start()
+        elif self._last_highlighted_line != current_line and self._is_rapid_navigation:
+            # During rapid navigation, just do basic current line highlight without LN processing
+            basic_start = self._log_perf("_do_basic_highlight_only")
+            self._do_basic_highlight_only()
+            self._log_perf("_do_basic_highlight_only", basic_start)
         
         # Trigger scroll synchronization to keep results in sync
         if hasattr(self.parent, '_sync_editor_to_results'):
+            sync_start = self._log_perf("_sync_editor_to_results")
             self.parent._sync_editor_to_results(current_scroll)
+            self._log_perf("_sync_editor_to_results", sync_start)
+            
+            # Check for scroll sync issues
+            self._check_scroll_sync_issue()
         
         # Hide completion list if there's a selection
         if cursor.hasSelection():
@@ -1304,6 +1355,8 @@ class FormulaEditor(QPlainTextEdit):
         # to avoid interfering with manual text selection
         if not cursor.hasSelection():
             self.setTextCursor(cursor)
+            
+        self._log_perf("on_cursor_position_changed", start_time)
 
     def complete_text(self, item=None):
         if item is None:
@@ -1698,23 +1751,75 @@ class FormulaEditor(QPlainTextEdit):
 
     def highlightCurrentLine(self):
         """Highlight the current line and maintain any operator highlights"""
+        start_time = self._log_perf("highlightCurrentLine")
+        
         selections = []
         results_selections = []
         
-        # Clear all cross-sheet highlights first
-        self.clear_cross_sheet_highlights()
+        # Get LN references from current line first for early exit
+        current_line_text = self.textCursor().block().text()
+        ln_matches = list(re.finditer(r'\b(?:s\.(.*?)\.)?ln(\d+)\b', current_line_text, re.IGNORECASE))
         
-        # Add current line highlight - but preserve user selections
+        # Early exit if no LN references - just do basic highlighting
+        if not ln_matches:
+            # Clear any existing cross-sheet highlights efficiently
+            clear_start = self._log_perf("clear_highlighted_sheets_only")
+            self.clear_highlighted_sheets_only()
+            self._log_perf("clear_highlighted_sheets_only", clear_start)
+            
+            # Basic current line highlight
+            sel = QTextEdit.ExtraSelection()
+            sel.format.setBackground(QColor(65, 65, 66))
+            sel.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+            sel.cursor = self.textCursor()
+            if not sel.cursor.hasSelection():
+                sel.cursor.clearSelection()
+            else:
+                sel.cursor = QTextCursor(sel.cursor.block())
+            selections.append(sel)
+            
+            # Add operator highlight if it exists
+            if self.current_highlight:
+                selections.append(self.current_highlight)
+            
+            # Basic result line highlight
+            if hasattr(self.parent, 'results'):
+                block_number = self.textCursor().blockNumber()
+                results_block = self.parent.results.document().findBlockByNumber(block_number)
+                if results_block.isValid():
+                    results_cursor = QTextCursor(results_block)
+                    sel_result = QTextEdit.ExtraSelection()
+                    sel_result.format.setBackground(QColor(65, 65, 66))
+                    sel_result.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+                    sel_result.cursor = results_cursor
+                    results_selections.append(sel_result)
+            
+            # Apply basic highlights and return early
+            apply_start = self._log_perf("setExtraSelections")
+            self.setExtraSelections(selections)
+            if hasattr(self.parent, 'results'):
+                self.parent.results.setExtraSelections(results_selections)
+            self._log_perf("setExtraSelections", apply_start)
+            
+            self._log_perf("highlightCurrentLine", start_time)
+            return
+        
+        # We have LN references, so do full highlighting
+        # Clear previous cross-sheet highlights efficiently
+        self.clear_highlighted_sheets_only()
+        
+        # Build/update cross-sheet cache if needed
+        if not self._cross_sheet_cache:
+            self.build_cross_sheet_cache()
+        
+        # Add current line highlight
         sel = QTextEdit.ExtraSelection()
-        sel.format.setBackground(QColor(65, 65, 66))  # Main line highlight color
+        sel.format.setBackground(QColor(65, 65, 66))
         sel.format.setProperty(QTextCharFormat.FullWidthSelection, True)
         sel.cursor = self.textCursor()
-        # Don't clear selection if user has manually selected text
         if not sel.cursor.hasSelection():
             sel.cursor.clearSelection()
         else:
-            # If user has a selection, create a new cursor for line highlighting
-            # that doesn't interfere with the user's selection
             sel.cursor = QTextCursor(sel.cursor.block())
         selections.append(sel)
         
@@ -1722,78 +1827,78 @@ class FormulaEditor(QPlainTextEdit):
         if self.current_highlight:
             selections.append(self.current_highlight)
         
-        # Add result line highlight - use block number for synchronization
+        # Add result line highlight
         if hasattr(self.parent, 'results'):
             block_number = self.textCursor().blockNumber()
             results_block = self.parent.results.document().findBlockByNumber(block_number)
             if results_block.isValid():
                 results_cursor = QTextCursor(results_block)
                 sel_result = QTextEdit.ExtraSelection()
-                sel_result.format.setBackground(QColor(65, 65, 66))  # Match editor highlight color
+                sel_result.format.setBackground(QColor(65, 65, 66))
                 sel_result.format.setProperty(QTextCharFormat.FullWidthSelection, True)
                 sel_result.cursor = results_cursor
                 results_selections.append(sel_result)
         
-        # Get LN references from current line
-        current_line_text = self.textCursor().block().text()
-        # Make the regex case-insensitive and include cross-sheet references
-        ln_matches = list(re.finditer(r'\b(?:s\.(.*?)\.)?ln(\d+)\b', current_line_text, re.IGNORECASE))
-        
         calculator = self.get_calculator()
         
-        # Collect cross-sheet highlights by sheet
+        # Collect cross-sheet highlights by sheet (batch operations)
         cross_sheet_highlights = {}
-        cross_sheet_results_highlights = {}  # Add tracking for results highlights
+        cross_sheet_results_highlights = {}
         
-        # Highlight referenced lines with matching colors
+        # Process each LN reference efficiently
         for match in ln_matches:
             sheet_name = match.group(1)  # Will be None for regular LN refs
             ln_id = int(match.group(2))
-            # Get the color used for this LN reference
             ln_color = self.highlighter.get_ln_color(ln_id)
-            # Create darker version for background
             bg_color = self.highlighter.get_darker_color(ln_color)
             
             if sheet_name and calculator:  # Cross-sheet reference
-                # Find the referenced sheet
-                for i in range(calculator.tabs.count()):
-                    if calculator.tabs.tabText(i).lower() == sheet_name.lower():
-                        other_sheet = calculator.tabs.widget(i)
-                        # Find and highlight the referenced line in the other sheet
-                        doc = other_sheet.editor.document()
-                        for j in range(doc.blockCount()):
-                            blk = doc.findBlockByNumber(j)
-                            user_data = blk.userData()
-                            if isinstance(user_data, LineData) and user_data.id == ln_id:
-                                # Create highlight for cross-sheet reference (editor column)
-                                highlight_cursor = QTextCursor(blk)
-                                sel_ref = QTextEdit.ExtraSelection()
-                                sel_ref.format.setBackground(bg_color)
-                                sel_ref.format.setProperty(QTextCharFormat.FullWidthSelection, True)
-                                sel_ref.cursor = highlight_cursor
+                sheet_name_lower = sheet_name.lower()
+                
+                # Use cached lookup for cross-sheet references
+                if sheet_name_lower in self._cross_sheet_cache:
+                    sheet_cache = self._cross_sheet_cache[sheet_name_lower]
+                    if ln_id in sheet_cache:
+                        line_number = sheet_cache[ln_id]
+                        
+                        # Find the actual sheet widget
+                        for i in range(calculator.tabs.count()):
+                            if calculator.tabs.tabText(i).lower() == sheet_name_lower:
+                                other_sheet = calculator.tabs.widget(i)
                                 
-                                # Collect highlights by sheet
-                                if other_sheet not in cross_sheet_highlights:
-                                    cross_sheet_highlights[other_sheet] = []
-                                cross_sheet_highlights[other_sheet].append(sel_ref)
+                                # Track that this sheet will have highlights
+                                self._highlighted_sheets.add(other_sheet)
                                 
-                                # Also highlight the results column in the other sheet
-                                if hasattr(other_sheet, 'results'):
-                                    results_block = other_sheet.results.document().findBlockByNumber(j)
-                                    if results_block.isValid():
-                                        results_cursor = QTextCursor(results_block)
-                                        sel_result = QTextEdit.ExtraSelection()
-                                        sel_result.format.setBackground(bg_color)
-                                        sel_result.format.setProperty(QTextCharFormat.FullWidthSelection, True)
-                                        sel_result.cursor = results_cursor
-                                        
-                                        # Collect results highlights by sheet
-                                        if other_sheet not in cross_sheet_results_highlights:
-                                            cross_sheet_results_highlights[other_sheet] = []
-                                        cross_sheet_results_highlights[other_sheet].append(sel_result)
+                                # Create editor highlight
+                                doc = other_sheet.editor.document()
+                                blk = doc.findBlockByNumber(line_number)
+                                if blk.isValid():
+                                    highlight_cursor = QTextCursor(blk)
+                                    sel_ref = QTextEdit.ExtraSelection()
+                                    sel_ref.format.setBackground(bg_color)
+                                    sel_ref.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+                                    sel_ref.cursor = highlight_cursor
+                                    
+                                    if other_sheet not in cross_sheet_highlights:
+                                        cross_sheet_highlights[other_sheet] = []
+                                    cross_sheet_highlights[other_sheet].append(sel_ref)
+                                    
+                                    # Create results highlight
+                                    if hasattr(other_sheet, 'results'):
+                                        results_block = other_sheet.results.document().findBlockByNumber(line_number)
+                                        if results_block.isValid():
+                                            results_cursor = QTextCursor(results_block)
+                                            sel_result = QTextEdit.ExtraSelection()
+                                            sel_result.format.setBackground(bg_color)
+                                            sel_result.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+                                            sel_result.cursor = results_cursor
+                                            
+                                            if other_sheet not in cross_sheet_results_highlights:
+                                                cross_sheet_results_highlights[other_sheet] = []
+                                            cross_sheet_results_highlights[other_sheet].append(sel_result)
                                 break
-            else:  # Regular LN reference
-                # Find and highlight the referenced line
+                            
+            else:  # Regular LN reference - use faster lookup
                 doc = self.document()
                 for i in range(doc.blockCount()):
                     blk = doc.findBlockByNumber(i)
@@ -1807,7 +1912,7 @@ class FormulaEditor(QPlainTextEdit):
                         sel_ref.cursor = highlight_cursor
                         selections.append(sel_ref)
                         
-                        # Highlight in results - use the same block number
+                        # Highlight in results
                         if hasattr(self.parent, 'results'):
                             results_block = self.parent.results.document().findBlockByNumber(i)
                             if results_block.isValid():
@@ -1819,15 +1924,14 @@ class FormulaEditor(QPlainTextEdit):
                                 results_selections.append(sel_result)
                         break
         
-        # Apply highlights to current sheet
+        # Apply all highlights in batch operations
         self.setExtraSelections(selections)
         if hasattr(self.parent, 'results'):
             self.parent.results.setExtraSelections(results_selections)
         
-        # Apply cross-sheet highlights (both editor and results columns)
+        # Apply cross-sheet highlights in batch
         for other_sheet, highlights in cross_sheet_highlights.items():
             other_sheet.editor.setExtraSelections(highlights)
-            # Also apply results highlights if available
             if other_sheet in cross_sheet_results_highlights and hasattr(other_sheet, 'results'):
                 other_sheet.results.setExtraSelections(cross_sheet_results_highlights[other_sheet])
 
@@ -2068,6 +2172,19 @@ class FormulaEditor(QPlainTextEdit):
         ctrl = event.modifiers() & Qt.ControlModifier
         alt = event.modifiers() & Qt.AltModifier
         k = event.key()
+        
+        # Debug shortcut to print performance log
+        if k == Qt.Key_P and ctrl and alt:
+            self.print_perf_summary()
+            event.accept()
+            return
+        
+        # Track navigation keys for debugging
+        if self._debug_enabled and k in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_PageUp, Qt.Key_PageDown):
+            key_name = {Qt.Key_Up: "Up", Qt.Key_Down: "Down", Qt.Key_Left: "Left", Qt.Key_Right: "Right", 
+                       Qt.Key_PageUp: "PageUp", Qt.Key_PageDown: "PageDown"}.get(k, str(k))
+            current_line = self.textCursor().blockNumber()
+            print(f"KEY: {key_name} pressed at line {current_line}")
         
         # Store scroll position before key handling for arrow keys
         old_scroll = self.verticalScrollBar().value()
@@ -2463,6 +2580,157 @@ class FormulaEditor(QPlainTextEdit):
                     
             painter.end()
 
+    def build_cross_sheet_cache(self):
+        """Build cache for fast cross-sheet lookups"""
+        calculator = self.get_calculator()
+        if not calculator:
+            return
+            
+        self._cross_sheet_cache.clear()
+        
+        # Build cache for all sheets
+        for i in range(calculator.tabs.count()):
+            sheet = calculator.tabs.widget(i)
+            if sheet != self.parent and hasattr(sheet, 'editor'):
+                sheet_name = calculator.tabs.tabText(i).lower()
+                sheet_cache = {}
+                
+                doc = sheet.editor.document()
+                for j in range(doc.blockCount()):
+                    blk = doc.findBlockByNumber(j)
+                    user_data = blk.userData()
+                    if isinstance(user_data, LineData):
+                        sheet_cache[user_data.id] = j
+                        
+                self._cross_sheet_cache[sheet_name] = sheet_cache
+
+    def clear_highlighted_sheets_only(self):
+        """Clear highlights only from sheets that were previously highlighted"""
+        calculator = self.get_calculator()
+        if not calculator:
+            return
+            
+        # Only clear sheets that we know have highlights
+        for sheet in self._highlighted_sheets:
+            if hasattr(sheet, 'editor'):
+                sheet.editor.setExtraSelections([])
+                if hasattr(sheet, 'results'):
+                    sheet.results.setExtraSelections([])
+        
+        # Clear the set of highlighted sheets
+        self._highlighted_sheets.clear()
+
+    def _do_highlight_current_line(self):
+        """Actual highlighting implementation - called by debounced timer"""
+        start_time = self._log_perf("_do_highlight_current_line")
+        self._last_highlighted_line = self._last_line
+        self.highlightCurrentLine()
+        self._log_perf("_do_highlight_current_line", start_time)
+
+    def _end_rapid_navigation(self):
+        """Mark end of rapid navigation period and trigger full highlighting"""
+        if self._debug_enabled:
+            print(f"RAPID NAV: Ended")
+        self._is_rapid_navigation = False
+        self._nav_move_count = 0
+        self._last_nav_time = 0
+        
+        # Trigger full highlighting now that rapid navigation has ended
+        if self._last_highlighted_line != self._last_line:
+            self._highlight_timer.start()
+
+    def _do_basic_highlight_only(self):
+        """Highlight the current line without processing LN references"""
+        selections = []
+        results_selections = []
+        
+        # Basic current line highlight
+        sel = QTextEdit.ExtraSelection()
+        sel.format.setBackground(QColor(65, 65, 66))
+        sel.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+        sel.cursor = self.textCursor()
+        if not sel.cursor.hasSelection():
+            sel.cursor.clearSelection()
+        else:
+            sel.cursor = QTextCursor(sel.cursor.block())
+        selections.append(sel)
+        
+        # Add operator highlight if it exists
+        if self.current_highlight:
+            selections.append(self.current_highlight)
+        
+        # Add result line highlight
+        if hasattr(self.parent, 'results'):
+            block_number = self.textCursor().blockNumber()
+            results_block = self.parent.results.document().findBlockByNumber(block_number)
+            if results_block.isValid():
+                results_cursor = QTextCursor(results_block)
+                sel_result = QTextEdit.ExtraSelection()
+                sel_result.format.setBackground(QColor(65, 65, 66))
+                sel_result.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+                sel_result.cursor = results_cursor
+                results_selections.append(sel_result)
+        
+        # Apply basic highlights only - no LN processing during rapid navigation
+        self.setExtraSelections(selections)
+        if hasattr(self.parent, 'results'):
+            self.parent.results.setExtraSelections(results_selections)
+
+    def _log_perf(self, method_name, start_time=None):
+        """Log performance measurements"""
+        if not self._debug_enabled:
+            return
+            
+        current_time = time.time() * 1000
+        if start_time is None:
+            # Starting measurement
+            self._call_stack.append((method_name, current_time))
+            return current_time
+        else:
+            # Ending measurement
+            duration = current_time - start_time
+            if duration > 10:  # Only log operations taking more than 10ms
+                cursor_line = self.textCursor().blockNumber()
+                log_entry = f"[{current_time:.0f}] {method_name}: {duration:.1f}ms (line {cursor_line})"
+                self._perf_log.append(log_entry)
+                print(log_entry)  # Real-time console output
+                
+                # Keep only last 50 entries
+                if len(self._perf_log) > 50:
+                    self._perf_log = self._perf_log[-50:]
+            
+            # Remove from call stack
+            if self._call_stack and self._call_stack[-1][0] == method_name:
+                self._call_stack.pop()
+
+    def _check_scroll_sync_issue(self):
+        """Check if scroll positions are mismatched"""
+        if not self._debug_enabled or not hasattr(self.parent, 'results'):
+            return
+            
+        editor_scroll = self.verticalScrollBar().value()
+        results_scroll = self.parent.results.verticalScrollBar().value()
+        
+        editor_max = self.verticalScrollBar().maximum()
+        results_max = self.parent.results.verticalScrollBar().maximum()
+        
+        if editor_max > 0 and results_max > 0:
+            editor_ratio = editor_scroll / editor_max
+            results_ratio = results_scroll / results_max
+            
+            if abs(editor_ratio - results_ratio) > 0.05:  # 5% difference
+                print(f"SCROLL SYNC ISSUE: Editor {editor_scroll}/{editor_max} ({editor_ratio:.2f}) vs Results {results_scroll}/{results_max} ({results_ratio:.2f})")
+
+    def print_perf_summary(self):
+        """Print recent performance log to console"""
+        if not self._debug_enabled:
+            return
+            
+        print("\n=== PERFORMANCE LOG (Last 10 entries) ===")
+        for entry in self._perf_log[-10:]:
+            print(entry)
+        print("==========================================\n")
+
 class Worksheet(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2508,6 +2776,10 @@ class Worksheet(QWidget):
         # Add flag to prevent infinite recursion during scroll synchronization
         self._syncing_scroll = False
         
+        # Add navigation vs text change tracking to prevent unnecessary evaluations
+        self._last_text_content = ""
+        self._is_pure_navigation = False
+        
         # Connect scrollbars for synchronization
         self.editor.verticalScrollBar().valueChanged.connect(self._sync_editor_to_results)
         self.results.verticalScrollBar().valueChanged.connect(self._sync_results_to_editor)
@@ -2518,14 +2790,24 @@ class Worksheet(QWidget):
         self.splitter.setSizes([600, 200])
         layout.addWidget(self.splitter)
         
-        # Setup evaluation timer
+        # Setup evaluation timer with longer delay to reduce excessive evaluation during navigation
         self.timer = QTimer(self)
-        self.timer.setInterval(300)
+        self.timer.setInterval(500)  # Increased from 300ms to 500ms to reduce evaluation frequency
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.evaluate_and_highlight)
         
+        # Add performance flags to prevent excessive evaluation during navigation
+        self._is_navigating = False
+        self._navigation_timer = QTimer(self)
+        self._navigation_timer.setInterval(100)  # Short timer to detect navigation
+        self._navigation_timer.setSingleShot(True)
+        self._navigation_timer.timeout.connect(self._end_navigation)
+        
         # Connect text changes to evaluation
-        self.editor.textChanged.connect(self.timer.start)
+        self.editor.textChanged.connect(self.on_text_potentially_changed)
+        
+        # Store initial text content for change detection
+        self._last_text_content = self.editor.toPlainText()
         
         # Initial evaluation
         QTimer.singleShot(0, self.evaluate_and_highlight)
@@ -2533,6 +2815,10 @@ class Worksheet(QWidget):
     def _sync_editor_to_results(self, value):
         """Sync results scrollbar when editor scrollbar changes"""
         if not self._syncing_scroll:
+            start_time = None
+            if hasattr(self.editor, '_log_perf'):
+                start_time = self.editor._log_perf("_sync_editor_to_results")
+                
             self._syncing_scroll = True
             try:
                 # Get the editor's scrollbar
@@ -2553,10 +2839,16 @@ class Worksheet(QWidget):
                     results_scrollbar.setValue(value)
             finally:
                 self._syncing_scroll = False
+                if start_time and hasattr(self.editor, '_log_perf'):
+                    self.editor._log_perf("_sync_editor_to_results", start_time)
 
     def _sync_results_to_editor(self, value):
         """Sync editor scrollbar when results scrollbar changes"""
         if not self._syncing_scroll:
+            start_time = None
+            if hasattr(self.editor, '_log_perf'):
+                start_time = self.editor._log_perf("_sync_results_to_editor")
+                
             self._syncing_scroll = True
             try:
                 # Get the scrollbars
@@ -2577,18 +2869,41 @@ class Worksheet(QWidget):
                     editor_scrollbar.setValue(value)
             finally:
                 self._syncing_scroll = False
+                if start_time and hasattr(self.editor, '_log_perf'):
+                    self.editor._log_perf("_sync_results_to_editor", start_time)
 
     def evaluate_and_highlight(self):
         """Evaluate formulas and ensure highlighting is updated"""
-        self.evaluate()
-        self.editor.highlightCurrentLine()
+        if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+            start_time = self.editor._log_perf("evaluate_and_highlight")
+            self.evaluate()
+            self.editor.highlightCurrentLine()
+            self.editor._log_perf("evaluate_and_highlight", start_time)
+        else:
+            self.evaluate()
+            self.editor.highlightCurrentLine()
 
-    def on_text_changed(self):
-        """Only start evaluation timer if text actually changed"""
-        if not hasattr(self.editor, '_cursor_triggered_eval'):
+    def on_text_potentially_changed(self):
+        """Called when text might have changed - check if it's real change vs navigation"""
+        current_text = self.editor.toPlainText()
+        
+        if current_text != self._last_text_content:
+            # Text actually changed
+            self._last_text_content = current_text
+            self._is_pure_navigation = False
+            
+            if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+                print(f"TEXT ACTUALLY CHANGED - starting evaluation timer")
+            
+            # Invalidate cross-sheet cache when content changes
+            if hasattr(self.editor, '_cross_sheet_cache'):
+                self.editor._cross_sheet_cache.clear()
             self.timer.start()
         else:
-            delattr(self.editor, '_cursor_triggered_eval')
+            # No text change - this is pure navigation, don't evaluate
+            if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+                print(f"NO TEXT CHANGE - skipping evaluation (pure navigation)")
+            self._is_pure_navigation = True
 
     def format_number_for_display(self, value, line_number):
         """Format a number for display with commas, storing the raw value separately for copying"""
@@ -2645,6 +2960,16 @@ class Worksheet(QWidget):
 
     def evaluate(self):
         """Evaluate formulas and update results"""
+        if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+            start_time = self.editor._log_perf("evaluate")
+            print(f"EVALUATION TRIGGERED at line {self.editor.textCursor().blockNumber()}")
+            
+            # Add stack trace to see what's calling evaluation
+            stack = traceback.extract_stack()
+            print("EVAL CALL STACK:")
+            for frame in stack[-5:-1]:  # Show last 4 frames before this one
+                print(f"  {frame.filename}:{frame.lineno} in {frame.name}()")
+        
         # Store current cursor and scroll positions
         cursor = self.editor.textCursor()
         editor_scroll = self.editor.verticalScrollBar().value()
@@ -2696,15 +3021,10 @@ class Worksheet(QWidget):
 
         def preprocess_expression(expr):
             """Pre-process expression to handle padded numbers and other special cases"""
-            # Debug: Print original expression if it contains TC
-            if 'TC(' in expr:
-                print(f"DEBUG: Original TC expression: {expr}")
-            
             # Handle timecode arithmetic first (BEFORE comma removal to preserve function arguments)
             tc_match = re.match(r'TC\((.*?)\)', expr)
             if tc_match:
                 tc_args = tc_match.group(1)
-                print(f"DEBUG: TC args extracted: '{tc_args}'")
                 
                 # Split on commas that aren't inside arithmetic expressions
                 parts = []
@@ -2722,8 +3042,6 @@ class Worksheet(QWidget):
                         current += char
                 if current:
                     parts.append(current.strip())
-                
-                print(f"DEBUG: TC parts after splitting: {parts}")
                 
                 # Process each part
                 processed_parts = []
@@ -2763,11 +3081,8 @@ class Worksheet(QWidget):
                             part = f'"{cleaned}"'
                         processed_parts.append(part)
                 
-                print(f"DEBUG: TC processed parts: {processed_parts}")
-                
                 # Reconstruct the TC call
                 expr = f"TC({','.join(processed_parts)})"
-                print(f"DEBUG: TC reconstructed expression: {expr}")
             
             # Handle aspect ratio calculations
             ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
@@ -2808,10 +3123,6 @@ class Worksheet(QWidget):
                 return str(int(m.group(1)))
             
             expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
-            
-            # Debug: Print final expression if it contains TC
-            if 'TC(' in expr:
-                print(f"DEBUG: Final TC expression: {expr}")
             
             return expr
 
@@ -2936,7 +3247,7 @@ class Worksheet(QWidget):
                 data = blk.userData()
                 if isinstance(data, LineData):
                     self.editor.ln_value_map[data.id] = vals[idx]
-                out.append("&nbsp;")
+                out.append("")
                 continue
             
             if s.startswith(":::"):  # Comment line
@@ -2945,7 +3256,7 @@ class Worksheet(QWidget):
                 data = blk.userData()
                 if isinstance(data, LineData):
                     self.editor.ln_value_map[data.id] = vals[idx]
-                out.append("&nbsp;")
+                out.append("")
                 continue
 
             # Try special cases first
@@ -3050,26 +3361,26 @@ class Worksheet(QWidget):
                 # Process LN references if present
                 if re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", s, re.IGNORECASE):
                     s = self.editor.process_ln_refs(s)
-                    print(f"Line {idx + 1} after processing refs: {s}")  # Debug print
+                    # print(f"Line {idx + 1} after processing refs: {s}")  # Debug print - commented for performance
 
                 # Try to evaluate the expression with math functions
                 v = eval(s, {"truncate": truncate, "mean": statistics.mean, **GLOBALS}, {})
                 vals[idx] = v
                 if current_id:
                     self.editor.ln_value_map[current_id] = vals[idx]
-                    print(f"Stored value {v} for line ID {current_id}")  # Debug print
+                    # print(f"Stored value {v} for line ID {current_id}")  # Debug print - commented for performance
                 
                 # Format the output
                 out.append(self.format_number_for_display(v, idx))
             except TimecodeError as e:
                 # Handle TimecodeError specifically to show the actual error message
-                print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print
+                # print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print - commented for performance
                 vals[idx] = None
                 if current_id:
                     self.editor.ln_value_map[current_id] = None
                 out.append(f'TC ERROR: {str(e)}')
             except Exception as e:
-                print(f"Error evaluating line {idx + 1}: {str(e)}")  # Debug print
+                # print(f"Error evaluating line {idx + 1}: {str(e)}")  # Debug print - commented for performance
                 vals[idx] = None
                 if current_id:
                     self.editor.ln_value_map[current_id] = None
@@ -3112,6 +3423,15 @@ class Worksheet(QWidget):
             self.editor.mousePressEvent(event)
         else:
             super().mousePressEvent(event)
+
+    def _end_navigation(self):
+        """Mark end of navigation period"""
+        self._is_navigating = False
+
+    def _start_navigation(self):
+        """Mark start of navigation period"""
+        self._is_navigating = True
+        self._navigation_timer.start()
 
 class Calculator(QWidget):
     def __init__(self):
@@ -3243,14 +3563,23 @@ class Calculator(QWidget):
             ws.splitter.restoreState(self.splitter_state)
         # Position cursor at end for new tabs
         self.position_cursor_at_end(ws.editor)
+        
+        # Invalidate cross-sheet caches in all editors
+        self.invalidate_all_cross_sheet_caches()
 
     def close_tab(self,idx):
-        if self.tabs.count()>1: self.tabs.removeTab(idx)
+        if self.tabs.count()>1: 
+            self.tabs.removeTab(idx)
+            # Invalidate cross-sheet caches in all editors
+            self.invalidate_all_cross_sheet_caches()
 
     def rename_tab(self,idx):
         if idx>=0:
             text,ok=QInputDialog.getText(self,"Rename Sheet","New name:")
-            if ok and text: self.tabs.setTabText(idx,text)
+            if ok and text: 
+                self.tabs.setTabText(idx,text)
+                # Invalidate cross-sheet caches in all editors
+                self.invalidate_all_cross_sheet_caches()
 
     def closeEvent(self,event):
         self.settings.setValue('geometry',self.saveGeometry())
@@ -3533,6 +3862,13 @@ class Calculator(QWidget):
     def on_tab_changed(self, index):
         """Disabled to prevent cursor synchronization issues with cross-sheet highlighting"""
         pass
+
+    def invalidate_all_cross_sheet_caches(self):
+        """Invalidate cross-sheet caches in all editor instances"""
+        for i in range(self.tabs.count()):
+            sheet = self.tabs.widget(i)
+            if hasattr(sheet, 'editor') and hasattr(sheet.editor, '_cross_sheet_cache'):
+                sheet.editor._cross_sheet_cache.clear()
 
 def verify_icon_file(icon_path):
     """Verify that the icon file contains all required sizes."""
