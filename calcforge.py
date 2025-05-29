@@ -2482,9 +2482,6 @@ class Worksheet(QWidget):
         # Connect text changes to evaluation
         self.editor.textChanged.connect(self.timer.start)
         
-        # Connect splitter movement
-        self.splitter.splitterMoved.connect(lambda: QTimer.singleShot(100, self.evaluate_and_highlight))
-        
         # Initial evaluation
         QTimer.singleShot(0, self.evaluate_and_highlight)
 
