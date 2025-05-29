@@ -14,7 +14,6 @@ try:
     CURRENCY_API_AVAILABLE = True
 except ImportError:
     CURRENCY_API_AVAILABLE = False
-    print("Warning: requests library not found. Currency conversion will use approximate rates.")
 
 # Currency exchange rates (fallback if API fails)
 FALLBACK_RATES = {
@@ -222,8 +221,6 @@ def parse_timecode(tc_str):
     tc_str = tc_str.replace('.', ':')
     parts = tc_str.split(':')
     
-    print(f"Parsing timecode: {tc_str} into parts: {parts}")  # Debug print
-    
     if len(parts) != 4:
         raise TimecodeError(f"Invalid timecode format: {tc_str}. Expected HH:MM:SS:FF")
     
@@ -233,9 +230,7 @@ def parse_timecode(tc_str):
         seconds = int(parts[2])
         frames = int(parts[3])
         
-        print(f"Parsed values - H:{hours} M:{minutes} S:{seconds} F:{frames}")  # Debug print
-        
-        # Validate ranges (removed frame validation since we don't know fps here)
+        # Validate ranges
         if not (0 <= hours and 0 <= minutes < 60 and 0 <= seconds < 60 and 0 <= frames):
             raise TimecodeError(f"Invalid timecode values in: {tc_str}")
         
@@ -245,8 +240,6 @@ def parse_timecode(tc_str):
 
 def timecode_to_frames(tc_str, fps):
     """Convert a timecode string to total frames"""
-    print(f"Converting timecode: {tc_str} at {fps} fps")  # Debug print
-    
     if isinstance(tc_str, (int, float)):
         return int(tc_str)
         
@@ -269,7 +262,6 @@ def timecode_to_frames(tc_str, fps):
         drops = 2 * (total_minutes - total_minutes // 10)
         
         result = total_frames - drops
-        print(f"29.97 fps result: {result} frames")  # Debug print
         return result
         
     elif abs(fps - 59.94) < 0.01:
@@ -283,7 +275,6 @@ def timecode_to_frames(tc_str, fps):
         drops = 4 * (total_minutes - total_minutes // 10)
         
         result = total_frames - drops
-        print(f"59.94 fps result: {result} frames")  # Debug print
         return result
         
     elif abs(fps - 23.976) < 0.01:
@@ -291,13 +282,11 @@ def timecode_to_frames(tc_str, fps):
         exact_fps = 24000 / 1001
         total_seconds = hours * 3600 + minutes * 60 + seconds
         result = int(round(total_seconds * exact_fps)) + frames
-        print(f"23.976 fps result: {result} frames")  # Debug print
         return result
     else:
         # Non-drop frame rates - simple calculation
         total_seconds = hours * 3600 + minutes * 60 + seconds
         result = int(total_seconds * fps) + frames
-        print(f"Standard {fps} fps result: {result} frames")  # Debug print
         return result
 
 def frames_to_timecode(frame_count, fps):
@@ -367,26 +356,21 @@ def frames_to_timecode(frame_count, fps):
 
 def evaluate_timecode_expr(fps, expr):
     """Evaluate a timecode expression"""
-    print(f"Evaluating timecode expression: {expr} at {fps} fps")  # Debug print
-    
     # If it's just a number, convert it to timecode
     if isinstance(expr, (int, float)):
         return frames_to_timecode(int(expr), fps)
     
     # Normalize all timecode separators to colons
     expr = expr.replace('.', ':')
-    print(f"Normalized expression: {expr}")  # Debug print
     
     # Find all timecodes and operators in the expression
     tc_pattern = r'\d{1,2}[:\.]\d{2}[:\.]\d{2}[:\.]\d{2}'
     
     # First, standardize the expression by adding spaces around operators
     expr = re.sub(r'([+\-*/])', r' \1 ', expr.strip())
-    print(f"Standardized expression: {expr}")  # Debug print
     
     # Split the expression into tokens
     tokens = expr.split()
-    print(f"Tokens: {tokens}")  # Debug print
     
     # Process each token
     result = None
@@ -418,7 +402,6 @@ def evaluate_timecode_expr(fps, expr):
                 elif current_op == '/':
                     result /= frames
         except Exception as e:
-            print(f"Error processing token {token}: {str(e)}")  # Debug print
             raise TimecodeError(f"Error in timecode expression: {str(e)}")
     
     if result is None:
@@ -433,7 +416,6 @@ def TC(fps, *args):
     
     # Join all arguments to handle expressions with spaces
     expr = ' '.join(str(arg) for arg in args)
-    print(f"TC function called with fps={fps}, expr={expr}")  # Debug print
     
     try:
         fps = float(fps)
@@ -442,7 +424,6 @@ def TC(fps, *args):
         
         # Clean up the expression
         expr = expr.strip()
-        print(f"Cleaned expression: {expr}")  # Debug print
         
         # If it's a simple number, convert frames to timecode
         if expr.isdigit():
@@ -453,15 +434,12 @@ def TC(fps, *args):
         if re.match(r'^\d{1,2}[:\.]\d{1,2}[:\.]\d{1,2}[:\.]\d{1,2}$', expr):
             # Normalize to use colons
             expr = expr.replace('.', ':')
-            print(f"Processing single timecode: {expr}")  # Debug print
             frames = timecode_to_frames(expr, fps)
-            print(f"Converted to frames: {frames}")  # Debug print
             return str(frames)
             
         # Handle timecode arithmetic
         return evaluate_timecode_expr(fps, expr)
     except Exception as e:
-        print(f"Error in TC function: {str(e)}")  # Debug print
         raise TimecodeError(f"Error in TC function: {str(e)}")
 
 def AR(original, target):
@@ -471,8 +449,6 @@ def AR(original, target):
         original_str = str(original).strip()
         target_str = str(target).strip()
         
-        print(f"AR function called with: {original_str}, {target_str}")  # Debug
-        
         # Parse original dimensions (e.g., "1920x1080")
         original_match = re.match(r'(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)', original_str, re.IGNORECASE)
         if not original_match:
@@ -481,8 +457,6 @@ def AR(original, target):
         orig_width = float(original_match.group(1))
         orig_height = float(original_match.group(2))
         aspect_ratio = orig_width / orig_height
-        
-        print(f"Original: {orig_width}x{orig_height}, Aspect ratio: {aspect_ratio}")  # Debug
         
         # Parse target dimensions (e.g., "?x2000" or "1280x?")
         target_match = re.match(r'(\?|\d+(?:\.\d+)?)x(\?|\d+(?:\.\d+)?)', target_str, re.IGNORECASE)
@@ -498,7 +472,6 @@ def AR(original, target):
             target_height = float(target_height_str)
             result_width = target_height * aspect_ratio
             result = f"{result_width:.0f}x{target_height:.0f}"
-            print(f"Solved for width: {result}")  # Debug
             return result
             
         elif target_height_str == '?' and target_width_str != '?':
@@ -506,20 +479,16 @@ def AR(original, target):
             target_width = float(target_width_str)
             result_height = target_width / aspect_ratio
             result = f"{target_width:.0f}x{result_height:.0f}"
-            print(f"Solved for height: {result}")  # Debug
             return result
             
         else:
             raise ValueError("Exactly one dimension must be '?' to solve for")
             
     except Exception as e:
-        print(f"Error in AR function: {str(e)}")  # Debug
         raise ValueError(f"Aspect ratio calculation error: {str(e)}")
 
 def preprocess_expression(expr):
     """Pre-process expression to handle padded numbers and other special cases"""
-    print(f"DEBUG: preprocess_expression called with: {expr}")  # Debug
-    
     # Handle commas in numbers (thousands separators) first
     # Match numbers with commas like 1,234 or 1,234.56
     # Be careful not to match commas in function calls or other contexts
@@ -533,12 +502,10 @@ def preprocess_expression(expr):
     # But avoids matching commas in function calls or other contexts
     comma_number_pattern = r'\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b'
     expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
-    print(f"DEBUG: After comma removal: {expr}")  # Debug
     
     # Handle timecode arithmetic first
     tc_match = re.match(r'TC\((.*?)\)', expr)
     if tc_match:
-        print(f"DEBUG: Found TC match: {tc_match.group(1)}")  # Debug
         tc_args = tc_match.group(1)
         # Split on commas that aren't inside arithmetic expressions
         parts = []
@@ -557,12 +524,9 @@ def preprocess_expression(expr):
         if current:
             parts.append(current.strip())
         
-        print(f"DEBUG: TC parts: {parts}")  # Debug
-        
         # Process each part
         processed_parts = []
         for i, part in enumerate(parts):
-            print(f"DEBUG: Processing part {i}: {repr(part)}")  # Debug
             # Skip the first part (fps)
             if i == 0:
                 processed_parts.append(part)
@@ -570,7 +534,6 @@ def preprocess_expression(expr):
                 
             # Handle arithmetic in timecode expressions
             if any(op in part for op in '+-*/'):
-                print(f"DEBUG: Part has arithmetic: {part}")  # Debug
                 # First convert any timecodes to frame counts
                 def convert_tc(m):
                     tc = m.group(0).replace('.', ':')  # Normalize separators
@@ -588,32 +551,23 @@ def preprocess_expression(expr):
             else:
                 # For non-arithmetic parts, check if it's a timecode and quote it
                 if re.match(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', part):
-                    print(f"DEBUG: Part matches timecode pattern, quoting: {part}")  # Debug
                     # Quote the timecode string
                     part = f'"{part}"'
                 # If it's a frame number, leave it as is
                 elif part.isdigit():
-                    print(f"DEBUG: Part is digit: {part}")  # Debug
                     pass
                 # If it looks like a timecode but might have spaces, clean it up and quote it
                 elif re.search(r'\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}', part):
-                    print(f"DEBUG: Part matches spaced timecode pattern: {part}")  # Debug
                     cleaned = re.sub(r'\s+', '', part).replace('.', ':')
                     part = f'"{cleaned}"'
-                else:
-                    print(f"DEBUG: Part doesn't match any pattern: {part}")  # Debug
                 processed_parts.append(part)
-        
-        print(f"DEBUG: Processed parts: {processed_parts}")  # Debug
         
         # Reconstruct the TC call
         expr = f"TC({','.join(processed_parts)})"
-        print(f"DEBUG: Final expression: {expr}")  # Debug
     
     # Handle aspect ratio calculations
     ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
     if ar_match:
-        print(f"DEBUG: Found AR match: {ar_match.group(1)}")  # Debug
         ar_args = ar_match.group(1)
         # Split on comma
         parts = [part.strip() for part in ar_args.split(',')]
@@ -622,7 +576,6 @@ def preprocess_expression(expr):
             # Quote both parts since they contain dimension strings
             quoted_parts = [f'"{part}"' for part in parts]
             expr = f"AR({','.join(quoted_parts)})"
-            print(f"DEBUG: Final AR expression: {expr}")  # Debug
     
     # Replace numbers with leading zeros outside of timecodes and quoted strings
     def repl_num(m):
@@ -638,7 +591,6 @@ def preprocess_expression(expr):
         return str(int(m.group(1)))
     
     expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
-    print(f"DEBUG: After leading zero replacement: {expr}")  # Debug
     return expr
 
 # Add TC function and math functions to evaluation namespace
@@ -791,7 +743,7 @@ def get_exchange_rate(from_currency, to_currency):
                 if 'rates' in data and to_currency.upper() in data['rates']:
                     return data['rates'][to_currency.upper()]
         except Exception as e:
-            print(f"Currency API failed: {e}, using fallback rates")
+            pass
     
     # Fall back to static rates
     from_rate = FALLBACK_RATES.get(from_currency.lower(), None)
@@ -1026,14 +978,9 @@ class KeyEventFilter(QObject):
             cursor = self.editor.textCursor()
             has_selection = cursor.hasSelection()
             
-            print(f"DEBUG FILTER: key={k} ctrl={ctrl} hasSelection={has_selection}")
-            
-            # If we have a selection, block the initial Ctrl key press (key code 16777249)
             if has_selection and k == 16777249:  # This is the Ctrl key
-                print("DEBUG FILTER: Blocking initial Ctrl key to preserve selection")
                 return True
             
-            # If we have a selection and this is a Ctrl key combination we want to handle specially
             if has_selection and ctrl:
                 if k == Qt.Key_C:
                     # Handle Ctrl+C directly here to prevent Qt from clearing selection
@@ -1043,12 +990,10 @@ class KeyEventFilter(QObject):
                         text = selected_text.replace('\u2029', '\n').replace('\u2028', '\n')
                         clipboard = QApplication.clipboard()
                         clipboard.setText(text)
-                        print(f"DEBUG FILTER: Copied '{text}' directly")
                         return True  # Event handled, don't pass to Qt
                         
                 elif k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
                     # For Ctrl+arrow keys with an existing selection, do nothing to preserve selection
-                    print(f"DEBUG FILTER: Blocking Ctrl+arrow to preserve selection")
                     return True  # Block the event to preserve selection
         
         # For all other events, pass through normally
@@ -1432,11 +1377,9 @@ class FormulaEditor(QPlainTextEdit):
                 if result.is_integer():
                     result = int(result)
             
-            print(f"Calculated {expr} = {result}")  # Debug
             return result
             
         except Exception as e:
-            print(f"Error calculating {expr}: {str(e)}")  # Debug
             return None
 
     def find_operator_results(self, text, block_position):
@@ -1480,9 +1423,8 @@ class FormulaEditor(QPlainTextEdit):
                             # Store result with the operator's position
                             abs_pos = block_position + op_pos
                             self.operator_results_map[abs_pos] = result
-                            print(f"Found operator '{text[op_pos]}' at pos {op_pos}, subexpr: {subexpr}, result: {result}")
                     except Exception as e:
-                        print(f"Error calculating {subexpr}: {str(e)}")
+                        pass
 
     def get_sheet_value(self, sheet_name, ln_number):
         """Get a value from a specific sheet by name and line number"""
@@ -1536,7 +1478,6 @@ class FormulaEditor(QPlainTextEdit):
                     # Extract numeric value if needed
                     v = self.get_numeric_value(v)
                     return str(v)
-                print(f"Failed to get value from sheet {sheet_name} line {ln}")  # Debug print
                 return "0"
             else:  # Regular LN reference
                 ln = int(m.group(4))
@@ -1546,7 +1487,6 @@ class FormulaEditor(QPlainTextEdit):
                         # Extract numeric value if needed
                         v = self.get_numeric_value(v)
                         return str(v)
-                print(f"Failed to get value for LN{ln}")  # Debug print
                 return "0"
 
         # First capitalize s. to S. for consistency
@@ -1564,7 +1504,6 @@ class FormulaEditor(QPlainTextEdit):
             prev_expr = expr
             expr = re.sub(pattern, repl, expr)
             
-        print(f"Processed expression: {expr}")  # Debug print
         return expr
 
     def highlight_expression(self, block, start, end):
@@ -1647,7 +1586,7 @@ class FormulaEditor(QPlainTextEdit):
                                     QToolTip.showText(event.globalPosition().toPoint(), f"Result: {result}", self)
                                     return True
                             except Exception as e:
-                                print(f"Error calculating {expr}: {str(e)}")
+                                pass
                         break
 
                 # Handle LN reference tooltips (keep existing LN tooltip logic)
@@ -2665,8 +2604,6 @@ class Worksheet(QWidget):
 
         def preprocess_expression(expr):
             """Pre-process expression to handle padded numbers and other special cases"""
-            print(f"DEBUG: preprocess_expression called with: {expr}")  # Debug
-            
             # Handle commas in numbers (thousands separators) first
             # Match numbers with commas like 1,234 or 1,234.56
             # Be careful not to match commas in function calls or other contexts
@@ -2680,12 +2617,10 @@ class Worksheet(QWidget):
             # But avoids matching commas in function calls or other contexts
             comma_number_pattern = r'\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b'
             expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
-            print(f"DEBUG: After comma removal: {expr}")  # Debug
             
             # Handle timecode arithmetic first
             tc_match = re.match(r'TC\((.*?)\)', expr)
             if tc_match:
-                print(f"DEBUG: Found TC match: {tc_match.group(1)}")  # Debug
                 tc_args = tc_match.group(1)
                 # Split on commas that aren't inside arithmetic expressions
                 parts = []
@@ -2704,12 +2639,9 @@ class Worksheet(QWidget):
                 if current:
                     parts.append(current.strip())
                 
-                print(f"DEBUG: TC parts: {parts}")  # Debug
-                
                 # Process each part
                 processed_parts = []
                 for i, part in enumerate(parts):
-                    print(f"DEBUG: Processing part {i}: {repr(part)}")  # Debug
                     # Skip the first part (fps)
                     if i == 0:
                         processed_parts.append(part)
@@ -2717,7 +2649,6 @@ class Worksheet(QWidget):
                         
                     # Handle arithmetic in timecode expressions
                     if any(op in part for op in '+-*/'):
-                        print(f"DEBUG: Part has arithmetic: {part}")  # Debug
                         # First convert any timecodes to frame counts
                         def convert_tc(m):
                             tc = m.group(0).replace('.', ':')  # Normalize separators
@@ -2735,32 +2666,23 @@ class Worksheet(QWidget):
                     else:
                         # For non-arithmetic parts, check if it's a timecode and quote it
                         if re.match(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', part):
-                            print(f"DEBUG: Part matches timecode pattern, quoting: {part}")  # Debug
                             # Quote the timecode string
                             part = f'"{part}"'
                         # If it's a frame number, leave it as is
                         elif part.isdigit():
-                            print(f"DEBUG: Part is digit: {part}")  # Debug
                             pass
                         # If it looks like a timecode but might have spaces, clean it up and quote it
                         elif re.search(r'\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}', part):
-                            print(f"DEBUG: Part matches spaced timecode pattern: {part}")  # Debug
                             cleaned = re.sub(r'\s+', '', part).replace('.', ':')
                             part = f'"{cleaned}"'
-                        else:
-                            print(f"DEBUG: Part doesn't match any pattern: {part}")  # Debug
                         processed_parts.append(part)
-                
-                print(f"DEBUG: Processed parts: {processed_parts}")  # Debug
                 
                 # Reconstruct the TC call
                 expr = f"TC({','.join(processed_parts)})"
-                print(f"DEBUG: Final expression: {expr}")  # Debug
             
             # Handle aspect ratio calculations
             ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
             if ar_match:
-                print(f"DEBUG: Found AR match: {ar_match.group(1)}")  # Debug
                 ar_args = ar_match.group(1)
                 # Split on comma
                 parts = [part.strip() for part in ar_args.split(',')]
@@ -2769,7 +2691,6 @@ class Worksheet(QWidget):
                     # Quote both parts since they contain dimension strings
                     quoted_parts = [f'"{part}"' for part in parts]
                     expr = f"AR({','.join(quoted_parts)})"
-                    print(f"DEBUG: Final AR expression: {expr}")  # Debug
             
             # Replace numbers with leading zeros outside of timecodes and quoted strings
             def repl_num(m):
@@ -2785,7 +2706,6 @@ class Worksheet(QWidget):
                 return str(int(m.group(1)))
             
             expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
-            print(f"DEBUG: After leading zero replacement: {expr}")  # Debug
             return expr
 
         def handle_special_commands(expr, idx):
@@ -3081,8 +3001,6 @@ class Calculator(QWidget):
         
         # Set window icon
         icon_path = os.path.join(os.path.dirname(sys.argv[0]), "calcforge.ico")
-        print(f"Calculator class - Looking for icon at: {icon_path}")
-        print(f"Icon file exists: {os.path.exists(icon_path)}")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
@@ -3496,43 +3414,30 @@ def verify_icon_file(icon_path):
     """Verify that the icon file contains all required sizes."""
     try:
         from PIL import Image
-        print("\nVerifying icon file contents:")
-        print("-" * 40)
         
         # Open the ICO file
         with Image.open(icon_path) as img:
             if not img.is_animated:
-                print("WARNING: Icon file does not contain multiple sizes!")
-                print(f"Found single size: {img.size[0]}x{img.size[1]}")
                 return False
                 
-            print(f"Icon contains {img.n_frames} different sizes:")
             # Check each size in the icon
             sizes_found = []
             for frame in range(img.n_frames):
                 img.seek(frame)
                 sizes_found.append(img.size)
-                print(f"  • {img.size[0]}x{img.size[1]} pixels")
             
             # Check for required sizes
             required_sizes = [(16, 16), (32, 32), (48, 48)]
             missing_sizes = [size for size in required_sizes if size not in sizes_found]
             
             if missing_sizes:
-                print("\nWARNING: Missing recommended sizes:")
-                for size in missing_sizes:
-                    print(f"  • {size[0]}x{size[1]}")
                 return False
             else:
-                print("\nAll recommended sizes are present!")
                 return True
                 
     except ImportError:
-        print("\nWARNING: Could not verify icon - PIL (Pillow) library not installed")
-        print("To install: pip install Pillow")
         return None
     except Exception as e:
-        print(f"\nERROR verifying icon: {str(e)}")
         return None
 
 if __name__=="__main__":
@@ -3541,9 +3446,6 @@ if __name__=="__main__":
     
     # Set application icon - using absolute path
     icon_path = os.path.abspath(os.path.join(os.path.dirname(sys.argv[0]), "calcforge.ico"))
-    print(f"\nAbsolute icon path for PyInstaller reference:")
-    print(f"--icon=\"{icon_path}\"")
-    print("-" * 50)
     
     if os.path.exists(icon_path):
         # Verify icon file contents
@@ -3562,9 +3464,9 @@ if __name__=="__main__":
             win32gui.SendMessage(hwnd, win32con.WM_SETICON, win32con.ICON_BIG, icon)
             win32gui.SendMessage(hwnd, win32con.WM_SETICON, win32con.ICON_SMALL, icon)
         except ImportError:
-            print("Could not import Windows-specific modules")
+            pass
         except Exception as e:
-            print(f"Error setting Windows icon: {e}")
+            pass
 
     # Create and show calculator
     win = Calculator()
@@ -3593,7 +3495,7 @@ if __name__=="__main__":
         ctypes.windll.user32.SetActiveWindow(hwnd)
         
     except Exception as e:
-        print(f"Could not force Windows focus: {e}")
+        pass
     
     # Use our custom focus method to ensure editor gets focus too
     win.force_focus()
