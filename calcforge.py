@@ -520,6 +520,21 @@ def preprocess_expression(expr):
     """Pre-process expression to handle padded numbers and other special cases"""
     print(f"DEBUG: preprocess_expression called with: {expr}")  # Debug
     
+    # Handle commas in numbers (thousands separators) first
+    # Match numbers with commas like 1,234 or 1,234.56
+    # Be careful not to match commas in function calls or other contexts
+    def remove_thousands_commas(match):
+        number_str = match.group(0)
+        # Remove all commas from the number
+        return number_str.replace(',', '')
+    
+    # Pattern to match numbers with commas (thousands separators)
+    # This matches numbers like: 1,234 or 1,234.56 or 12,345,678.90
+    # But avoids matching commas in function calls or other contexts
+    comma_number_pattern = r'\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b'
+    expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
+    print(f"DEBUG: After comma removal: {expr}")  # Debug
+    
     # Handle timecode arithmetic first
     tc_match = re.match(r'TC\((.*?)\)', expr)
     if tc_match:
@@ -1257,8 +1272,10 @@ class FormulaEditor(QPlainTextEdit):
         if cursor.hasSelection():
             self.completion_list.hide()
             
-        # Restore cursor and scroll position
-        self.setTextCursor(cursor)
+        # Only restore cursor position if we don't have a user selection
+        # to avoid interfering with manual text selection
+        if not cursor.hasSelection():
+            self.setTextCursor(cursor)
         scrollbar.setValue(current_scroll)
 
     def complete_text(self, item=None):
@@ -1598,7 +1615,8 @@ class FormulaEditor(QPlainTextEdit):
                         else:
                             display = f"LN{ln_id} not found"
                         QToolTip.showText(event.globalPosition().toPoint(), display, self)
-                        return True
+                        # Don't return True here - let the mouse event continue for text selection
+                        break
 
                 # If we're not over an operator or LN reference, clear highlights
                 if not found_operator:
@@ -1665,12 +1683,18 @@ class FormulaEditor(QPlainTextEdit):
         # Clear all cross-sheet highlights first
         self.clear_cross_sheet_highlights()
         
-        # Add current line highlight
+        # Add current line highlight - but preserve user selections
         sel = QTextEdit.ExtraSelection()
         sel.format.setBackground(QColor(65, 65, 66))  # Main line highlight color
         sel.format.setProperty(QTextCharFormat.FullWidthSelection, True)
         sel.cursor = self.textCursor()
-        sel.cursor.clearSelection()
+        # Don't clear selection if user has manually selected text
+        if not sel.cursor.hasSelection():
+            sel.cursor.clearSelection()
+        else:
+            # If user has a selection, create a new cursor for line highlighting
+            # that doesn't interfere with the user's selection
+            sel.cursor = QTextCursor(sel.cursor.block())
         selections.append(sel)
         
         # Add operator highlight if it exists
@@ -2001,10 +2025,20 @@ class FormulaEditor(QPlainTextEdit):
                 cursor = self.textCursor()
                 # If there's a manual selection, copy that
                 if cursor.hasSelection():
+                    # Try multiple methods to get the selected text
+                    selected_text = cursor.selectedText()
+                    
+                    # Alternative method if selectedText() doesn't work properly
+                    if not selected_text:
+                        start = cursor.selectionStart()
+                        end = cursor.selectionEnd()
+                        full_text = self.toPlainText()
+                        selected_text = full_text[start:end]
+                    
                     clipboard = QApplication.clipboard()
-                    clipboard.setText(cursor.selectedText())
+                    clipboard.setText(selected_text)
                     event.accept()
-                    return
+                    return  # Important: exit early to prevent interference
                     
                 # Otherwise copy the result from the results panel
                 line_num = cursor.blockNumber()
@@ -2020,7 +2054,7 @@ class FormulaEditor(QPlainTextEdit):
                     clipboard = QApplication.clipboard()
                     clipboard.setText(result_text)
                     event.accept()
-                    return
+                    return  # Important: exit early to prevent interference
             elif alt:
                 # Get current line/selection text
                 cursor = self.textCursor()
@@ -2268,7 +2302,16 @@ class FormulaEditor(QPlainTextEdit):
             self.reset_font_size()
             event.accept()
         else:
+            # Track when a potential selection operation starts
+            if event.button() == Qt.LeftButton:
+                self._selection_in_progress = True
             super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        # Clear selection tracking when mouse is released
+        if event.button() == Qt.LeftButton:
+            self._selection_in_progress = False
+        super().mouseReleaseEvent(event)
 
     def change_font_size(self, delta):
         new_size = max(6, min(72, self.current_font_size + delta))
@@ -2488,14 +2531,21 @@ class Worksheet(QWidget):
                     # Store raw value in data attribute
                     return f'<span data-raw="{value}">{display}</span>'
                 else:
-                    # Format float with commas, avoiding scientific notation
-                    # Use fixed precision for very large or very small numbers
+                    # Format float with commas, showing at least 8 decimal places for normal numbers
                     abs_val = abs(value)
-                    if abs_val >= 1e6 or (abs_val < 0.01 and abs_val > 0):
-                        display = f'{value:,.2f}'  # Use 2 decimal places for extreme numbers
+                    if abs_val >= 1e6:
+                        # Very large numbers - use scientific notation or limited precision
+                        display = f'{value:,.8g}'
+                    elif abs_val < 1e-12 and abs_val > 0:
+                        # Very small numbers - use scientific notation
+                        display = f'{value:.8e}'
                     else:
-                        # For normal range numbers, use a reasonable number of decimal places
-                        display = f'{value:,.6g}'.rstrip('0').rstrip('.')
+                        # Normal range numbers - show up to 8 significant decimal places
+                        # Use 8 decimal places, then strip trailing zeros
+                        display = f'{value:,.8f}'.rstrip('0').rstrip('.')
+                        # If we stripped all decimals, add back one zero to show it's a float
+                        if '.' not in display and ',' in f'{value:,.8f}':
+                            display += '.0'
                     return f'<span data-raw="{value}">{display}</span>'
             elif isinstance(value, str) and value.isdigit():
                 # Handle string numbers (like frame counts)
@@ -2562,6 +2612,21 @@ class Worksheet(QWidget):
         def preprocess_expression(expr):
             """Pre-process expression to handle padded numbers and other special cases"""
             print(f"DEBUG: preprocess_expression called with: {expr}")  # Debug
+            
+            # Handle commas in numbers (thousands separators) first
+            # Match numbers with commas like 1,234 or 1,234.56
+            # Be careful not to match commas in function calls or other contexts
+            def remove_thousands_commas(match):
+                number_str = match.group(0)
+                # Remove all commas from the number
+                return number_str.replace(',', '')
+            
+            # Pattern to match numbers with commas (thousands separators)
+            # This matches numbers like: 1,234 or 1,234.56 or 12,345,678.90
+            # But avoids matching commas in function calls or other contexts
+            comma_number_pattern = r'\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b'
+            expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
+            print(f"DEBUG: After comma removal: {expr}")  # Debug
             
             # Handle timecode arithmetic first
             tc_match = re.match(r'TC\((.*?)\)', expr)
