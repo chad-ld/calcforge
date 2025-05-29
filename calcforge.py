@@ -489,24 +489,16 @@ def AR(original, target):
 
 def preprocess_expression(expr):
     """Pre-process expression to handle padded numbers and other special cases"""
-    # Handle commas in numbers (thousands separators) first
-    # Match numbers with commas like 1,234 or 1,234.56
-    # Be careful not to match commas in function calls or other contexts
-    def remove_thousands_commas(match):
-        number_str = match.group(0)
-        # Remove all commas from the number
-        return number_str.replace(',', '')
+    # Debug: Print original expression if it contains TC
+    if 'TC(' in expr:
+        print(f"DEBUG: Original TC expression: {expr}")
     
-    # Pattern to match numbers with commas (thousands separators)
-    # This matches numbers like: 1,234 or 1,234.56 or 12,345,678.90
-    # But avoids matching commas in function calls or other contexts
-    comma_number_pattern = r'\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b'
-    expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
-    
-    # Handle timecode arithmetic first
+    # Handle timecode arithmetic first (BEFORE comma removal to preserve function arguments)
     tc_match = re.match(r'TC\((.*?)\)', expr)
     if tc_match:
         tc_args = tc_match.group(1)
+        print(f"DEBUG: TC args extracted: '{tc_args}'")
+        
         # Split on commas that aren't inside arithmetic expressions
         parts = []
         current = ""
@@ -523,6 +515,8 @@ def preprocess_expression(expr):
                 current += char
         if current:
             parts.append(current.strip())
+        
+        print(f"DEBUG: TC parts after splitting: {parts}")
         
         # Process each part
         processed_parts = []
@@ -562,8 +556,11 @@ def preprocess_expression(expr):
                     part = f'"{cleaned}"'
                 processed_parts.append(part)
         
+        print(f"DEBUG: TC processed parts: {processed_parts}")
+        
         # Reconstruct the TC call
         expr = f"TC({','.join(processed_parts)})"
+        print(f"DEBUG: TC reconstructed expression: {expr}")
     
     # Handle aspect ratio calculations
     ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
@@ -576,6 +573,19 @@ def preprocess_expression(expr):
             # Quote both parts since they contain dimension strings
             quoted_parts = [f'"{part}"' for part in parts]
             expr = f"AR({','.join(quoted_parts)})"
+    
+    # Handle commas in numbers (thousands separators) - but avoid function calls
+    # More careful pattern that doesn't match numbers inside parentheses
+    def remove_thousands_commas(match):
+        number_str = match.group(0)
+        # Remove all commas from the number
+        return number_str.replace(',', '')
+    
+    # Pattern to match numbers with commas like 1,234 or 1,234.56
+    # Use negative lookbehind to avoid matching inside function calls
+    # This pattern avoids matching numbers that come after an opening parenthesis
+    comma_number_pattern = r'(?<!\()\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b(?![^()]*\))'
+    expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
     
     # Replace numbers with leading zeros outside of timecodes and quoted strings
     def repl_num(m):
@@ -591,6 +601,11 @@ def preprocess_expression(expr):
         return str(int(m.group(1)))
     
     expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
+    
+    # Debug: Print final expression if it contains TC
+    if 'TC(' in expr:
+        print(f"DEBUG: Final TC expression: {expr}")
+    
     return expr
 
 # Add TC function and math functions to evaluation namespace
@@ -2604,24 +2619,16 @@ class Worksheet(QWidget):
 
         def preprocess_expression(expr):
             """Pre-process expression to handle padded numbers and other special cases"""
-            # Handle commas in numbers (thousands separators) first
-            # Match numbers with commas like 1,234 or 1,234.56
-            # Be careful not to match commas in function calls or other contexts
-            def remove_thousands_commas(match):
-                number_str = match.group(0)
-                # Remove all commas from the number
-                return number_str.replace(',', '')
+            # Debug: Print original expression if it contains TC
+            if 'TC(' in expr:
+                print(f"DEBUG: Original TC expression: {expr}")
             
-            # Pattern to match numbers with commas (thousands separators)
-            # This matches numbers like: 1,234 or 1,234.56 or 12,345,678.90
-            # But avoids matching commas in function calls or other contexts
-            comma_number_pattern = r'\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b'
-            expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
-            
-            # Handle timecode arithmetic first
+            # Handle timecode arithmetic first (BEFORE comma removal to preserve function arguments)
             tc_match = re.match(r'TC\((.*?)\)', expr)
             if tc_match:
                 tc_args = tc_match.group(1)
+                print(f"DEBUG: TC args extracted: '{tc_args}'")
+                
                 # Split on commas that aren't inside arithmetic expressions
                 parts = []
                 current = ""
@@ -2638,6 +2645,8 @@ class Worksheet(QWidget):
                         current += char
                 if current:
                     parts.append(current.strip())
+                
+                print(f"DEBUG: TC parts after splitting: {parts}")
                 
                 # Process each part
                 processed_parts = []
@@ -2677,8 +2686,11 @@ class Worksheet(QWidget):
                             part = f'"{cleaned}"'
                         processed_parts.append(part)
                 
+                print(f"DEBUG: TC processed parts: {processed_parts}")
+                
                 # Reconstruct the TC call
                 expr = f"TC({','.join(processed_parts)})"
+                print(f"DEBUG: TC reconstructed expression: {expr}")
             
             # Handle aspect ratio calculations
             ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
@@ -2691,6 +2703,19 @@ class Worksheet(QWidget):
                     # Quote both parts since they contain dimension strings
                     quoted_parts = [f'"{part}"' for part in parts]
                     expr = f"AR({','.join(quoted_parts)})"
+            
+            # Handle commas in numbers (thousands separators) - but avoid function calls
+            # More careful pattern that doesn't match numbers inside parentheses
+            def remove_thousands_commas(match):
+                number_str = match.group(0)
+                # Remove all commas from the number
+                return number_str.replace(',', '')
+            
+            # Pattern to match numbers with commas like 1,234 or 1,234.56
+            # Use negative lookbehind to avoid matching inside function calls
+            # This pattern avoids matching numbers that come after an opening parenthesis
+            comma_number_pattern = r'(?<!\()\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b(?![^()]*\))'
+            expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
             
             # Replace numbers with leading zeros outside of timecodes and quoted strings
             def repl_num(m):
@@ -2706,6 +2731,11 @@ class Worksheet(QWidget):
                 return str(int(m.group(1)))
             
             expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
+            
+            # Debug: Print final expression if it contains TC
+            if 'TC(' in expr:
+                print(f"DEBUG: Final TC expression: {expr}")
+            
             return expr
 
         def handle_special_commands(expr, idx):
@@ -2954,6 +2984,13 @@ class Worksheet(QWidget):
                 
                 # Format the output
                 out.append(self.format_number_for_display(v))
+            except TimecodeError as e:
+                # Handle TimecodeError specifically to show the actual error message
+                print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print
+                vals[idx] = None
+                if current_id:
+                    self.editor.ln_value_map[current_id] = None
+                out.append(f'<span style="color:red;font-weight:bold;">TC ERROR: {str(e)}</span>')
             except Exception as e:
                 print(f"Error evaluating line {idx + 1}: {str(e)}")  # Debug print
                 vals[idx] = None
