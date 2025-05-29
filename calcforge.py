@@ -1723,6 +1723,7 @@ class FormulaEditor(QPlainTextEdit):
         
         # Collect cross-sheet highlights by sheet
         cross_sheet_highlights = {}
+        cross_sheet_results_highlights = {}  # Add tracking for results highlights
         
         # Highlight referenced lines with matching colors
         for match in ln_matches:
@@ -1744,7 +1745,7 @@ class FormulaEditor(QPlainTextEdit):
                             blk = doc.findBlockByNumber(j)
                             user_data = blk.userData()
                             if isinstance(user_data, LineData) and user_data.id == ln_id:
-                                # Create highlight for cross-sheet reference
+                                # Create highlight for cross-sheet reference (editor column)
                                 highlight_cursor = QTextCursor(blk)
                                 sel_ref = QTextEdit.ExtraSelection()
                                 sel_ref.format.setBackground(bg_color)
@@ -1755,6 +1756,21 @@ class FormulaEditor(QPlainTextEdit):
                                 if other_sheet not in cross_sheet_highlights:
                                     cross_sheet_highlights[other_sheet] = []
                                 cross_sheet_highlights[other_sheet].append(sel_ref)
+                                
+                                # Also highlight the results column in the other sheet
+                                if hasattr(other_sheet, 'results'):
+                                    results_block = other_sheet.results.document().findBlockByNumber(j)
+                                    if results_block.isValid():
+                                        results_cursor = QTextCursor(results_block)
+                                        sel_result = QTextEdit.ExtraSelection()
+                                        sel_result.format.setBackground(bg_color)
+                                        sel_result.format.setProperty(QTextCharFormat.FullWidthSelection, True)
+                                        sel_result.cursor = results_cursor
+                                        
+                                        # Collect results highlights by sheet
+                                        if other_sheet not in cross_sheet_results_highlights:
+                                            cross_sheet_results_highlights[other_sheet] = []
+                                        cross_sheet_results_highlights[other_sheet].append(sel_result)
                                 break
             else:  # Regular LN reference
                 # Find and highlight the referenced line
@@ -1788,9 +1804,12 @@ class FormulaEditor(QPlainTextEdit):
         if hasattr(self.parent, 'results'):
             self.parent.results.setExtraSelections(results_selections)
         
-        # Apply cross-sheet highlights
+        # Apply cross-sheet highlights (both editor and results columns)
         for other_sheet, highlights in cross_sheet_highlights.items():
             other_sheet.editor.setExtraSelections(highlights)
+            # Also apply results highlights if available
+            if other_sheet in cross_sheet_results_highlights and hasattr(other_sheet, 'results'):
+                other_sheet.results.setExtraSelections(cross_sheet_results_highlights[other_sheet])
 
     def select_number_token(self, forward=True):
         """Select the next/previous number token from current cursor position"""
