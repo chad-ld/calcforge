@@ -1039,9 +1039,11 @@ class KeyEventFilter(QObject):
                     # Handle Ctrl+C directly here to prevent Qt from clearing selection
                     selected_text = cursor.selectedText()
                     if selected_text:
+                        # Convert Qt's special line breaks to regular line breaks
+                        text = selected_text.replace('\u2029', '\n').replace('\u2028', '\n')
                         clipboard = QApplication.clipboard()
-                        clipboard.setText(selected_text)
-                        print(f"DEBUG FILTER: Copied '{selected_text}' directly")
+                        clipboard.setText(text)
+                        print(f"DEBUG FILTER: Copied '{text}' directly")
                         return True  # Event handled, don't pass to Qt
                         
                 elif k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
@@ -2050,6 +2052,16 @@ class FormulaEditor(QPlainTextEdit):
             return True
         return False
 
+    def get_selected_text(self):
+        """Get selected text with proper line breaks"""
+        cursor = self.textCursor()
+        if not cursor.hasSelection():
+            return ""
+            
+        # Get the raw text and normalize line endings
+        text = cursor.selectedText()
+        return text.replace('\u2029', '\n').replace('\u2028', '\n')
+
     def keyPressEvent(self, event):
         # Handle completion list navigation first
         if self.completion_list.isVisible():
@@ -2063,58 +2075,55 @@ class FormulaEditor(QPlainTextEdit):
         ctrl = event.modifiers() & Qt.ControlModifier
         alt = event.modifiers() & Qt.AltModifier
         k = event.key()
+        
+        # Get the current text before modification
+        cursor = self.textCursor()
+        block = cursor.block()
+        text_before = block.text()
 
-        # Handle copy functionality
-        if k == Qt.Key_C:
-            if ctrl:
-                cursor = self.textCursor()
-                # If there's a manual selection, copy that
-                if cursor.hasSelection():
-                    # Try multiple methods to get the selected text
-                    selected_text = cursor.selectedText()
-                    
-                    # Alternative method if selectedText() doesn't work properly
-                    if not selected_text:
-                        start = cursor.selectionStart()
-                        end = cursor.selectionEnd()
-                        full_text = self.toPlainText()
-                        selected_text = full_text[start:end]
-                    
-                    clipboard = QApplication.clipboard()
-                    clipboard.setText(selected_text)
-                    event.accept()
-                    return  # Important: exit early to prevent interference
-                    
-                # Otherwise copy the result from the results panel
-                line_num = cursor.blockNumber()
-                results_doc = self.parent.results.document()
-                if line_num < results_doc.blockCount():
-                    result_block = results_doc.findBlockByNumber(line_num)
-                    result_text = result_block.text().strip()
-                    
-                    # Remove HTML formatting if present
-                    result_text = re.sub(r'<[^>]+>', '', result_text)
-                    
-                    # Copy to clipboard
-                    clipboard = QApplication.clipboard()
-                    clipboard.setText(result_text)
-                    event.accept()
-                    return  # Important: exit early to prevent interference
-            elif alt:
-                # Get current line/selection text
-                cursor = self.textCursor()
-                if cursor.hasSelection():
-                    text = cursor.selectedText()
-                else:
-                    # If no selection, get the whole line
-                    cursor.select(QTextCursor.LineUnderCursor)
-                    text = cursor.selectedText()
-                
-                # Copy to clipboard
-                clipboard = QApplication.clipboard()
-                clipboard.setText(text)
-                event.accept()
-                return
+        # Handle special keys and shortcuts
+        if k == Qt.Key_C and ctrl and not alt:
+            # Handle Ctrl+C to copy result or selection
+            cursor = self.textCursor()
+            if cursor.hasSelection():
+                # If there's a selection, copy it normally
+                text = cursor.selectedText().replace('\u2029', '\n').replace('\u2028', '\n')
+                QApplication.clipboard().setText(text)
+            else:
+                # If no selection, copy the result from the current line
+                line_number = cursor.blockNumber()
+                if hasattr(self.parent, 'results'):
+                    doc = self.parent.results.document()
+                    if line_number < doc.blockCount():
+                        result_block = doc.findBlockByNumber(line_number)
+                        result_text = result_block.text()
+                        
+                        # Extract raw value from HTML if present
+                        match = re.search(r'data-raw="([^"]+)"', result_text)
+                        if match:
+                            result_text = match.group(1)
+                        else:
+                            # Clean any HTML tags
+                            result_text = re.sub(r'<[^>]+>', '', result_text)
+                        
+                        # Copy to clipboard
+                        QApplication.clipboard().setText(result_text)
+            return
+            
+        if k == Qt.Key_C and alt and not ctrl:
+            # Handle Alt+C to copy formula
+            cursor = self.textCursor()
+            if cursor.hasSelection():
+                # If there's a selection, copy it normally
+                text = cursor.selectedText().replace('\u2029', '\n').replace('\u2028', '\n')
+                QApplication.clipboard().setText(text)
+            else:
+                # If no selection, copy the formula from the current line
+                cursor.movePosition(QTextCursor.StartOfLine)
+                cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                text = cursor.selectedText()
+                QApplication.clipboard().setText(text)
+            return
 
         # Handle Ctrl+Up/Down for selection
         if ctrl:
