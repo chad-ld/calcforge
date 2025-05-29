@@ -656,7 +656,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtCore import (
     Qt, QTimer, QRegularExpression, QSize, QRect, Slot, QSettings, QEvent,
-    QStringListModel
+    QStringListModel, QObject
 )
 
 # Forward declare Calculator class for type hints
@@ -1011,6 +1011,47 @@ class AutoCompleteList(QListWidget):
             return True
         return False
 
+class KeyEventFilter(QObject):
+    """Event filter to intercept key events before Qt's internal handling"""
+    def __init__(self, editor):
+        super().__init__()
+        self.editor = editor
+    
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.KeyPress and obj == self.editor:
+            ctrl = event.modifiers() & Qt.ControlModifier
+            k = event.key()
+            
+            # Check if we have a selection when Ctrl key events come in
+            cursor = self.editor.textCursor()
+            has_selection = cursor.hasSelection()
+            
+            print(f"DEBUG FILTER: key={k} ctrl={ctrl} hasSelection={has_selection}")
+            
+            # If we have a selection, block the initial Ctrl key press (key code 16777249)
+            if has_selection and k == 16777249:  # This is the Ctrl key
+                print("DEBUG FILTER: Blocking initial Ctrl key to preserve selection")
+                return True
+            
+            # If we have a selection and this is a Ctrl key combination we want to handle specially
+            if has_selection and ctrl:
+                if k == Qt.Key_C:
+                    # Handle Ctrl+C directly here to prevent Qt from clearing selection
+                    selected_text = cursor.selectedText()
+                    if selected_text:
+                        clipboard = QApplication.clipboard()
+                        clipboard.setText(selected_text)
+                        print(f"DEBUG FILTER: Copied '{selected_text}' directly")
+                        return True  # Event handled, don't pass to Qt
+                        
+                elif k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+                    # For Ctrl+arrow keys with an existing selection, do nothing to preserve selection
+                    print(f"DEBUG FILTER: Blocking Ctrl+arrow to preserve selection")
+                    return True  # Block the event to preserve selection
+        
+        # For all other events, pass through normally
+        return False
+
 class FormulaEditor(QPlainTextEdit):
     def __init__(self, parent):
         super().__init__(parent)
@@ -1027,6 +1068,10 @@ class FormulaEditor(QPlainTextEdit):
         
         # Store lines that need separators
         self.separator_lines = set()
+        
+        # Install key event filter to handle Ctrl key combinations properly
+        self.key_filter = KeyEventFilter(self)
+        self.installEventFilter(self.key_filter)
         
         # Setup autocompletion first
         self.completion_prefix = ""
