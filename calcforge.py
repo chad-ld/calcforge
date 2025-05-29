@@ -1044,7 +1044,16 @@ class FormulaEditor(QPlainTextEdit):
 
         # Then setup the editor
         self.setFont(QFont("Courier New", self.current_font_size, QFont.Bold))
-        self.setStyleSheet("background-color:#2c2c2e; color:white;")
+        self.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #2c2c2e; 
+                color: white;
+                border: none;
+                padding: 0px;
+                margin: 0px;
+                line-height: 1.2em;
+            }
+        """)
         self.highlighter = FormulaHighlighter(self.document())
         self.lnr = LineNumberArea(self)
         self.blockCountChanged.connect(self.updateLineNumberAreaWidth)
@@ -1057,7 +1066,15 @@ class FormulaEditor(QPlainTextEdit):
         self.ln_value_map = {}
         self.operator_results_map = {}  # Store operator results for tooltips
         self.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        
+        # Set document margins to match QTextEdit exactly
+        doc = self.document()
+        doc.setDocumentMargin(0)
+        
+        # Set text margins to zero
+        self.setViewportMargins(0, 0, 0, 0)
+        self.setContentsMargins(0, 0, 0, 0)
 
     def get_calculator(self):
         """Get the Calculator instance that owns all tabs"""
@@ -1275,6 +1292,10 @@ class FormulaEditor(QPlainTextEdit):
         # Always highlight the current line
         self.highlightCurrentLine()
         
+        # Trigger scroll synchronization to keep results in sync
+        if hasattr(self.parent, '_sync_editor_to_results'):
+            self.parent._sync_editor_to_results(current_scroll)
+        
         # Hide completion list if there's a selection
         if cursor.hasSelection():
             self.completion_list.hide()
@@ -1283,7 +1304,6 @@ class FormulaEditor(QPlainTextEdit):
         # to avoid interfering with manual text selection
         if not cursor.hasSelection():
             self.setTextCursor(cursor)
-        scrollbar.setValue(current_scroll)
 
     def complete_text(self, item=None):
         if item is None:
@@ -2049,6 +2069,9 @@ class FormulaEditor(QPlainTextEdit):
         alt = event.modifiers() & Qt.AltModifier
         k = event.key()
         
+        # Store scroll position before key handling for arrow keys
+        old_scroll = self.verticalScrollBar().value()
+        
         # Get the current text before modification
         cursor = self.textCursor()
         block = cursor.block()
@@ -2066,21 +2089,18 @@ class FormulaEditor(QPlainTextEdit):
                 # If no selection, copy the result from the current line
                 line_number = cursor.blockNumber()
                 if hasattr(self.parent, 'results'):
-                    doc = self.parent.results.document()
-                    if line_number < doc.blockCount():
-                        result_block = doc.findBlockByNumber(line_number)
-                        result_text = result_block.text()
-                        
-                        # Extract raw value from HTML if present
-                        match = re.search(r'data-raw="([^"]+)"', result_text)
-                        if match:
-                            result_text = match.group(1)
-                        else:
-                            # Clean any HTML tags
-                            result_text = re.sub(r'<[^>]+>', '', result_text)
-                        
-                        # Copy to clipboard
-                        QApplication.clipboard().setText(result_text)
+                    # First try to get the raw value
+                    if hasattr(self.parent, 'raw_values') and line_number in self.parent.raw_values:
+                        result_text = str(self.parent.raw_values[line_number])
+                    else:
+                        # Fall back to the displayed text
+                        doc = self.parent.results.document()
+                        if line_number < doc.blockCount():
+                            result_block = doc.findBlockByNumber(line_number)
+                            result_text = result_block.text()
+                    
+                    # Copy to clipboard
+                    QApplication.clipboard().setText(result_text)
             return
             
         if k == Qt.Key_C and alt and not ctrl:
@@ -2117,19 +2137,20 @@ class FormulaEditor(QPlainTextEdit):
                 event.accept()
                 return
 
-        # EARLY EXIT for arrow keys to prevent any auto-correction
-        if k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
-            # Just call parent implementation and return - no auto-correction
-            super().keyPressEvent(event)
-            return
+        # Call parent implementation
+        super().keyPressEvent(event)
+        
+        # Check if scroll position changed due to arrow keys or other navigation
+        new_scroll = self.verticalScrollBar().value()
+        if old_scroll != new_scroll and k in (Qt.Key_Up, Qt.Key_Down, Qt.Key_PageUp, Qt.Key_PageDown, Qt.Key_Home, Qt.Key_End):
+            # Force scroll synchronization for navigation keys
+            if hasattr(self.parent, '_sync_editor_to_results'):
+                self.parent._sync_editor_to_results(new_scroll)
 
-        # Get the current text before modification
+        # Get the current text after modification
         cursor = self.textCursor()
         block = cursor.block()
-        text_before = block.text()
-
-        # Call parent implementation first
-        super().keyPressEvent(event)
+        text_after = block.text()
 
         # Handle auto-correction for cross-sheet references
         if (k in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab) or 
@@ -2196,9 +2217,6 @@ class FormulaEditor(QPlainTextEdit):
         elif k in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right):
             # Hide completions during navigation
             self.completion_list.hide()
-
-        # Get text after modification
-        text_after = block.text()
 
         # Check if we're potentially typing an LN reference and force evaluation
         # BUT exclude arrow keys to allow normal navigation through LN variables
@@ -2452,20 +2470,47 @@ class Worksheet(QWidget):
         self.splitter = QSplitter(Qt.Horizontal)
         self.settings = QSettings('OpenAI', 'SmartCalc')
         
-        # Create results widget first
-        self.results = QTextEdit()
+        # Create results widget first - now using QPlainTextEdit for perfect alignment
+        self.results = QPlainTextEdit()
         self.results.setReadOnly(True)
         font_size = self.settings.value('font_size', 14, type=int)
         self.results.setFont(QFont("Courier New", font_size, QFont.Bold))
-        self.results.setStyleSheet("background-color:#2c2c2e; color:white;")  # Match editor background
-        self.results.setLineWrapMode(QTextEdit.NoWrap)
-        self.results.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.results.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #2c2c2e; 
+                color: white;
+                border: none;
+                padding: 0px;
+                margin: 0px;
+                line-height: 1.2em;
+            }
+        """)
+        self.results.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.results.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         
-        # Add custom paint event to results panel
-        self.results.paintEvent = self.results_paint_event
+        # Set document margins to match editor exactly
+        results_doc = self.results.document()
+        results_doc.setDocumentMargin(0)
+        
+        # Set text margins to zero
+        self.results.setViewportMargins(0, 0, 0, 0)
+        self.results.setContentsMargins(0, 0, 0, 0)
+        
+        # Add storage for raw values (for copying unformatted numbers)
+        self.raw_values = {}  # line_number -> raw_value
+        
+        # Add syntax highlighter for error coloring
+        self.results_highlighter = ResultsHighlighter(self.results.document())
         
         # Then create editor
         self.editor = FormulaEditor(self)
+        
+        # Add flag to prevent infinite recursion during scroll synchronization
+        self._syncing_scroll = False
+        
+        # Connect scrollbars for synchronization
+        self.editor.verticalScrollBar().valueChanged.connect(self._sync_editor_to_results)
+        self.results.verticalScrollBar().valueChanged.connect(self._sync_results_to_editor)
         
         # Add widgets to splitter
         self.splitter.addWidget(self.editor)
@@ -2485,42 +2530,53 @@ class Worksheet(QWidget):
         # Initial evaluation
         QTimer.singleShot(0, self.evaluate_and_highlight)
 
-    def results_paint_event(self, event):
-        """Custom paint event for results panel to draw separator lines"""
-        # Draw the base text edit content
-        QTextEdit.paintEvent(self.results, event)
-        
-        # Draw separator lines if editor has any
-        if hasattr(self.editor, 'separator_lines') and self.editor.separator_lines:
-            painter = QPainter(self.results.viewport())
-            painter.setPen(QPen(QColor(80, 80, 80), 1, Qt.DashLine))  # Light grey, dashed line
-            
-            # Get the full width including the scrolled area
-            doc_width = max(self.results.document().size().width(), self.results.viewport().width())
-            doc_width += self.results.horizontalScrollBar().value()  # Add scrolled amount
-            
-            # Get the content offset
-            content_y = self.results.verticalScrollBar().value()
-            
-            # Draw lines above and below function lines
-            for line_num in self.editor.separator_lines:
-                block = self.results.document().findBlockByNumber(line_num)
-                if block.isValid():
-                    # Get the block position and height
-                    layout = block.layout()
-                    if layout is not None:
-                        pos = layout.position()
-                        height = layout.boundingRect().height()
-                        y_pos = pos.y() - content_y
-                        
-                        # Only draw if the line is visible
-                        if 0 <= y_pos <= self.results.viewport().height():
-                            # Draw the line above
-                            painter.drawLine(0, int(y_pos) - 2, doc_width, int(y_pos) - 2)
-                            # Draw the line below
-                            painter.drawLine(0, int(y_pos + height) + 2, doc_width, int(y_pos + height) + 2)
-            
-            painter.end()
+    def _sync_editor_to_results(self, value):
+        """Sync results scrollbar when editor scrollbar changes"""
+        if not self._syncing_scroll:
+            self._syncing_scroll = True
+            try:
+                # Get the editor's scrollbar
+                editor_scrollbar = self.editor.verticalScrollBar()
+                results_scrollbar = self.results.verticalScrollBar()
+                
+                # Calculate the scroll ratio to handle different content heights
+                editor_max = max(1, editor_scrollbar.maximum())
+                results_max = max(1, results_scrollbar.maximum())
+                
+                if editor_max > 0 and results_max > 0:
+                    # Calculate proportional position
+                    ratio = value / editor_max if editor_max > 0 else 0
+                    target_value = int(ratio * results_max)
+                    results_scrollbar.setValue(target_value)
+                else:
+                    # Direct value if no scaling needed
+                    results_scrollbar.setValue(value)
+            finally:
+                self._syncing_scroll = False
+
+    def _sync_results_to_editor(self, value):
+        """Sync editor scrollbar when results scrollbar changes"""
+        if not self._syncing_scroll:
+            self._syncing_scroll = True
+            try:
+                # Get the scrollbars
+                editor_scrollbar = self.editor.verticalScrollBar()
+                results_scrollbar = self.results.verticalScrollBar()
+                
+                # Calculate the scroll ratio to handle different content heights
+                editor_max = max(1, editor_scrollbar.maximum())
+                results_max = max(1, results_scrollbar.maximum())
+                
+                if results_max > 0 and editor_max > 0:
+                    # Calculate proportional position
+                    ratio = value / results_max if results_max > 0 else 0
+                    target_value = int(ratio * editor_max)
+                    editor_scrollbar.setValue(target_value)
+                else:
+                    # Direct value if no scaling needed
+                    editor_scrollbar.setValue(value)
+            finally:
+                self._syncing_scroll = False
 
     def evaluate_and_highlight(self):
         """Evaluate formulas and ensure highlighting is updated"""
@@ -2534,35 +2590,36 @@ class Worksheet(QWidget):
         else:
             delattr(self.editor, '_cursor_triggered_eval')
 
-    def format_number_for_display(self, value):
-        """Format a number for display with commas, preserving the raw value for copying"""
+    def format_number_for_display(self, value, line_number):
+        """Format a number for display with commas, storing the raw value separately for copying"""
         try:
             if isinstance(value, dict) and 'value' in value and 'unit' in value:
                 # Handle unit conversion results
                 num = value['value']
                 if isinstance(num, float) and abs(num - round(num)) < 1e-10:
                     num = int(round(num))
-                display = f'{num:,} {value["unit"]}'
-                return f'<span data-raw="{num}">{display}</span>'
+                self.raw_values[line_number] = num  # Store raw numeric value
+                return f'{num:,} {value["unit"]}'
+                
             elif isinstance(value, (int, float)):
                 # Check if it's close to an integer
                 if isinstance(value, float) and abs(value - round(value)) < 1e-10:
                     value = int(round(value))
                 
+                self.raw_values[line_number] = value  # Store raw value
+                
                 if isinstance(value, int):
                     # Format with commas
-                    display = f'{value:,}'
-                    # Store raw value in data attribute
-                    return f'<span data-raw="{value}">{display}</span>'
+                    return f'{value:,}'
                 else:
                     # Format float with commas, showing at least 8 decimal places for normal numbers
                     abs_val = abs(value)
                     if abs_val >= 1e6:
                         # Very large numbers - use scientific notation or limited precision
-                        display = f'{value:,.8g}'
+                        return f'{value:,.8g}'
                     elif abs_val < 1e-12 and abs_val > 0:
                         # Very small numbers - use scientific notation
-                        display = f'{value:.8e}'
+                        return f'{value:.8e}'
                     else:
                         # Normal range numbers - show up to 8 significant decimal places
                         # Use 8 decimal places, then strip trailing zeros
@@ -2570,16 +2627,20 @@ class Worksheet(QWidget):
                         # If we stripped all decimals, add back one zero to show it's a float
                         if '.' not in display and ',' in f'{value:,.8f}':
                             display += '.0'
-                    return f'<span data-raw="{value}">{display}</span>'
+                        return display
+                        
             elif isinstance(value, str) and value.isdigit():
                 # Handle string numbers (like frame counts)
                 num = int(value)
+                self.raw_values[line_number] = num  # Store raw value
                 display = f'{num:,}'
                 if 'TC(' in self.current_line:  # Add 'frames' suffix for timecode results
                     display += ' frames'
-                return f'<span data-raw="{num}">{display}</span>'
+                return display
         except:
             pass
+            
+        # For non-numeric values, don't store raw value
         return str(value)
 
     def evaluate(self):
@@ -2929,7 +2990,7 @@ class Worksheet(QWidget):
                         vals[idx] = date_result
                         if current_id:
                             self.editor.ln_value_map[current_id] = vals[idx]
-                        out.append(self.format_number_for_display(date_result))
+                        out.append(self.format_number_for_display(date_result, idx))
                         continue
 
                 # Check for unit conversion
@@ -2938,7 +2999,7 @@ class Worksheet(QWidget):
                     vals[idx] = unit_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(unit_result))
+                    out.append(self.format_number_for_display(unit_result, idx))
                     continue
 
                 # Check for currency conversion
@@ -2947,7 +3008,7 @@ class Worksheet(QWidget):
                     vals[idx] = currency_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(currency_result))
+                    out.append(self.format_number_for_display(currency_result, idx))
                     continue
 
                 # Check for truncate function call (both truncate and TR)
@@ -2974,7 +3035,7 @@ class Worksheet(QWidget):
                     vals[idx] = v
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(v))
+                    out.append(self.format_number_for_display(v, idx))
                     continue
 
                 # Try special commands
@@ -2983,7 +3044,7 @@ class Worksheet(QWidget):
                     vals[idx] = cmd_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(cmd_result))
+                    out.append(self.format_number_for_display(cmd_result, idx))
                     continue
 
                 # Process LN references if present
@@ -2999,38 +3060,44 @@ class Worksheet(QWidget):
                     print(f"Stored value {v} for line ID {current_id}")  # Debug print
                 
                 # Format the output
-                out.append(self.format_number_for_display(v))
+                out.append(self.format_number_for_display(v, idx))
             except TimecodeError as e:
                 # Handle TimecodeError specifically to show the actual error message
                 print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print
                 vals[idx] = None
                 if current_id:
                     self.editor.ln_value_map[current_id] = None
-                out.append(f'<span style="color:red;font-weight:bold;">TC ERROR: {str(e)}</span>')
+                out.append(f'TC ERROR: {str(e)}')
             except Exception as e:
                 print(f"Error evaluating line {idx + 1}: {str(e)}")  # Debug print
                 vals[idx] = None
                 if current_id:
                     self.editor.ln_value_map[current_id] = None
-                out.append('<span style="color:red;font-weight:bold;">ERROR!</span>')
+                out.append('ERROR!')
 
-        # Format results with padding for alignment
-        formatted_results = []
-        for result in out:
-            formatted_results.append(f'<div style="min-height: 1em;">{result}</div>')
+        # Update results with plain text (no HTML needed since we're using QPlainTextEdit)
+        text_content = '\n'.join(out)
+        self.results.setPlainText(text_content)
         
-        # Update results
-        html_content = ''.join(formatted_results)
-        self.results.setHtml(f'<div style="white-space: pre;">{html_content}</div>')
-        
-        # Restore cursor and scroll positions
+        # Restore cursor and synchronized scroll position
         self.editor.setTextCursor(cursor)
+        # Only set one scrollbar - the synchronization will handle the other
+        self._syncing_scroll = True  # Temporarily disable sync to avoid double-setting
         self.editor.verticalScrollBar().setValue(editor_scroll)
-        self.results.verticalScrollBar().setValue(results_scroll)
+        self._syncing_scroll = False
+        
+        # Force a sync after content update to ensure both are aligned
+        QTimer.singleShot(10, lambda: self._force_sync_from_editor())
         
         # Force highlight update if this was cursor-triggered
         if is_cursor_triggered:
             self.editor.highlightCurrentLine()
+
+    def _force_sync_from_editor(self):
+        """Force synchronization from editor to results - used after content updates"""
+        if not self._syncing_scroll:
+            current_value = self.editor.verticalScrollBar().value()
+            self._sync_editor_to_results(current_value)
 
     def wheelEvent(self, event):
         if event.modifiers() & Qt.ControlModifier:
@@ -3496,6 +3563,22 @@ def verify_icon_file(icon_path):
         return None
     except Exception as e:
         return None
+
+class ResultsHighlighter(QSyntaxHighlighter):
+    def __init__(self, document):
+        super().__init__(document)
+        self.error_format = self._fmt("#FF5C5C", bold=True)
+        
+    def _fmt(self, color, bold=False):
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(color))
+        if bold:
+            fmt.setFontWeight(QFont.Bold)
+        
+    def highlightBlock(self, text):
+        # Highlight error text
+        if "ERROR" in text or "TC ERROR" in text:
+            self.setFormat(0, len(text), self.error_format)
 
 if __name__=="__main__":
     app = QApplication(sys.argv)
