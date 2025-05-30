@@ -1497,7 +1497,7 @@ class FormulaEditor(QPlainTextEdit):
             # We're inside a function - completing parameters
             cursor.select(QTextCursor.WordUnderCursor)
             cursor.removeSelectedText()
-            cursor.insertText(completion_text)
+            cursor.insertText(completion_text + ')')  # Add closing parenthesis
         else:
             # We're completing a function name or other top-level completion
             
