@@ -3839,9 +3839,26 @@ class Worksheet(QWidget):
                     # Check for D() function call first
                     d_func_match = re.match(r'D\((.*?)\)', s)
                     if d_func_match:
-                        # Extract the content inside D() and add D. prefix for processing
+                        # Extract the content inside D() and process it properly
                         date_content = d_func_match.group(1)
-                        date_expr = f"D.{date_content}"
+                        
+                        # For date ranges like "03.05.1976-8.5.1976", we need to add D. to each date
+                        # Split on operators while preserving them
+                        date_parts = re.split(r'(\s*(?:W\s*)?[-+]\s*)', date_content)
+                        
+                        processed_parts = []
+                        for i, part in enumerate(date_parts):
+                            if i % 2 == 0:  # This is a date part (even indices)
+                                part = part.strip()
+                                if part and not part.startswith(('D.', 'd.')):
+                                    # Add D. prefix if it doesn't already have one
+                                    processed_parts.append(f"D.{part}")
+                                else:
+                                    processed_parts.append(part)
+                            else:  # This is an operator (odd indices)
+                                processed_parts.append(part)
+                        
+                        date_expr = ''.join(processed_parts)
                         date_result = handle_date_arithmetic(date_expr)
                     else:
                         # Process as regular D. syntax
