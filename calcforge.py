@@ -1131,57 +1131,98 @@ class FormulaEditor(QPlainTextEdit):
         self.viewport().update()
 
     def setup_autocompletion(self):
-        # Basic functions and commands
+        # Basic functions and commands - simplified to just show function names
         self.base_completions = {
-            'TR': 'TR(value, decimals)',
-            'truncate': 'truncate(value, decimals)',
-            'sqrt': 'sqrt(value)',
-            'sin': 'sin(value)',
-            'cos': 'cos(value)',
-            'tan': 'tan(value)',
-            'asin': 'asin(value)',
-            'acos': 'acos(value)',
-            'atan': 'atan(value)',
-            'sinh': 'sinh(value)',
-            'cosh': 'cosh(value)',
-            'tanh': 'tanh(value)',
-            'asinh': 'asinh(value)',
-            'acosh': 'acosh(value)',
-            'atanh': 'atanh(value)',
-            'log': 'log(value)',
-            'log10': 'log10(value)',
-            'log2': 'log2(value)',
-            'exp': 'exp(value)',
-            'pow': 'pow(base, exponent)',
-            'ceil': 'ceil(value)',
-            'floor': 'floor(value)',
-            'abs': 'abs(value)',
-            'factorial': 'factorial(value)',
-            'gcd': 'gcd(a, b)',
-            'lcm': 'lcm(a, b)',
-            'TC': 'TC(fps, timecode)',
-            'AR': 'AR(1920x1080, ?x2000)',
+            'TR': 'TR',
+            'truncate': 'truncate',
+            'sqrt': 'sqrt',
+            'sin': 'sin',
+            'cos': 'cos',
+            'tan': 'tan',
+            'asin': 'asin',
+            'acos': 'acos',
+            'atan': 'atan',
+            'sinh': 'sinh',
+            'cosh': 'cosh',
+            'tanh': 'tanh',
+            'asinh': 'asinh',
+            'acosh': 'acosh',
+            'atanh': 'atanh',
+            'log': 'log',
+            'log10': 'log10',
+            'log2': 'log2',
+            'exp': 'exp',
+            'pow': 'pow',
+            'ceil': 'ceil',
+            'floor': 'floor',
+            'abs': 'abs',
+            'factorial': 'factorial',
+            'gcd': 'gcd',
+            'lcm': 'lcm',
+            'TC': 'TC',
+            'AR': 'AR',
             'pi': 'pi',
             'e': 'e',
-            # Add special commands with all range options
-            'sum': 'sum(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'mean': 'mean(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'meanfps': 'meanfps(fps, above|below|start-end|1,3,5|cg-above|cg-below)',
-            'median': 'median(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'mode': 'mode(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'min': 'min(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'max': 'max(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'range': 'range(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'count': 'count(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'product': 'product(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'variance': 'variance(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'stdev': 'stdev(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'std': 'std(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'geomean': 'geomean(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'harmmean': 'harmmean(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'sumsq': 'sumsq(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'perc5': 'perc5(above|below|start-end|1,3,5|cg-above|cg-below)',
-            'perc95': 'perc95(above|below|start-end|1,3,5|cg-above|cg-below)'
+            # Statistical functions - just show function names
+            'sum': 'sum',
+            'mean': 'mean',
+            'meanfps': 'meanfps',
+            'median': 'median',
+            'mode': 'mode',
+            'min': 'min',
+            'max': 'max',
+            'range': 'range',
+            'count': 'count',
+            'product': 'product',
+            'variance': 'variance',
+            'stdev': 'stdev',
+            'std': 'std',
+            'geomean': 'geomean',
+            'harmmean': 'harmmean',
+            'sumsq': 'sumsq',
+            'perc5': 'perc5',
+            'perc95': 'perc95'
+        }
+        
+        # Parameter options for different function types
+        self.statistical_range_options = [
+            'above',
+            'below', 
+            '1-5',
+            '1,3,5',
+            'cg-above',
+            'cg-below'
+        ]
+        
+        self.tc_options = [
+            '(fps, timecode)',
+            '(fps, frames)', 
+            '(fps, "timecode + timecode")',
+            '(fps, "timecode - timecode")'
+        ]
+        
+        self.ar_options = [
+            '(1920x1080, ?x2000)',
+            '(1920x1080, 1280x?)',
+            '(original_width x original_height, target_width x ?)',
+            '(original_width x original_height, ? x target_height)'
+        ]
+        
+        self.basic_math_options = [
+            '(value)',
+            '(expression)'
+        ]
+        
+        self.two_param_options = [
+            '(value, decimals)',
+            '(first_value, second_value)'
+        ]
+        
+        # Functions that use statistical range options
+        self.statistical_functions = {
+            'sum', 'mean', 'median', 'mode', 'min', 'max', 'range', 'count', 
+            'product', 'variance', 'stdev', 'std', 'geomean', 'harmmean', 
+            'sumsq', 'perc5', 'perc95'
         }
 
     def truncate_func(self, value, decimals=2):
@@ -1262,15 +1303,80 @@ class FormulaEditor(QPlainTextEdit):
         if prefix.lower().startswith('ln'):
             return []
         
-        # Get the current line text to check for currency conversion context
+        # Get the current line text to check for different contexts
         cursor = self.textCursor()
         line_text = cursor.block().text()
         cursor_pos = cursor.positionInBlock()
         
+        # Check if we're inside function parentheses
+        text_before_cursor = line_text[:cursor_pos]
+        
+        # Look for function pattern: function_name(
+        function_pattern = r'(\w+)\(\s*([^)]*?)$'
+        function_match = re.search(function_pattern, text_before_cursor)
+        
+        if function_match:
+            function_name = function_match.group(1).lower()
+            params_so_far = function_match.group(2)
+            
+            # We're inside a function - show parameter options
+            if function_name in self.statistical_functions:
+                # For statistical functions, show range options
+                if function_name == 'meanfps':
+                    # Special case for meanfps - needs fps parameter first
+                    if ',' not in params_so_far:
+                        # First parameter (fps)
+                        fps_options = ['23.976', '24', '25', '29.97', '30', '50', '59.94', '60']
+                        for fps in fps_options:
+                            if fps.startswith(prefix.lower()):
+                                completions.append(fps)
+                    else:
+                        # Second parameter (range options)
+                        for option in self.statistical_range_options:
+                            if not prefix or option.lower().startswith(prefix.lower()):
+                                completions.append(option)
+                else:
+                    # Regular statistical functions - show range options
+                    for option in self.statistical_range_options:
+                        if not prefix or option.lower().startswith(prefix.lower()):
+                            completions.append(option)
+                            
+            elif function_name == 'tc':
+                # TC function options
+                for option in self.tc_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+                        
+            elif function_name == 'ar':
+                # AR function options  
+                for option in self.ar_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+                        
+            elif function_name in ['tr', 'truncate']:
+                # TR/truncate function options
+                for option in self.two_param_options:
+                    if 'decimal' in option.lower() and (not prefix or prefix.lower() in option.lower()):
+                        completions.append(option)
+                        
+            elif function_name in ['pow', 'gcd', 'lcm']:
+                # Two parameter functions
+                for option in self.two_param_options:
+                    if 'value' in option.lower() and (not prefix or prefix.lower() in option.lower()):
+                        completions.append(option)
+                        
+            else:
+                # Basic math functions
+                for option in self.basic_math_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+            
+            return sorted(completions)
+        
         # Check if we're in a currency conversion context
         # Pattern: number + currency + "to" + partial_currency
         currency_pattern = r'([\d.]+)\s+(\w+)\s+to\s+(\w*)$'
-        match = re.search(currency_pattern, line_text[:cursor_pos], re.IGNORECASE)
+        match = re.search(currency_pattern, text_before_cursor, re.IGNORECASE)
         
         if match:
             # We're completing the target currency
@@ -1284,7 +1390,7 @@ class FormulaEditor(QPlainTextEdit):
         # Check if we're typing a source currency after a number
         # Pattern: number + partial_currency (but not followed by "to")
         source_currency_pattern = r'([\d.]+)\s+(\w+)$'
-        match = re.search(source_currency_pattern, line_text[:cursor_pos], re.IGNORECASE)
+        match = re.search(source_currency_pattern, text_before_cursor, re.IGNORECASE)
         
         if match:
             # Check if the partial word could be a currency
@@ -1297,8 +1403,8 @@ class FormulaEditor(QPlainTextEdit):
             
             if currency_matches:
                 return sorted(currency_matches)
-            
-        # Regular function completions
+        
+        # Default: show function names
         for key, value in self.base_completions.items():
             if key.lower().startswith(prefix.lower()):
                 completions.append(value)
@@ -1378,59 +1484,86 @@ class FormulaEditor(QPlainTextEdit):
         completion_text = item.text()
         cursor = self.textCursor()
         
-        # For --- commands, handle the replacement specially
-        if completion_text.startswith('---'):
-            # Get the current line text
-            cursor.movePosition(QTextCursor.StartOfLine)
-            cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-            line_text = cursor.selectedText()
-            
-            # Find where the dashes start
-            dash_start = line_text.find('-')
-            if dash_start >= 0:
-                # Move to the start of the dashes
-                cursor.movePosition(QTextCursor.StartOfLine)
-                cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
-                # Select from there to end of line
-                cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                # Count the dashes at current position
-                dash_count = 0
-                while dash_count < len(line_text) - dash_start and line_text[dash_start + dash_count] == '-':
-                    dash_count += 1
-                
-                # If we have exactly 3 dashes, preserve them and add the function
-                if dash_count == 3:
-                    cursor.movePosition(QTextCursor.StartOfLine)
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start + 3)
-                    cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                    cursor.removeSelectedText()
-                    cursor.insertText(completion_text[3:])
-                else:
-                    # Otherwise replace everything with the full completion
-                    cursor.movePosition(QTextCursor.StartOfLine)
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
-                    cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                    cursor.removeSelectedText()
-                    cursor.insertText(completion_text)
-            else:
-                # If no dashes found, insert the full completion
-                cursor.removeSelectedText()
-                cursor.insertText(completion_text)
-        else:
-            # Handle regular completions
+        # Get current line context
+        line_text = cursor.block().text()
+        cursor_pos = cursor.positionInBlock()
+        text_before_cursor = line_text[:cursor_pos]
+        
+        # Check if we're completing inside function parentheses
+        function_pattern = r'(\w+)\(\s*([^)]*?)$'
+        function_match = re.search(function_pattern, text_before_cursor)
+        
+        if function_match:
+            # We're inside a function - completing parameters
             cursor.select(QTextCursor.WordUnderCursor)
             cursor.removeSelectedText()
             cursor.insertText(completion_text)
+        else:
+            # We're completing a function name or other top-level completion
             
-        # Move cursor inside parentheses if present
-        if '(' in completion_text:
-            pos = cursor.position()
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 
-                              len(completion_text) - completion_text.rindex('(') - 1)
-            cursor.setPosition(pos - 1)
+            # For --- commands, handle the replacement specially
+            if completion_text.startswith('---'):
+                # Get the current line text
+                cursor.movePosition(QTextCursor.StartOfLine)
+                cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                line_text = cursor.selectedText()
+                
+                # Find where the dashes start
+                dash_start = line_text.find('-')
+                if dash_start >= 0:
+                    # Move to the start of the dashes
+                    cursor.movePosition(QTextCursor.StartOfLine)
+                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
+                    # Select from there to end of line
+                    cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                    # Count the dashes at current position
+                    dash_count = 0
+                    while dash_count < len(line_text) - dash_start and line_text[dash_start + dash_count] == '-':
+                        dash_count += 1
+                    
+                    # If we have exactly 3 dashes, preserve them and add the function
+                    if dash_count == 3:
+                        cursor.movePosition(QTextCursor.StartOfLine)
+                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start + 3)
+                        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                        cursor.removeSelectedText()
+                        cursor.insertText(completion_text[3:])
+                    else:
+                        # Otherwise replace everything with the full completion
+                        cursor.movePosition(QTextCursor.StartOfLine)
+                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
+                        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                        cursor.removeSelectedText()
+                        cursor.insertText(completion_text)
+                else:
+                    # If no dashes found, insert the full completion
+                    cursor.removeSelectedText()
+                    cursor.insertText(completion_text)
+            else:
+                # Handle regular completions
+                cursor.select(QTextCursor.WordUnderCursor)
+                cursor.removeSelectedText()
+                
+                # Check if this is a function name that needs parentheses
+                is_function = (completion_text in self.base_completions and 
+                             completion_text not in ['pi', 'e'] and  # Constants don't need parentheses
+                             not completion_text.endswith(' to '))  # Currency completions
+                
+                if is_function:
+                    # Add parentheses and position cursor inside
+                    cursor.insertText(completion_text + '(')
+                    # Trigger completion again to show parameter options after a short delay
+                    QTimer.singleShot(10, self.show_completion_popup)
+                else:
+                    cursor.insertText(completion_text)
             
         self.setTextCursor(cursor)
-        self.completion_list.hide()
+        
+        # Only hide completion list if we're not expecting parameter completion
+        if not (completion_text in self.base_completions and 
+               completion_text not in ['pi', 'e'] and 
+               not completion_text.endswith(' to ')):
+            self.completion_list.hide()
 
     def assign_stable_ids(self):
         doc = self.document()
@@ -2533,13 +2666,26 @@ class FormulaEditor(QPlainTextEdit):
         text_cursor = self.textCursor()
         current_word = self.get_word_under_cursor()
         
-        # Don't show completion for empty strings or numbers
-        if not current_word or current_word.isdigit():
+        # Check if we're inside function parentheses even if there's no current word
+        line_text = text_cursor.block().text()
+        cursor_pos = text_cursor.positionInBlock()
+        text_before_cursor = line_text[:cursor_pos]
+        
+        # Look for function pattern: function_name(
+        function_pattern = r'(\w+)\(\s*([^)]*?)$'
+        function_match = re.search(function_pattern, text_before_cursor)
+        
+        # If we're inside a function, allow empty current_word for parameter completion
+        inside_function = function_match is not None
+        
+        # Don't show completion for pure numbers (but allow empty strings inside functions)
+        if (not inside_function and not current_word) or (current_word and current_word.isdigit()):
             self.completion_list.hide()
             return
 
-        # Get completions
-        completions = self.get_completions(current_word)
+        # Get completions - use empty string if no current_word but we're inside a function
+        search_prefix = current_word if current_word else ""
+        completions = self.get_completions(search_prefix)
         if not completions:
             self.completion_list.hide()
             return
