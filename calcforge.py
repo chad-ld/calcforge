@@ -1163,25 +1163,25 @@ class FormulaEditor(QPlainTextEdit):
             'AR': 'AR(1920x1080, ?x2000)',
             'pi': 'pi',
             'e': 'e',
-            # Add special commands
-            'sum': 'sum(start-end)',
-            'mean': 'mean(start-end)',
-            'meanfps': 'meanfps(fps, start-end)',
-            'median': 'median(start-end)',
-            'mode': 'mode(start-end)',
-            'min': 'min(start-end)',
-            'max': 'max(start-end)',
-            'range': 'range(start-end)',
-            'count': 'count(start-end)',
-            'product': 'product(start-end)',
-            'variance': 'variance(start-end)',
-            'stdev': 'stdev(start-end)',
-            'std': 'std(start-end)',
-            'geomean': 'geomean(start-end)',
-            'harmmean': 'harmmean(start-end)',
-            'sumsq': 'sumsq(start-end)',
-            'perc5': 'perc5(start-end)',
-            'perc95': 'perc95(start-end)'
+            # Add special commands with all range options
+            'sum': 'sum(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'mean': 'mean(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'meanfps': 'meanfps(fps, above|below|start-end|1,3,5|cg-above|cg-below)',
+            'median': 'median(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'mode': 'mode(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'min': 'min(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'max': 'max(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'range': 'range(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'count': 'count(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'product': 'product(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'variance': 'variance(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'stdev': 'stdev(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'std': 'std(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'geomean': 'geomean(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'harmmean': 'harmmean(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'sumsq': 'sumsq(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'perc5': 'perc5(above|below|start-end|1,3,5|cg-above|cg-below)',
+            'perc95': 'perc95(above|below|start-end|1,3,5|cg-above|cg-below)'
         }
 
     def truncate_func(self, value, decimals=2):
@@ -3194,11 +3194,97 @@ class Worksheet(QWidget):
                 except:
                     return 0
             
+            # Helper function to find nearest comment line above
+            def find_comment_above(start_idx):
+                for i in range(start_idx - 1, -1, -1):
+                    if i < len(lines):
+                        line_text = lines[i].strip()
+                        if line_text.startswith(":::"):
+                            return i
+                return -1  # No comment found, go to beginning
+            
+            # Helper function to find nearest comment line below
+            def find_comment_below(start_idx):
+                for i in range(start_idx + 1, len(lines)):
+                    line_text = lines[i].strip()
+                    if line_text.startswith(":::"):
+                        return i
+                return len(lines)  # No comment found, go to end
+            
+            # Helper function to temporarily evaluate a line if it hasn't been evaluated yet
+            def evaluate_line_if_needed(line_idx):
+                if line_idx >= len(vals) or line_idx >= len(lines):
+                    return None
+                    
+                # If already evaluated, return existing value
+                if vals[line_idx] is not None:
+                    return vals[line_idx]
+                
+                # Skip empty lines and comments
+                line_text = lines[line_idx].strip()
+                if not line_text or line_text.startswith(":::"):
+                    return None
+                
+                # Try to evaluate the line temporarily
+                try:
+                    # Pre-process the expression
+                    processed_line = preprocess_expression(line_text)
+                    
+                    # Handle special cases that need evaluation context
+                    if re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", processed_line, re.IGNORECASE):
+                        # This line has LN references, we can't evaluate it safely here
+                        return None
+                    
+                    # Try simple evaluation
+                    result = eval(processed_line, {"truncate": truncate, **GLOBALS}, {})
+                    return result
+                except:
+                    return None
+            
             # Function to get values from a range of lines (supporting both numbers and timecodes)
             def get_values_from_range(start_end, timecode_mode=False):
                 values = []
                 try:
-                    if '-' in start_end and ',' not in start_end:
+                    # Handle special keywords
+                    if start_end.lower() == 'above':
+                        # All lines above current
+                        for i in range(idx):
+                            if i < len(vals) and vals[i] is not None:
+                                if timecode_mode or is_timecode(vals[i]):
+                                    values.append(vals[i])
+                                elif isinstance(vals[i], (int, float)):
+                                    values.append(vals[i])
+                    elif start_end.lower() == 'below':
+                        # All lines below current - evaluate if needed
+                        for i in range(idx + 1, len(lines)):
+                            value = evaluate_line_if_needed(i)
+                            if value is not None:
+                                if timecode_mode or is_timecode(value):
+                                    values.append(value)
+                                elif isinstance(value, (int, float)):
+                                    values.append(value)
+                    elif start_end.lower() == 'cg-above':
+                        # From current line to nearest comment above
+                        comment_idx = find_comment_above(idx)
+                        start_line = comment_idx + 1 if comment_idx >= 0 else 0
+                        for i in range(start_line, idx):
+                            if i < len(vals) and vals[i] is not None:
+                                if timecode_mode or is_timecode(vals[i]):
+                                    values.append(vals[i])
+                                elif isinstance(vals[i], (int, float)):
+                                    values.append(vals[i])
+                    elif start_end.lower() == 'cg-below':
+                        # From current line to nearest comment below - evaluate if needed
+                        comment_idx = find_comment_below(idx)
+                        for i in range(idx + 1, comment_idx):
+                            value = evaluate_line_if_needed(i)
+                            if value is not None:
+                                if timecode_mode or is_timecode(value):
+                                    values.append(value)
+                                elif isinstance(value, (int, float)):
+                                    values.append(value)
+                    elif '-' in start_end and ',' not in start_end:
+                        # Range notation like "1-5"
                         start, end = map(int, start_end.split('-'))
                         for i in range(start-1, end):
                             if i < len(vals) and vals[i] is not None:
@@ -3206,7 +3292,16 @@ class Worksheet(QWidget):
                                     values.append(vals[i])
                                 elif isinstance(vals[i], (int, float)):
                                     values.append(vals[i])
+                            elif i >= len(vals) or vals[i] is None:
+                                # Try to evaluate if not yet processed
+                                value = evaluate_line_if_needed(i)
+                                if value is not None:
+                                    if timecode_mode or is_timecode(value):
+                                        values.append(value)
+                                    elif isinstance(value, (int, float)):
+                                        values.append(value)
                     else:
+                        # Comma-separated line numbers like "1,3,5"
                         for arg in start_end.split(','):
                             line_num = int(arg.strip()) - 1
                             if line_num < len(vals) and vals[line_num] is not None:
@@ -3214,6 +3309,14 @@ class Worksheet(QWidget):
                                     values.append(vals[line_num])
                                 elif isinstance(vals[line_num], (int, float)):
                                     values.append(vals[line_num])
+                            elif line_num >= len(vals) or vals[line_num] is None:
+                                # Try to evaluate if not yet processed
+                                value = evaluate_line_if_needed(line_num)
+                                if value is not None:
+                                    if timecode_mode or is_timecode(value):
+                                        values.append(value)
+                                    elif isinstance(value, (int, float)):
+                                        values.append(value)
                 except:
                     pass
                 return values
@@ -3355,7 +3458,44 @@ class Worksheet(QWidget):
             def get_numbers_from_range(start_end):
                 numbers = []
                 try:
-                    if '-' in start_end and ',' not in start_end:
+                    # Handle special keywords
+                    if start_end.lower() == 'above':
+                        # All lines above current
+                        for i in range(idx):
+                            if i < len(vals) and vals[i] is not None:
+                                if isinstance(vals[i], (int, float)):
+                                    numbers.append(float(vals[i]))
+                                elif is_timecode(vals[i]):
+                                    return "ERROR: Timecode values not supported for this function"
+                    elif start_end.lower() == 'below':
+                        # All lines below current - evaluate if needed
+                        for i in range(idx + 1, len(vals)):
+                            if vals[i] is not None:
+                                if isinstance(vals[i], (int, float)):
+                                    numbers.append(float(vals[i]))
+                                elif is_timecode(vals[i]):
+                                    return "ERROR: Timecode values not supported for this function"
+                    elif start_end.lower() == 'cg-above':
+                        # From current line to nearest comment above
+                        comment_idx = find_comment_above(idx)
+                        start_line = comment_idx + 1 if comment_idx >= 0 else 0
+                        for i in range(start_line, idx):
+                            if i < len(vals) and vals[i] is not None:
+                                if isinstance(vals[i], (int, float)):
+                                    numbers.append(float(vals[i]))
+                                elif is_timecode(vals[i]):
+                                    return "ERROR: Timecode values not supported for this function"
+                    elif start_end.lower() == 'cg-below':
+                        # From current line to nearest comment below - evaluate if needed
+                        comment_idx = find_comment_below(idx)
+                        for i in range(idx + 1, comment_idx):
+                            if i < len(vals) and vals[i] is not None:
+                                if isinstance(vals[i], (int, float)):
+                                    numbers.append(float(vals[i]))
+                                elif is_timecode(vals[i]):
+                                    return "ERROR: Timecode values not supported for this function"
+                    elif '-' in start_end and ',' not in start_end:
+                        # Range notation like "1-5"
                         start, end = map(int, start_end.split('-'))
                         for i in range(start-1, end):
                             if i < len(vals) and vals[i] is not None:
@@ -3364,6 +3504,7 @@ class Worksheet(QWidget):
                                 elif is_timecode(vals[i]):
                                     return "ERROR: Timecode values not supported for this function"
                     else:
+                        # Comma-separated line numbers like "1,3,5"
                         for arg in start_end.split(','):
                             line_num = int(arg.strip()) - 1
                             if line_num < len(vals) and vals[line_num] is not None:
@@ -3952,13 +4093,22 @@ class Calculator(QWidget):
             "<td width='33%' valign='top' style='padding-left: 15px;'>"
             "<h3 style='color: #6fcf97; margin-top: 0;'>📈 Statistical Functions</h3>"
             "• <strong style='color: #ff9999;'>Basic Statistics:</strong><br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(1-5), mean(1-5), median(1-5), mode(1-5)</code><br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>min(1-5), max(1-5), range(1-5), count(1-5)</code><br><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(above), sum(below), sum(1-5), sum(1,3,5)</code><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(cg-above), sum(cg-below)</code><br><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>mean(), min(), max(), median(), mode()</code><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>range(), count(), variance(), stdev()</code><br><br>"
             
-            "• <strong style='color: #ff9999;'>Advanced Statistics:</strong><br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>variance(1-5), stdev(1-5), geomean(1-5)</code><br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>harmmean(1-5), product(1-5), sumsq(1-5)</code><br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>perc5(1-5), perc95(1-5)</code><br><br>"
+            "• <strong style='color: #ff9999;'>Range Options:</strong><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>above</code> - all lines above current<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>below</code> - all lines below current<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>1-5</code> - range of lines<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>1,3,5</code> - specific lines<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>cg-above</code> - to nearest comment above<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>cg-below</code> - to nearest comment below<br><br>"
+            
+            "• <strong style='color: #ff9999;'>Advanced Functions:</strong><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>geomean(), harmmean(), product(), sumsq()</code><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>perc5(), perc95()</code><br><br>"
             
             "• Empty parentheses use all lines above<br>"
             "• Visual separators for stat blocks<br><br>"
