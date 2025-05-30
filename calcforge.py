@@ -3469,11 +3469,12 @@ class Worksheet(QWidget):
                                     return "ERROR: Timecode values not supported for this function"
                     elif start_end.lower() == 'below':
                         # All lines below current - evaluate if needed
-                        for i in range(idx + 1, len(vals)):
-                            if vals[i] is not None:
-                                if isinstance(vals[i], (int, float)):
-                                    numbers.append(float(vals[i]))
-                                elif is_timecode(vals[i]):
+                        for i in range(idx + 1, len(lines)):
+                            value = evaluate_line_if_needed(i)
+                            if value is not None:
+                                if isinstance(value, (int, float)):
+                                    numbers.append(float(value))
+                                elif is_timecode(value):
                                     return "ERROR: Timecode values not supported for this function"
                     elif start_end.lower() == 'cg-above':
                         # From current line to nearest comment above
@@ -3489,10 +3490,11 @@ class Worksheet(QWidget):
                         # From current line to nearest comment below - evaluate if needed
                         comment_idx = find_comment_below(idx)
                         for i in range(idx + 1, comment_idx):
-                            if i < len(vals) and vals[i] is not None:
-                                if isinstance(vals[i], (int, float)):
-                                    numbers.append(float(vals[i]))
-                                elif is_timecode(vals[i]):
+                            value = evaluate_line_if_needed(i)
+                            if value is not None:
+                                if isinstance(value, (int, float)):
+                                    numbers.append(float(value))
+                                elif is_timecode(value):
                                     return "ERROR: Timecode values not supported for this function"
                     elif '-' in start_end and ',' not in start_end:
                         # Range notation like "1-5"
