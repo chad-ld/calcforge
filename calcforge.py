@@ -2179,6 +2179,16 @@ class FormulaEditor(QPlainTextEdit):
             event.accept()
             return
         
+        # Handle tab navigation shortcuts (Shift+Ctrl+Left/Right)
+        shift = event.modifiers() & Qt.ShiftModifier
+        if shift and ctrl:
+            if k == Qt.Key_Left or k == Qt.Key_Right:
+                # Get the Calculator instance and delegate tab navigation to it
+                calculator = self.get_calculator()
+                if calculator:
+                    calculator.keyPressEvent(event)
+                    return
+        
         # Track navigation keys for debugging
         if self._debug_enabled and k in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_PageUp, Qt.Key_PageDown):
             key_name = {Qt.Key_Up: "Up", Qt.Key_Down: "Down", Qt.Key_Left: "Left", Qt.Key_Right: "Right", 
@@ -3555,6 +3565,38 @@ class Calculator(QWidget):
         self.setWindowFlags(flags)
         self.show()  # Need to show again after changing flags
 
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts for the Calculator window"""
+        # Check for Shift+Ctrl+Left/Right for tab navigation
+        shift = event.modifiers() & Qt.ShiftModifier
+        ctrl = event.modifiers() & Qt.ControlModifier
+        key = event.key()
+        
+        if shift and ctrl:
+            if key == Qt.Key_Left:
+                # Navigate to previous tab
+                current_index = self.tabs.currentIndex()
+                if current_index > 0:
+                    self.tabs.setCurrentIndex(current_index - 1)
+                else:
+                    # Wrap to last tab
+                    self.tabs.setCurrentIndex(self.tabs.count() - 1)
+                event.accept()
+                return
+            elif key == Qt.Key_Right:
+                # Navigate to next tab
+                current_index = self.tabs.currentIndex()
+                if current_index < self.tabs.count() - 1:
+                    self.tabs.setCurrentIndex(current_index + 1)
+                else:
+                    # Wrap to first tab
+                    self.tabs.setCurrentIndex(0)
+                event.accept()
+                return
+        
+        # Call parent implementation for other keys
+        super().keyPressEvent(event)
+
     def add_tab(self):
         ws=Worksheet()
         idx=self.tabs.addTab(ws,f"Sheet {self.tabs.count()+1}")
@@ -3784,6 +3826,10 @@ class Calculator(QWidget):
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>Ctrl+Left/Right</code>: Jump between numbers<br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>Ctrl+Up</code>: Expand selection with parentheses<br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>Ctrl+Down</code>: Select entire line<br><br>"
+            
+            "• <strong style='color: #ff9999;'>Tab Navigation:</strong><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>Shift+Ctrl+Left</code>: Previous sheet<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>Shift+Ctrl+Right</code>: Next sheet<br><br>"
             
             "• <strong style='color: #ff9999;'>Copying:</strong><br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>Ctrl+C</code>: Copy result from current line<br>"
