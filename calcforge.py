@@ -597,7 +597,7 @@ def preprocess_expression(expr):
     return expr
 
 # Add TC function and math functions to evaluation namespace
-GLOBALS = {"TC": TC, "AR": AR, **MATH_FUNCS}
+GLOBALS = {"TC": TC, "AR": AR, "TR": lambda x, d=2: round(x * (10 ** d)) / (10 ** d) if d > 0 else int(round(x)), **MATH_FUNCS}
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
@@ -1230,7 +1230,7 @@ class FormulaEditor(QPlainTextEdit):
         if isinstance(value, str):
             # If it's a string expression, evaluate it first
             try:
-                value = eval(value, {"truncate": self.truncate_func, **GLOBALS}, {})
+                value = eval(value, {"truncate": self.truncate_func, "TR": self.truncate_func, **GLOBALS}, {})
             except:
                 return value
         if isinstance(value, dict) and 'value' in value:
@@ -1601,7 +1601,7 @@ class FormulaEditor(QPlainTextEdit):
                 expr = self.process_ln_refs(expr)
             
             # Handle the expression evaluation using the local truncate function
-            result = eval(expr, {"truncate": self.truncate_func, **GLOBALS}, {})
+            result = eval(expr, {"truncate": self.truncate_func, "TR": self.truncate_func, **GLOBALS}, {})
             
             # Format the result nicely
             if isinstance(result, float):
@@ -3207,7 +3207,7 @@ class Worksheet(QWidget):
             if isinstance(value, str):
                 # If it's a string expression, evaluate it first
                 try:
-                    value = eval(value, {"truncate": truncate, **GLOBALS}, {})
+                    value = eval(value, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
                 except:
                     return value
             if isinstance(value, dict) and 'value' in value:
@@ -3405,7 +3405,7 @@ class Worksheet(QWidget):
                         return None
                     
                     # Try simple evaluation
-                    result = eval(processed_line, {"truncate": truncate, **GLOBALS}, {})
+                    result = eval(processed_line, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
                     return result
                 except:
                     return None
@@ -3853,7 +3853,7 @@ class Worksheet(QWidget):
                 if trunc_match:
                     # First evaluate the expression
                     expr = self.editor.process_ln_refs(trunc_match.group(1).strip())
-                    decimals = int(eval(trunc_match.group(2).strip(), {"truncate": truncate, **GLOBALS}, {}))
+                    decimals = int(eval(trunc_match.group(2).strip(), {"truncate": truncate, "TR": truncate, **GLOBALS}, {}))
                     
                     # Try unit conversion first
                     unit_result = handle_unit_conversion(expr)
@@ -3866,7 +3866,7 @@ class Worksheet(QWidget):
                             v = truncate(currency_result, decimals)
                         else:
                             # If not a unit or currency conversion, evaluate as regular expression
-                            val = eval(expr, {"truncate": truncate, **GLOBALS}, {})
+                            val = eval(expr, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
                             v = truncate(val, decimals)
                         
                     vals[idx] = v
@@ -3890,7 +3890,7 @@ class Worksheet(QWidget):
                     # print(f"Line {idx + 1} after processing refs: {s}")  # Debug print - commented for performance
 
                 # Try to evaluate the expression with math functions
-                v = eval(s, {"truncate": truncate, "mean": statistics.mean, **GLOBALS}, {})
+                v = eval(s, {"truncate": truncate, "mean": statistics.mean, "TR": truncate, **GLOBALS}, {})
                 vals[idx] = v
                 if current_id:
                     self.editor.ln_value_map[current_id] = vals[idx]
