@@ -1498,6 +1498,8 @@ class FormulaEditor(QPlainTextEdit):
             cursor.select(QTextCursor.WordUnderCursor)
             cursor.removeSelectedText()
             cursor.insertText(completion_text + ')')  # Add closing parenthesis
+            # Move cursor back one position to be just before the closing parenthesis
+            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 1)
         else:
             # We're completing a function name or other top-level completion
             
