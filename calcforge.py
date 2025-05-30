@@ -52,9 +52,8 @@ def lcm(a, b):
     return abs(a * b) // math.gcd(a, b)
 
 def parse_date(date_str):
-    """Parse a date string in various formats starting with 'd', 'D', 'd.', or 'D.'"""
-    # Remove the prefix (either 'd/D' or 'd./D.') and clean up whitespace
-    date_str = re.sub(r'^[dD]\.?\s*', '', date_str.strip())
+    """Parse a date string in various formats"""
+    date_str = date_str.strip()
     
     # First try to parse continuous number format (MMDDYYYY or MDYYYY)
     num_only = re.sub(r'[^\d]', '', date_str)
@@ -135,8 +134,9 @@ def handle_date_arithmetic(expr):
     """Handle date arithmetic expressions inside D() functions"""
     # Define date patterns without D. prefixes
     date_patterns = [
-        # Two dates with subtraction - handle spaces in dates
-        r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*(?:W\s*)?-\s*([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)',  # Date range with optional W
+        # Two dates with subtraction - handle spaces in dates and W- syntax
+        r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*W\s*-\s*([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)',  # Date range with W-
+        r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*-\s*([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)',       # Date range without W
         # Date plus/minus days - handle spaces and optional W
         r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*W\s*([+\-])\s*(\d+)',  # With W
         r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*([+\-])\s*(\d+)',      # Without W
