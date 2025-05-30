@@ -3836,7 +3836,17 @@ class Worksheet(QWidget):
                     # Update the line text for evaluation
                     s = text.strip()
                     
-                    date_result = handle_date_arithmetic(s)
+                    # Check for D() function call first
+                    d_func_match = re.match(r'D\((.*?)\)', s)
+                    if d_func_match:
+                        # Extract the content inside D() and add D. prefix for processing
+                        date_content = d_func_match.group(1)
+                        date_expr = f"D.{date_content}"
+                        date_result = handle_date_arithmetic(date_expr)
+                    else:
+                        # Process as regular D. syntax
+                        date_result = handle_date_arithmetic(s)
+                        
                     if date_result is not None:
                         vals[idx] = date_result
                         if current_id:
