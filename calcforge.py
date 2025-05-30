@@ -1161,6 +1161,7 @@ class FormulaEditor(QPlainTextEdit):
             'lcm': 'lcm',
             'TC': 'TC',
             'AR': 'AR',
+            'D': 'D',
             'pi': 'pi',
             'e': 'e',
             # Statistical functions - just show function names
@@ -1206,6 +1207,13 @@ class FormulaEditor(QPlainTextEdit):
             '(1920x1080, 1280x?)',
             '(original_width x original_height, target_width x ?)',
             '(original_width x original_height, ? x target_height)'
+        ]
+        
+        self.date_options = [
+            'date start range - date end range',
+            'date start range W- date end range',
+            'date start range + no. of days',
+            'date start range W+ no. of days'
         ]
         
         self.basic_math_options = [
@@ -1350,6 +1358,12 @@ class FormulaEditor(QPlainTextEdit):
             elif function_name == 'ar':
                 # AR function options  
                 for option in self.ar_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+                        
+            elif function_name == 'd':
+                # Date function options
+                for option in self.date_options:
                     if not prefix or prefix.lower() in option.lower():
                         completions.append(option)
                         
