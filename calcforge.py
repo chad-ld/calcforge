@@ -2469,13 +2469,29 @@ class FormulaEditor(QPlainTextEdit):
                     re.search(r'([\d.]+)\s+\w+$', line_text[:cursor_pos], re.IGNORECASE)
                 )
                 
+                # Check if we're inside function parentheses
+                text_before_cursor = line_text[:cursor_pos]
+                function_pattern = r'(\w+)\(\s*([^)]*?)$'
+                has_function_context = re.search(function_pattern, text_before_cursor)
+                
                 if (any(func.lower().startswith(current_word.lower()) for func in self.base_completions) or 
-                    has_currency_context):
+                    has_currency_context or has_function_context):
                     self.show_completion_popup()
                 else:
                     self.completion_list.hide()
             else:
-                self.completion_list.hide()
+                # Check if we're inside function parentheses even without a current word
+                cursor = self.textCursor()
+                line_text = cursor.block().text()
+                cursor_pos = cursor.positionInBlock()
+                text_before_cursor = line_text[:cursor_pos]
+                function_pattern = r'(\w+)\(\s*([^)]*?)$'
+                has_function_context = re.search(function_pattern, text_before_cursor)
+                
+                if has_function_context:
+                    self.show_completion_popup()
+                else:
+                    self.completion_list.hide()
         elif k in (Qt.Key_Backspace, Qt.Key_Delete):
             # Only show popup if there's still text to complete after deletion
             current_word = self.get_word_under_cursor()
@@ -2489,9 +2505,14 @@ class FormulaEditor(QPlainTextEdit):
                 re.search(r'([\d.]+)\s+\w+$', line_text[:cursor_pos], re.IGNORECASE)
             )
             
+            # Check if we're inside function parentheses
+            text_before_cursor = line_text[:cursor_pos]
+            function_pattern = r'(\w+)\(\s*([^)]*?)$'
+            has_function_context = re.search(function_pattern, text_before_cursor)
+            
             if (current_word and 
                 (any(func.lower().startswith(current_word.lower()) for func in self.base_completions) or
-                 has_currency_context)):
+                 has_currency_context)) or has_function_context:
                 self.show_completion_popup()
             else:
                 self.completion_list.hide()
