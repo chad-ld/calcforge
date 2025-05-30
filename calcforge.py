@@ -600,7 +600,7 @@ GLOBALS = {"TC": TC, "AR": AR, "TR": lambda x, d=2: round(x * (10 ** d)) / (10 *
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
     QTextEdit, QSplitter, QPushButton, QMessageBox, QTabWidget, QInputDialog,
-    QToolTip, QCompleter, QListWidget, QCheckBox, QDialog
+    QToolTip, QCompleter, QListWidget, QCheckBox, QDialog, QLabel
 )
 from PySide6.QtGui import (
     QFont, QSyntaxHighlighter, QTextCharFormat, QColor,
@@ -609,7 +609,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtCore import (
     Qt, QTimer, QRegularExpression, QSize, QRect, Slot, QSettings, QEvent,
-    QStringListModel, QObject
+    QStringListModel, QObject, QPoint
 )
 
 # Forward declare Calculator class for type hints
@@ -912,6 +912,28 @@ class FormulaHighlighter(QSyntaxHighlighter):
         block = self.currentBlock()
         block.setUserData(LineData(block.blockNumber() + 1))
 
+class AutoCompleteDescriptionBox(QLabel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setWordWrap(True)
+        self.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.setMargin(8)
+        self.setStyleSheet("""
+            QLabel {
+                background-color: #3a3a3c;
+                color: #e0e0e0;
+                border: 1px solid #4477ff;
+                padding: 8px;
+                font-family: 'Segoe UI';
+                font-size: 11pt;
+                line-height: 1.4em;
+            }
+        """)
+        self.hide()
+
 class AutoCompleteList(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -920,7 +942,7 @@ class AutoCompleteList(QListWidget):
         self.setFocusPolicy(Qt.NoFocus)
         self.setMouseTracking(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)  # Show scrollbar when needed
         self.setUniformItemSizes(True)
         self.setStyleSheet("""
             QListWidget {
@@ -934,15 +956,199 @@ class AutoCompleteList(QListWidget):
                 font-size: 14pt;
             }
             QListWidget::item {
-                padding: 4px;
+                padding: 4px 8px 4px 4px;
             }
             QListWidget::item:selected {
                 background-color: #4477ff;
+                margin-right: 2px;
             }
             QListWidget::item:hover {
                 background-color: #3a3a3d;
+                margin-right: 2px;
+            }
+            QScrollBar:vertical {
+                background-color: #2c2c2e;
+                width: 6px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #4477ff;
+                border-radius: 3px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #5588ff;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                border: none;
+                background: none;
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
             }
         """)
+        
+        # Connect selection change to update description
+        self.currentRowChanged.connect(self.on_selection_changed)
+        
+        # Create description box
+        self.description_box = AutoCompleteDescriptionBox(parent)
+        
+        # Function descriptions - keep them short and concise
+        self.function_descriptions = {
+            'sum': 'Adds numbers from a range of lines',
+            'mean': 'Calculates average of numbers from a range',
+            'median': 'Finds middle value in a range of numbers',
+            'mode': 'Finds most frequently occurring value',
+            'min': 'Finds smallest value in a range',
+            'max': 'Finds largest value in a range',
+            'count': 'Counts non-empty values in a range',
+            'product': 'Multiplies all numbers in a range',
+            'variance': 'Calculates variance of numbers in range',
+            'stdev': 'Calculates standard deviation of range',
+            'std': 'Calculates standard deviation of range',
+            'range': 'Calculates max minus min of range',
+            'geomean': 'Calculates geometric mean of range',
+            'harmmean': 'Calculates harmonic mean of range',
+            'sumsq': 'Calculates sum of squares in range',
+            'perc5': 'Finds 5th percentile value in range',
+            'perc95': 'Finds 95th percentile value in range',
+            'meanfps': 'Calculates average with frame rate consideration',
+            'sqrt': 'Calculates square root of a number',
+            'sin': 'Calculates sine of an angle (radians)',
+            'cos': 'Calculates cosine of an angle (radians)', 
+            'tan': 'Calculates tangent of an angle (radians)',
+            'asin': 'Calculates inverse sine (returns radians)',
+            'acos': 'Calculates inverse cosine (returns radians)',
+            'atan': 'Calculates inverse tangent (returns radians)',
+            'sinh': 'Calculates hyperbolic sine',
+            'cosh': 'Calculates hyperbolic cosine',
+            'tanh': 'Calculates hyperbolic tangent',
+            'asinh': 'Calculates inverse hyperbolic sine',
+            'acosh': 'Calculates inverse hyperbolic cosine',
+            'atanh': 'Calculates inverse hyperbolic tangent',
+            'log': 'Calculates natural logarithm',
+            'log10': 'Calculates base-10 logarithm',
+            'log2': 'Calculates base-2 logarithm',
+            'exp': 'Calculates e raised to the power of x',
+            'pow': 'Raises first number to power of second',
+            'ceil': 'Rounds number up to nearest integer',
+            'floor': 'Rounds number down to nearest integer',
+            'abs': 'Returns absolute value of number',
+            'factorial': 'Calculates factorial of a number',
+            'gcd': 'Finds greatest common divisor of two numbers',
+            'lcm': 'Finds least common multiple of two numbers',
+            'TC': 'Timecode calculation and conversion',
+            'AR': 'Aspect ratio calculation for video dimensions',
+            'D': 'Date arithmetic and business day calculations',
+            'TR': 'Rounds number to specified decimal places',
+            'truncate': 'Rounds number to specified decimal places',
+            'pi': 'Mathematical constant π (3.14159...)',
+            'e': 'Mathematical constant e (2.71828...)'
+        }
+        
+        # Mode descriptions for different function contexts
+        self.mode_descriptions = {
+            'above': 'Uses all lines above current line',
+            'below': 'Uses all lines below current line',
+            'start range - end range': 'Uses lines from start to end (e.g., 1-5)',
+            'line1,line2,line3': 'Uses specific line numbers (comma-separated)',
+            'cg-above': 'Uses lines above in current group',
+            'cg-below': 'Uses lines below in current group',
+            'fps, timecode': 'Convert timecode to frames',
+            'fps, frames': 'Convert frames to timecode',
+            'fps, "timecode + timecode"': 'Add two timecodes together',
+            'fps, "timecode - timecode"': 'Subtract one timecode from another',
+            '1920x1080, ?x2000': 'Calculate width for given height',
+            '1920x1080, 1280x?': 'Calculate height for given width',
+            'original_width x original_height, target_width x ?': 'Calculate height for target width',
+            'original_width x original_height, ? x target_height': 'Calculate width for target height',
+            'date start range - date end range': 'Calculate days between two dates',
+            'date start range W- date end range': 'Calculate business days between dates',
+            'date start range + no. of days': 'Add days to a date',
+            'date start range W+ no. of days': 'Add business days to a date',
+            'value': 'Apply function to a single value',
+            'expression': 'Apply function to result of expression',
+            'value, decimals': 'First parameter is value, second is decimal places',
+            'first_value, second_value': 'Function takes two parameters',
+            '23.976': 'Standard film frame rate',
+            '24': 'Cinema frame rate',
+            '25': 'PAL video frame rate',
+            '29.97': 'NTSC drop-frame rate',
+            '30': 'NTSC non-drop frame rate',
+            '50': 'PAL progressive frame rate',
+            '59.94': 'NTSC progressive frame rate',
+            '60': 'High frame rate'
+        }
+
+    def on_selection_changed(self, current_row):
+        """Update description box when selection changes"""
+        if current_row >= 0 and current_row < self.count():
+            item = self.item(current_row)
+            if item:
+                item_text = item.text()
+                description = self.get_description_for_item(item_text)
+                if description:
+                    self.description_box.setText(description)
+                    self.show_description_box()
+                else:
+                    self.description_box.hide()
+        else:
+            self.description_box.hide()
+
+    def get_description_for_item(self, item_text):
+        """Get description for the given item"""
+        # Check if it's a function
+        if item_text in self.function_descriptions:
+            return self.function_descriptions[item_text]
+        
+        # Check if it's a mode/parameter option
+        if item_text in self.mode_descriptions:
+            return self.mode_descriptions[item_text]
+        
+        # Handle currency completions (end with " to ")
+        if item_text.endswith(' to '):
+            return f"Convert from {item_text.replace(' to ', '')} to another currency"
+        
+        return None
+
+    def show_description_box(self):
+        """Show the description box positioned to the right of the completion list"""
+        if not self.isVisible():
+            return
+            
+        # Position description box to the right of the completion list
+        list_rect = self.geometry()
+        desc_x = list_rect.right() + 10  # 10px gap
+        desc_y = list_rect.top()
+        
+        # Set a reasonable width for the description box
+        desc_width = 250
+        desc_height = 80
+        
+        # Get screen geometry to ensure description stays on screen
+        screen = QApplication.screenAt(self.mapToGlobal(QPoint(0, 0)))
+        if not screen:
+            screen = QApplication.primaryScreen()
+        screen_geom = screen.geometry()
+        
+        # Adjust position if it would go off screen
+        if desc_x + desc_width > screen_geom.right():
+            # Position to the left of the completion list instead
+            desc_x = list_rect.left() - desc_width - 10
+        
+        if desc_y + desc_height > screen_geom.bottom():
+            desc_y = screen_geom.bottom() - desc_height
+            
+        self.description_box.setGeometry(desc_x, desc_y, desc_width, desc_height)
+        self.description_box.show()
+        self.description_box.raise_()
+
+    def hide(self):
+        """Hide both the completion list and description box"""
+        super().hide()
+        self.description_box.hide()
 
     def handle_key_event(self, key):
         if key == Qt.Key_Up:
@@ -1194,17 +1400,17 @@ class FormulaEditor(QPlainTextEdit):
         ]
         
         self.tc_options = [
-            '(fps, timecode)',
-            '(fps, frames)', 
-            '(fps, "timecode + timecode")',
-            '(fps, "timecode - timecode")'
+            'fps, timecode',
+            'fps, frames', 
+            'fps, "timecode + timecode"',
+            'fps, "timecode - timecode"'
         ]
         
         self.ar_options = [
-            '(1920x1080, ?x2000)',
-            '(1920x1080, 1280x?)',
-            '(original_width x original_height, target_width x ?)',
-            '(original_width x original_height, ? x target_height)'
+            '1920x1080, ?x2000',
+            '1920x1080, 1280x?',
+            'original_width x original_height, target_width x ?',
+            'original_width x original_height, ? x target_height'
         ]
         
         self.date_options = [
@@ -1215,13 +1421,13 @@ class FormulaEditor(QPlainTextEdit):
         ]
         
         self.basic_math_options = [
-            '(value)',
-            '(expression)'
+            'value',
+            'expression'
         ]
         
         self.two_param_options = [
-            '(value, decimals)',
-            '(first_value, second_value)'
+            'value, decimals',
+            'first_value, second_value'
         ]
         
         # Functions that use statistical range options
@@ -2746,7 +2952,18 @@ class FormulaEditor(QPlainTextEdit):
         fm = self.completion_list.fontMetrics()
         max_width = max(fm.horizontalAdvance(item) for item in completions) + 40  # Add padding
         width = max(200, max_width)  # Ensure minimum width
-        height = min(self.completion_list.count() * 30, 300)  # 30 pixels per item, max 300px height
+        
+        # Always size popup to show 5 items - simpler approach
+        item_height = 30
+        visible_items = 5
+        padding = 4
+        height = (visible_items * item_height) + padding  # Always 154px
+        
+        # Only show scrollbar if there are more than 5 items
+        if self.completion_list.count() > visible_items:
+            self.completion_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        else:
+            self.completion_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
         # Adjust position to be just below the text
         screen_pos.setY(screen_pos.y() + 5)
@@ -2765,6 +2982,10 @@ class FormulaEditor(QPlainTextEdit):
         self.completion_list.show()
         self.completion_list.setCurrentRow(0)
         self.completion_list.raise_()  # Ensure popup stays on top
+        
+        # Trigger description box for the first item
+        if completions:
+            self.completion_list.on_selection_changed(0)
 
     def paintEvent(self, event):
         # Draw the base text edit content
