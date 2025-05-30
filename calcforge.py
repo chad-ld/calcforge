@@ -133,9 +133,6 @@ def count_business_days(start_date, end_date):
 
 def handle_date_arithmetic(expr):
     """Handle date arithmetic expressions inside D() functions"""
-    # Remove any remaining D. or d. prefixes from the expression
-    expr = re.sub(r'[dD]\.?', '', expr).strip()
-    
     # Define date patterns without D. prefixes
     date_patterns = [
         # Two dates with subtraction - handle spaces in dates
