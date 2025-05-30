@@ -1188,8 +1188,8 @@ class FormulaEditor(QPlainTextEdit):
         self.statistical_range_options = [
             'above',
             'below', 
-            '1-5',
-            '1,3,5',
+            'start range - end range',
+            'line1,line2,line3',
             'cg-above',
             'cg-below'
         ]
@@ -4262,7 +4262,7 @@ class Calculator(QWidget):
             "<td width='33%' valign='top' style='padding-left: 15px;'>"
             "<h3 style='color: #6fcf97; margin-top: 0;'>📈 Statistical Functions</h3>"
             "• <strong style='color: #ff9999;'>Basic Statistics:</strong><br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(above), sum(below), sum(1-5), sum(1,3,5)</code><br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(above), sum(below), sum(start range - end range), sum(line1,line2,line3)</code><br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(cg-above), sum(cg-below)</code><br><br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>mean(), min(), max(), median(), mode()</code><br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>range(), count(), variance(), stdev()</code><br><br>"
@@ -4270,8 +4270,8 @@ class Calculator(QWidget):
             "• <strong style='color: #ff9999;'>Range Options:</strong><br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>above</code> - all lines above current<br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>below</code> - all lines below current<br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>1-5</code> - range of lines<br>"
-            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>1,3,5</code> - specific lines<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>start range - end range</code> - range of lines (e.g., 1-5)<br>"
+            "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>line1,line2,line3</code> - specific lines (e.g., 1,3,5)<br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>cg-above</code> - to nearest comment above<br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>cg-below</code> - to nearest comment below<br><br>"
             
