@@ -997,7 +997,10 @@ class KeyEventFilter(QObject):
                         
                 elif k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
                     # For Ctrl+arrow keys with an existing selection, do nothing to preserve selection
-                    return True  # Block the event to preserve selection
+                    # EXCEPT for Ctrl+Up which should expand selection progressively
+                    if k == Qt.Key_Up:
+                        return False  # Allow Ctrl+Up to pass through for progressive selection
+                    return True  # Block other arrow keys to preserve selection
         
         # For all other events, pass through normally
         return False
@@ -1983,16 +1986,15 @@ class FormulaEditor(QPlainTextEdit):
                 return
 
     def expand_selection_with_parens(self):
-        """Expand selection to include contents within parentheses or the parentheses themselves"""
+        """Expand selection progressively based on parentheses levels"""
         cursor = self.textCursor()
         text = cursor.block().text()
         block_pos = cursor.block().position()
         
-        # Get current cursor position or selection
+        # Get current cursor position or selection bounds (relative to line start)
         if cursor.hasSelection():
             sel_start = cursor.selectionStart() - block_pos
             sel_end = cursor.selectionEnd() - block_pos
-            pos = sel_start  # Use start of selection as reference point
         else:
             pos = cursor.positionInBlock()
             sel_start = sel_end = pos
@@ -2007,60 +2009,72 @@ class FormulaEditor(QPlainTextEdit):
                 start = stack.pop()
                 pairs.append((start, i))
         
-        # Sort pairs by size (inner to outer)
+        # Sort pairs by nesting level (innermost first)
         pairs.sort(key=lambda p: p[1] - p[0])
         
-        # If we have a current selection, try to find if it matches any expression
-        if cursor.hasSelection():
-            # First check if we're selecting an arithmetic expression that's inside parentheses
-            for start, end in pairs:
-                # If our selection is inside these parentheses
-                if start < sel_start and end > sel_end:
-                    # And if we're not already selecting up to the parentheses
-                    if start + 1 != sel_start or end != sel_end:
-                        # Select up to the parentheses boundaries
-                        cursor.setPosition(block_pos + start + 1)
-                        cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
-                        self.setTextCursor(cursor)
-                        return
-                # If we're selecting exactly the content between parentheses
-                elif start + 1 == sel_start and end == sel_end:
-                    # Expand to include the parentheses
-                    cursor.setPosition(block_pos + start)
-                    cursor.setPosition(block_pos + end + 1, QTextCursor.KeepAnchor)
-                    self.setTextCursor(cursor)
-                    return
-        
-        # If we don't have a selection or couldn't expand it, find the innermost expression
-        smallest_size = float('inf')
-        smallest_pair = None
-        
-        # Look for the smallest pair containing the cursor
+        # Find all parentheses levels that contain the cursor/selection
+        containing_pairs = []
         for start, end in pairs:
-            size = end - start
-            if start < pos and end >= pos and size < smallest_size:
-                smallest_size = size
-                smallest_pair = (start, end)
-            elif start + 1 <= pos and end >= pos and size < smallest_size:
-                smallest_size = size
-                smallest_pair = (start, end)
+            # Check if this pair contains the current cursor/selection
+            if start <= sel_start and end >= sel_end:
+                containing_pairs.append((start, end))
         
-        if smallest_pair:
-            start, end = smallest_pair
-            # First select the contents
-            cursor.setPosition(block_pos + start + 1)
-            cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
-            self.setTextCursor(cursor)
-            return
-            
-        # If we couldn't find any parentheses, try to find an arithmetic expression
+        # Sort containing pairs by size (innermost first)
+        containing_pairs.sort(key=lambda p: p[1] - p[0])
+        
+        # If we have no selection, start with the innermost parentheses content
         if not cursor.hasSelection():
-            expr = self.find_arithmetic_expression(text, pos)
-            if expr:
-                start, end = expr
-                cursor.setPosition(block_pos + start)
+            if containing_pairs:
+                start, end = containing_pairs[0]
+                # Select content inside parentheses (excluding the parentheses)
+                cursor.setPosition(block_pos + start + 1)
                 cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
                 self.setTextCursor(cursor)
+                return
+            else:
+                # No parentheses, select entire line
+                self.select_entire_line()
+                return
+        
+        # We have a selection - find the next expansion level
+        for i, (start, end) in enumerate(containing_pairs):
+            # Check if we're selecting the content inside these parentheses (excluding parens)
+            if sel_start == start + 1 and sel_end == end:
+                # Expand to include the parentheses themselves
+                cursor.setPosition(block_pos + start)
+                cursor.setPosition(block_pos + end + 1, QTextCursor.KeepAnchor)
+                self.setTextCursor(cursor)
+                return
+            
+            # Check if we're selecting including these parentheses
+            elif sel_start == start and sel_end == end + 1:
+                # Find the next outer level
+                if i + 1 < len(containing_pairs):
+                    # Expand to content of next outer level
+                    outer_start, outer_end = containing_pairs[i + 1]
+                    cursor.setPosition(block_pos + outer_start + 1)
+                    cursor.setPosition(block_pos + outer_end, QTextCursor.KeepAnchor)
+                    self.setTextCursor(cursor)
+                    return
+                else:
+                    # No outer level found, select entire line
+                    self.select_entire_line()
+                    return
+        
+        # If current selection doesn't match any parentheses pattern exactly,
+        # find the smallest parentheses pair that would be the next logical expansion
+        for start, end in containing_pairs:
+            # If the selection is smaller than this parentheses content
+            if sel_start >= start + 1 and sel_end <= end:
+                # Select content inside this pair
+                cursor.setPosition(block_pos + start + 1)
+                cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
+                self.setTextCursor(cursor)
+                return
+        
+        # Fallback: select entire line
+        print("DEBUG: Fallback - selecting entire line")
+        self.select_entire_line()
 
     def find_arithmetic_expression(self, text, pos):
         """Find the boundaries of an arithmetic expression at the given position"""
