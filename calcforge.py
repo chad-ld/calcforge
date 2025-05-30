@@ -132,19 +132,19 @@ def count_business_days(start_date, end_date):
     return business_days
 
 def handle_date_arithmetic(expr):
-    """Handle date arithmetic expressions"""
-    # First, store the original expression for later
-    original_expr = expr
+    """Handle date arithmetic expressions inside D() functions"""
+    # Remove any remaining D. or d. prefixes from the expression
+    expr = re.sub(r'[dD]\.?', '', expr).strip()
     
-    # Match date arithmetic patterns, allowing for optional period after d/D
+    # Define date patterns without D. prefixes
     date_patterns = [
         # Two dates with subtraction - handle spaces in dates
-        r'([dD]\.?(?:[A-Za-z]+\s+\d+,\s*\d{4}|\d[^+\-W]*?))\s*(?:W)?\s*-\s*([dD]\.?(?:[A-Za-z]+\s+\d+,\s*\d{4}|\d[^+\-]+))',  # Optional W before -
+        r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*(?:W\s*)?-\s*([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)',  # Date range with optional W
         # Date plus/minus days - handle spaces and optional W
-        r'([dD]\.?(?:[A-Za-z]+\s+\d+,\s*\d{4}|\d[^+\-W]*?))\s*W\s*([+\-])\s*(\d+)',  # With W
-        r'([dD]\.?(?:[A-Za-z]+\s+\d+,\s*\d{4}|\d[^+\-W]*?))\s*([+\-])\s*(\d+)',      # Without W
+        r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*W\s*([+\-])\s*(\d+)',  # With W
+        r'([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)\s*([+\-])\s*(\d+)',      # Without W
         # Single date
-        r'([dD]\.?(?:[A-Za-z]+\s+\d+,\s*\d{4}|\d[^+\-]+))'
+        r'^([A-Za-z]+\s+\d+,\s*\d{4}|\d[\d.]*)$'
     ]
     
     for pattern in date_patterns:
@@ -159,9 +159,10 @@ def handle_date_arithmetic(expr):
                     # Check if there's a W before the minus sign
                     if 'W-' in expr or 'W -' in expr:
                         days = count_business_days(date1, date2)
+                        return {'value': days, 'unit': 'Business Days'}
                     else:
                         days = (date2 - date1).days
-                    return {'value': days, 'unit': 'Business Days' if 'W' in expr else 'Days'}
+                        return {'value': days, 'unit': 'Days'}
                 except ValueError as e:
                     return None
                     
@@ -3809,61 +3810,13 @@ class Worksheet(QWidget):
                 # Pre-process the expression to handle padded numbers
                 s = preprocess_expression(s)
 
-                # Check for date expressions first
-                if re.search(r'[dD]\.?(?:\d|[A-Za-z]+\s)', s):
-                    # Auto-correct all lowercase 'd' to uppercase 'D'
-                    line_cursor = QTextCursor(blk)
-                    text = line_cursor.block().text()
-                    pos = 0
+                # Check for D() function call first
+                d_func_match = re.match(r'D\((.*?)\)', s)
+                if d_func_match:
+                    # Extract the content inside D() and process it directly
+                    date_content = d_func_match.group(1)
+                    date_result = handle_date_arithmetic(date_content)
                     
-                    # Find all lowercase 'd' date prefixes and replace them
-                    while True:
-                        match = re.search(r'\bd\.?(?=(?:\d|[A-Za-z]+\s))', text[pos:])
-                        if not match:
-                            break
-                            
-                        start_pos = pos + match.start()
-                        # Create a cursor at the 'd' position
-                        line_cursor.setPosition(line_cursor.block().position() + start_pos)
-                        line_cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, 1)
-                        # Replace with uppercase 'D'
-                        line_cursor.insertText('D')
-                        
-                        # Update text and position for next iteration
-                        text = line_cursor.block().text()
-                        pos = start_pos + 1
-                    
-                    # Update the line text for evaluation
-                    s = text.strip()
-                    
-                    # Check for D() function call first
-                    d_func_match = re.match(r'D\((.*?)\)', s)
-                    if d_func_match:
-                        # Extract the content inside D() and process it properly
-                        date_content = d_func_match.group(1)
-                        
-                        # For date ranges like "03.05.1976-8.5.1976", we need to add D. to each date
-                        # Split on operators while preserving them
-                        date_parts = re.split(r'(\s*(?:W\s*)?[-+]\s*)', date_content)
-                        
-                        processed_parts = []
-                        for i, part in enumerate(date_parts):
-                            if i % 2 == 0:  # This is a date part (even indices)
-                                part = part.strip()
-                                if part and not part.startswith(('D.', 'd.')):
-                                    # Add D. prefix if it doesn't already have one
-                                    processed_parts.append(f"D.{part}")
-                                else:
-                                    processed_parts.append(part)
-                            else:  # This is an operator (odd indices)
-                                processed_parts.append(part)
-                        
-                        date_expr = ''.join(processed_parts)
-                        date_result = handle_date_arithmetic(date_expr)
-                    else:
-                        # Process as regular D. syntax
-                        date_result = handle_date_arithmetic(s)
-                        
                     if date_result is not None:
                         vals[idx] = date_result
                         if current_id:
