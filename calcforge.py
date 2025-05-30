@@ -1193,12 +1193,19 @@ class FormulaEditor(QPlainTextEdit):
                 return value
         if isinstance(value, dict) and 'value' in value:
             # Handle unit conversion results
-            return {'value': round(value['value'] * (10 ** decimals)) / (10 ** decimals),
-                   'unit': value['unit']}
+            truncated_value = round(value['value'] * (10 ** decimals)) / (10 ** decimals)
+            # If decimals=0, convert to integer to avoid .0 suffix
+            if decimals == 0:
+                truncated_value = int(truncated_value)
+            return {'value': truncated_value, 'unit': value['unit']}
         if not isinstance(value, (int, float)):
             return value
         factor = 10 ** decimals
-        return round(value * factor) / factor
+        result = round(value * factor) / factor
+        # If decimals=0, return as integer to avoid .0 suffix that confuses TC function
+        if decimals == 0:
+            result = int(result)
+        return result
 
     def get_word_under_cursor(self):
         cursor = self.textCursor()
@@ -2073,7 +2080,6 @@ class FormulaEditor(QPlainTextEdit):
                 return
         
         # Fallback: select entire line
-        print("DEBUG: Fallback - selecting entire line")
         self.select_entire_line()
 
     def find_arithmetic_expression(self, text, pos):
@@ -3036,12 +3042,19 @@ class Worksheet(QWidget):
                     return value
             if isinstance(value, dict) and 'value' in value:
                 # Handle unit conversion results
-                return {'value': round(value['value'] * (10 ** decimals)) / (10 ** decimals),
-                       'unit': value['unit']}
+                truncated_value = round(value['value'] * (10 ** decimals)) / (10 ** decimals)
+                # If decimals=0, convert to integer to avoid .0 suffix
+                if decimals == 0:
+                    truncated_value = int(truncated_value)
+                return {'value': truncated_value, 'unit': value['unit']}
             if not isinstance(value, (int, float)):
                 return value
             factor = 10 ** decimals
-            return round(value * factor) / factor
+            result = round(value * factor) / factor
+            # If decimals=0, return as integer to avoid .0 suffix that confuses TC function
+            if decimals == 0:
+                result = int(result)
+            return result
 
         def preprocess_expression(expr):
             """Pre-process expression to handle padded numbers and other special cases"""
