@@ -612,10 +612,6 @@ from PySide6.QtCore import (
     QStringListModel, QObject, QPoint
 )
 
-# Forward declare Calculator class for type hints
-class Calculator(QWidget):
-    pass
-
 # Update the unit abbreviation mapping
 UNIT_ABBR = {
     # Distance
