@@ -871,7 +871,29 @@ class ResultsLineNumberArea(QWidget):
             top = bottom
             bottom = top + self.results_widget.blockBoundingRect(block).height()
 
-class FormulaHighlighter(QSyntaxHighlighter):
+class BaseHighlighter(QSyntaxHighlighter):
+    """Base class for all syntax highlighters with common formatting functionality"""
+    
+    def __init__(self, document):
+        super().__init__(document)
+        
+    def _fmt(self, color, bold=False, alpha=255):
+        """Create a text format with given color and optional bold styling"""
+        fmt = QTextCharFormat()
+        fmt.setForeground(QColor(color))
+        if bold:
+            fmt.setFontWeight(QFont.Bold)
+        return fmt
+        
+    def get_darker_color(self, color, factor=0.3):
+        """Return a darker version of the given color for background highlighting"""
+        c = QColor(color)
+        h, s, v, a = c.getHsv()
+        return QColor.fromHsv(h, s, int(v * factor), a)
+
+class FormulaHighlighter(BaseHighlighter):
+    """Advanced syntax highlighter for formula input with comprehensive highlighting"""
+    
     def __init__(self, document):
         super().__init__(document)
         # Base colors for syntax
@@ -910,17 +932,6 @@ class FormulaHighlighter(QSyntaxHighlighter):
             # Special functions
             'tc', 'ar', 'd', 'tr', 'truncate'
         }
-        
-    def _fmt(self, color, alpha=255):
-        fmt = QTextCharFormat()
-        fmt.setForeground(QColor(color))
-        return fmt
-        
-    def get_darker_color(self, color, factor=0.3):
-        """Return a darker version of the given color for background highlighting"""
-        c = QColor(color)
-        h, s, v, a = c.getHsv()
-        return QColor.fromHsv(h, s, int(v * factor), a)
         
     def get_ln_color(self, ln_number):
         """Get or assign a color for an LN variable"""
@@ -1008,6 +1019,18 @@ class FormulaHighlighter(QSyntaxHighlighter):
         # Store the block data
         block = self.currentBlock()
         block.setUserData(LineData(block.blockNumber() + 1))
+
+class ResultsHighlighter(BaseHighlighter):
+    """Simple syntax highlighter for results panel, highlighting errors and important information"""
+    
+    def __init__(self, document):
+        super().__init__(document)
+        self.error_format = self._fmt("#FF5C5C", bold=True)
+        
+    def highlightBlock(self, text):
+        # Highlight error text
+        if "ERROR" in text or "TC ERROR" in text:
+            self.setFormat(0, len(text), self.error_format)
 
 class AutoCompleteDescriptionBox(QLabel):
     def __init__(self, parent=None):
@@ -4959,22 +4982,6 @@ def verify_icon_file(icon_path):
         return None
     except Exception as e:
         return None
-
-class ResultsHighlighter(QSyntaxHighlighter):
-    def __init__(self, document):
-        super().__init__(document)
-        self.error_format = self._fmt("#FF5C5C", bold=True)
-        
-    def _fmt(self, color, bold=False):
-        fmt = QTextCharFormat()
-        fmt.setForeground(QColor(color))
-        if bold:
-            fmt.setFontWeight(QFont.Bold)
-        
-    def highlightBlock(self, text):
-        # Highlight error text
-        if "ERROR" in text or "TC ERROR" in text:
-            self.setFormat(0, len(text), self.error_format)
 
 if __name__=="__main__":
     app = QApplication(sys.argv)
