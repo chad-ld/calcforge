@@ -882,19 +882,38 @@ class FormulaHighlighter(QSyntaxHighlighter):
         self.formats = {
             'number': self._fmt("#FFFFFF"),
             'operator': self._fmt("#4DA6FF"),
+            'function': self._fmt("#4DA6FF"),  # Functions use same blue as operators/to
             'paren': self._fmt("#6FCF97"),
             'unmatched': self._fmt("#FF5C5C"),
             'comment': self._fmt("#7ED321"),
         }
         
         # Color palette for LN variables - colors chosen to be readable on dark background
+        # Removed #4DA6FF (operator blue) to avoid confusion with functions
         self.ln_colors = [
             "#FF9999", "#99FF99", "#9999FF", "#FFFF99", "#FF99FF", "#99FFFF",
-            "#FFB366", "#B3FF66", "#66FFB3", "#66B3FF", "#B366FF", "#FF66B3"
+            "#FFB366", "#B3FF66", "#66FFB3", "#B366FF", "#FF66B3", "#FF6666",
+            "#66FF66", "#6666FF", "#FFFF66", "#FF66FF", "#66FFFF"
         ]
         
         # Store persistent LN colors
         self.persistent_ln_colors = {}
+        
+        # Define function names to highlight
+        self.function_names = {
+            # Mathematical functions
+            'sin', 'cos', 'tan', 'asin', 'acos', 'atan',
+            'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
+            'sqrt', 'pow', 'exp', 'log', 'log10', 'log2',
+            'ceil', 'floor', 'abs', 'factorial', 'gcd', 'lcm',
+            'degrees', 'radians',
+            # Statistical functions
+            'sum', 'mean', 'meanfps', 'median', 'mode', 'min', 'max',
+            'range', 'count', 'product', 'variance', 'stdev', 'std',
+            'geomean', 'harmmean', 'sumsq', 'perc5', 'perc95',
+            # Special functions
+            'tc', 'ar', 'd', 'tr', 'truncate'
+        }
         
     def _fmt(self, color, alpha=255):
         fmt = QTextCharFormat()
@@ -936,6 +955,15 @@ class FormulaHighlighter(QSyntaxHighlighter):
         while it.hasNext():
             m = it.next()
             self.setFormat(m.capturedStart(), m.capturedLength(), self.formats['operator'])
+            
+        # Highlight function names
+        for func_name in self.function_names:
+            # Create regex pattern for function name followed by opening parenthesis
+            func_re = QRegularExpression(r"\b" + re.escape(func_name) + r"\b(?=\s*\()", QRegularExpression.CaseInsensitiveOption)
+            it = func_re.globalMatch(text)
+            while it.hasNext():
+                m = it.next()
+                self.setFormat(m.capturedStart(), m.capturedLength(), self.formats['function'])
             
         # Highlight parentheses
         stack = []
@@ -1416,28 +1444,29 @@ class FormulaEditor(QPlainTextEdit):
         return None
 
     def update_separator_lines(self):
-        """Update the set of lines that need separators above them"""
-        self.separator_lines.clear()
-        lines = self.toPlainText().split('\n')
+        """Update the set of lines that need separators above them - DISABLED since we now have blue function highlighting"""
+        # self.separator_lines.clear()
+        # lines = self.toPlainText().split('\n')
         
-        # List of functions that operate on lines above
-        line_functions = {'sum', 'mean', 'median', 'mode', 'min', 'max', 'range', 
-                         'count', 'product', 'variance', 'stdev', 'std', 'geomean', 
-                         'harmmean', 'sumsq', 'perc5', 'perc95'}
+        # # List of functions that operate on lines above
+        # line_functions = {'sum', 'mean', 'median', 'mode', 'min', 'max', 'range', 
+        #                  'count', 'product', 'variance', 'stdev', 'std', 'geomean', 
+        #                  'harmmean', 'sumsq', 'perc5', 'perc95'}
         
-        for i, line in enumerate(lines):
-            # Check for function calls that operate on lines above
-            match = re.match(r'(\w+)\s*\((.*?)\)', line.strip())
-            if match:
-                func_name = match.group(1).lower()
-                args = match.group(2).strip()
+        # for i, line in enumerate(lines):
+        #     # Check for function calls that operate on lines above
+        #     match = re.match(r'(\w+)\s*\((.*?)\)', line.strip())
+        #     if match:
+        #         func_name = match.group(1).lower()
+        #         args = match.group(2).strip()
                 
-                if func_name in line_functions:
-                    # If it's a line function, add a separator above this line
-                    self.separator_lines.add(i)
+        #         if func_name in line_functions:
+        #             # If it's a line function, add a separator above this line
+        #             self.separator_lines.add(i)
         
-        # Force a viewport update to show the new separators
-        self.viewport().update()
+        # # Force a viewport update to show the new separators
+        # self.viewport().update()
+        pass  # No longer needed with function highlighting
 
     def setup_autocompletion(self):
         # Basic functions and commands - simplified to just show function names
@@ -3123,27 +3152,28 @@ class FormulaEditor(QPlainTextEdit):
         # Draw the base text edit content
         super().paintEvent(event)
         
-        # Draw separator lines
-        if self.separator_lines:
-            painter = QPainter(self.viewport())
-            painter.setPen(QPen(QColor(80, 80, 80), 1, Qt.DashLine))  # Light grey, dashed line
-            
-            # Get the full width including the scrolled area
-            doc_width = max(self.document().size().width(), self.viewport().width())
-            doc_width += self.horizontalScrollBar().value()  # Add scrolled amount
-            
-            # Draw lines above and below function lines
-            for line_num in self.separator_lines:
-                block = self.document().findBlockByLineNumber(line_num)
-                if block.isValid():
-                    # Get the geometry of the line
-                    rect = self.blockBoundingGeometry(block).translated(self.contentOffset())
-                    # Draw the line above
-                    painter.drawLine(0, int(rect.top()) - 2, doc_width, int(rect.top()) - 2)
-                    # Draw the line below
-                    painter.drawLine(0, int(rect.bottom()) + 2, doc_width, int(rect.bottom()) + 2)
-                    
-            painter.end()
+        # Draw separator lines - DISABLED since we now have blue function highlighting
+        # if self.separator_lines:
+        #     painter = QPainter(self.viewport())
+        #     painter.setPen(QPen(QColor(80, 80, 80), 1, Qt.DashLine))  # Light grey, dashed line
+        #     
+        #     # Get the full width including the scrolled area
+        #     doc_width = max(self.document().size().width(), self.viewport().width())
+        #     doc_width += self.horizontalScrollBar().value()  # Add scrolled amount
+        #     
+        #     # Draw lines above and below function lines
+        #     for line_num in self.separator_lines:
+        #         block = self.document().findBlockByLineNumber(line_num)
+        #         if block.isValid():
+        #             # Get the geometry of the line
+        #             rect = self.blockBoundingGeometry(block).translated(self.contentOffset())
+        #             # Draw the line above
+        #             painter.drawLine(0, int(rect.top()) - 2, doc_width, int(rect.top()) - 2)
+        #             # Draw the line below
+        #             painter.drawLine(0, int(rect.bottom()) + 2, doc_width, int(rect.bottom()) + 2)
+        #             
+        #     painter.end()
+        pass  # No separator lines needed with function highlighting
 
     def build_cross_sheet_cache(self):
         """Build cache for fast cross-sheet lookups"""
@@ -3641,7 +3671,11 @@ class Worksheet(QWidget):
                 id_map[d.id] = i
                 # Initialize with None to ensure the ID exists in the map
                 self.editor.ln_value_map[d.id] = None
-
+        
+        # Update separator lines - DISABLED since we now have blue function highlighting
+        # self.editor.update_separator_lines()
+        
+        # Define truncate function locally
         def truncate(value, decimals=2):
             """Rounds a number to specified decimal places"""
             if isinstance(value, str):
