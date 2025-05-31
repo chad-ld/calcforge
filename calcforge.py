@@ -821,10 +821,15 @@ class ResultsLineNumberArea(QWidget):
         top = self.results_widget.blockBoundingGeometry(block).translated(self.results_widget.contentOffset()).top()
         bottom = top + self.results_widget.blockBoundingRect(block).height()
         
-        # Get access to the editor to check for comment lines
+        # Get access to the editor to check for comment lines and current cursor position
         worksheet = self.results_widget.parent()
         while worksheet and not hasattr(worksheet, 'editor'):
             worksheet = worksheet.parent()
+        
+        # Get the current line number for highlighting
+        current_block_number = -1
+        if worksheet and hasattr(worksheet, 'editor'):
+            current_block_number = worksheet.editor.textCursor().blockNumber()
         
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
@@ -849,6 +854,20 @@ class ResultsLineNumberArea(QWidget):
                                 color = "#7ED321"
                             elif isinstance(editor_data, LineData):
                                 label = str(editor_data.id)
+                
+                # Check if this is the current line - make it bold and white
+                is_current_line = block_number == current_block_number
+                if is_current_line:
+                    color = "#FFFFFF"  # White for current line
+                    # Set bold font
+                    font = painter.font()
+                    font.setBold(True)
+                    painter.setFont(font)
+                else:
+                    # Ensure font is not bold for other lines
+                    font = painter.font()
+                    font.setBold(False)
+                    painter.setFont(font)
                 
                 painter.setPen(QColor(color))
                 painter.drawText(0, int(top), self.width()-2, self.results_widget.fontMetrics().height(), Qt.AlignRight, label)
@@ -1777,6 +1796,11 @@ class FormulaEditor(QPlainTextEdit):
         if not cursor.hasSelection():
             self.setTextCursor(cursor)
             
+        # Update line number areas to reflect current line highlighting
+        self.lnr.update()
+        if hasattr(self.parent, 'results_lnr'):
+            self.parent.results_lnr.update()
+            
         self._log_perf("on_cursor_position_changed", start_time)
 
     def complete_text(self, item=None):
@@ -2174,12 +2198,31 @@ class FormulaEditor(QPlainTextEdit):
         block = self.firstVisibleBlock()
         top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
         bottom = top + self.blockBoundingRect(block).height()
+        
+        # Get the current line number for highlighting
+        current_block_number = self.textCursor().blockNumber()
+        
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 txt = block.text().strip()
                 data = block.userData()
                 label = "C" if txt.startswith(":::") else str(data.id if data else block.blockNumber()+1)
                 color = "#7ED321" if txt.startswith(":::") else "#888"
+                
+                # Check if this is the current line - make it bold and white
+                is_current_line = block.blockNumber() == current_block_number
+                if is_current_line:
+                    color = "#FFFFFF"  # White for current line
+                    # Set bold font
+                    font = painter.font()
+                    font.setBold(True)
+                    painter.setFont(font)
+                else:
+                    # Ensure font is not bold for other lines
+                    font = painter.font()
+                    font.setBold(False)
+                    painter.setFont(font)
+                
                 painter.setPen(QColor(color))
                 painter.drawText(0, int(top), self.lnr.width()-2, self.fontMetrics().height(), Qt.AlignRight, label)
             block = block.next()
