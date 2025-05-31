@@ -2796,6 +2796,11 @@ class FormulaEditor(QPlainTextEdit):
                 event.accept()
                 return
 
+        # Prevent Tab key from inserting tab characters
+        if k == Qt.Key_Tab:
+            event.accept()
+            return
+
         # Call parent implementation
         super().keyPressEvent(event)
         
