@@ -802,6 +802,60 @@ class LineNumberArea(QWidget):
     def paintEvent(self, event):
         self.editor.lineNumberAreaPaintEvent(event)
 
+class ResultsLineNumberArea(QWidget):
+    def __init__(self, results_widget):
+        super().__init__(results_widget)
+        self.results_widget = results_widget
+    
+    def sizeHint(self):
+        return QSize(self.lineNumberAreaWidth(), 0)
+    
+    def lineNumberAreaWidth(self):
+        digits = len(str(max(1, self.results_widget.blockCount())))
+        return 3 + self.results_widget.fontMetrics().horizontalAdvance('9') * digits
+    
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(event.rect(), QColor("#1e1e1e"))
+        block = self.results_widget.firstVisibleBlock()
+        top = self.results_widget.blockBoundingGeometry(block).translated(self.results_widget.contentOffset()).top()
+        bottom = top + self.results_widget.blockBoundingRect(block).height()
+        
+        # Get access to the editor to check for comment lines
+        worksheet = self.results_widget.parent()
+        while worksheet and not hasattr(worksheet, 'editor'):
+            worksheet = worksheet.parent()
+        
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                block_number = block.blockNumber()
+                
+                # Default values
+                label = str(block_number + 1)
+                color = "#888"
+                
+                # Check if corresponding editor line exists and is a comment
+                if worksheet and hasattr(worksheet, 'editor'):
+                    editor_doc = worksheet.editor.document()
+                    if block_number < editor_doc.blockCount():
+                        editor_block = editor_doc.findBlockByNumber(block_number)
+                        if editor_block.isValid():
+                            editor_text = editor_block.text().strip()
+                            editor_data = editor_block.userData()
+                            
+                            # Use same logic as editor's line number area
+                            if editor_text.startswith(":::"):
+                                label = "C"
+                                color = "#7ED321"
+                            elif isinstance(editor_data, LineData):
+                                label = str(editor_data.id)
+                
+                painter.setPen(QColor(color))
+                painter.drawText(0, int(top), self.width()-2, self.results_widget.fontMetrics().height(), Qt.AlignRight, label)
+            block = block.next()
+            top = bottom
+            bottom = top + self.results_widget.blockBoundingRect(block).height()
+
 class FormulaHighlighter(QSyntaxHighlighter):
     def __init__(self, document):
         super().__init__(document)
@@ -1274,6 +1328,38 @@ class FormulaEditor(QPlainTextEdit):
                 padding: 0px;
                 margin: 0px;
                 line-height: 1.2em;
+            }
+            QScrollBar:vertical {
+                background: #2c2c2e;
+                width: 8px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background: #555555;
+                min-height: 20px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #666666;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar:horizontal {
+                background: #2c2c2e;
+                height: 8px;
+                border: none;
+            }
+            QScrollBar::handle:horizontal {
+                background: #555555;
+                min-width: 20px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #666666;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0px;
             }
         """)
         self.highlighter = FormulaHighlighter(self.document())
@@ -1806,7 +1892,7 @@ class FormulaEditor(QPlainTextEdit):
         return 3 + self.fontMetrics().horizontalAdvance('9') * digits
 
     def updateLineNumberAreaWidth(self, _):
-        self.setViewportMargins(self.lineNumberAreaWidth(), 0, 0, 0)
+        self.setViewportMargins(self.lineNumberAreaWidth() + 6, 0, 0, 0)
 
     def calculate_subexpression(self, expr):
         """Calculate the result of a subexpression"""
@@ -2900,6 +2986,9 @@ class FormulaEditor(QPlainTextEdit):
         self.updateLineNumberAreaWidth(0)
         # Update results panel font
         self.parent.results.setFont(font)
+        # Update results line number area width
+        if hasattr(self.parent, 'updateResultsLineNumberAreaWidth'):
+            self.parent.updateResultsLineNumberAreaWidth(0)
         # Force refresh
         self.parent.evaluate()
 
@@ -3176,6 +3265,8 @@ class Worksheet(QWidget):
         self.results.setReadOnly(True)
         font_size = self.settings.value('font_size', 14, type=int)
         self.results.setFont(QFont("Courier New", font_size, QFont.Bold))
+        
+        # Use the exact same stylesheet as the editor for consistent scrollbar appearance
         self.results.setStyleSheet("""
             QPlainTextEdit {
                 background-color: #2c2c2e; 
@@ -3185,9 +3276,44 @@ class Worksheet(QWidget):
                 margin: 0px;
                 line-height: 1.2em;
             }
+            QScrollBar:vertical {
+                background: #2c2c2e;
+                width: 8px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background: #555555;
+                min-height: 20px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #666666;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar:horizontal {
+                background: #2c2c2e;
+                height: 8px;
+                border: none;
+            }
+            QScrollBar::handle:horizontal {
+                background: #555555;
+                min-width: 20px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #666666;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0px;
+            }
         """)
+        
+        # Copy all the exact same policies as the editor
         self.results.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.results.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.results.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)  # Match editor's vertical policy
         
         # Set document margins to match editor exactly
         results_doc = self.results.document()
@@ -3196,6 +3322,36 @@ class Worksheet(QWidget):
         # Set text margins to zero
         self.results.setViewportMargins(0, 0, 0, 0)
         self.results.setContentsMargins(0, 0, 0, 0)
+        
+        # Create line number area for results - make it a child of the results widget directly
+        self.results_lnr = ResultsLineNumberArea(self.results)
+        
+        # Setup line number area connections for results
+        self.results.blockCountChanged.connect(self.updateResultsLineNumberAreaWidth)
+        self.results.updateRequest.connect(self.updateResultsLineNumberArea)
+        # Delay this call until after results_container is created
+        # self.updateResultsLineNumberAreaWidth(0)
+        
+        # Now we can safely call updateResultsLineNumberAreaWidth
+        self.updateResultsLineNumberAreaWidth(0)
+        
+        # Install resize event handler for results widget
+        original_results_resize = self.results.resizeEvent
+        def results_resize_event(event):
+            if original_results_resize:
+                original_results_resize(event)
+            self.resizeResultsLineNumberArea()
+        self.results.resizeEvent = results_resize_event
+        
+        # Create a container widget for the results with line numbers FIRST
+        self.results_container = QWidget()
+        self.results_container.setStyleSheet("background-color: #2c2c2e;")
+        
+        # Setup the results layout immediately
+        self.setupResultsLayout()
+        
+        # Position the line number area correctly
+        self.resizeResultsLineNumberArea()
         
         # Add storage for raw values (for copying unformatted numbers)
         self.raw_values = {}  # line_number -> raw_value
@@ -3219,7 +3375,7 @@ class Worksheet(QWidget):
         
         # Add widgets to splitter
         self.splitter.addWidget(self.editor)
-        self.splitter.addWidget(self.results)
+        self.splitter.addWidget(self.results_container)
         self.splitter.setSizes([600, 200])
         layout.addWidget(self.splitter)
         
@@ -3244,6 +3400,14 @@ class Worksheet(QWidget):
         
         # Initial evaluation
         QTimer.singleShot(0, self.evaluate_and_highlight)
+        
+        # Add resize event handling to results container
+        original_resize = self.results_container.resizeEvent
+        def results_container_resize_event(event):
+            if original_resize:
+                original_resize(event)
+            self.resizeResultsContainer()
+        self.results_container.resizeEvent = results_container_resize_event
 
     def _sync_editor_to_results(self, value):
         """Sync results scrollbar when editor scrollbar changes"""
@@ -4170,6 +4334,41 @@ class Worksheet(QWidget):
         """Mark start of navigation period"""
         self._is_navigating = True
         self._navigation_timer.start()
+
+    def updateResultsLineNumberAreaWidth(self, _):
+        """Update the results line number area width and layout"""
+        line_number_width = self.results_lnr.lineNumberAreaWidth()
+        self.results.setViewportMargins(line_number_width + 6, 0, 0, 0)
+
+    def updateResultsLineNumberArea(self, rect, dy):
+        """Update the results line number area when scrolled"""
+        if dy:
+            self.results_lnr.scroll(0, dy)
+        else:
+            self.results_lnr.update(0, rect.y(), self.results_lnr.width(), rect.height())
+        if rect.contains(self.results.viewport().rect()):
+            self.updateResultsLineNumberAreaWidth(0)
+
+    def resizeResultsLineNumberArea(self):
+        """Handle resize events for the results line number area - matches editor approach"""
+        if hasattr(self, 'results_lnr'):
+            cr = self.results.contentsRect()
+            self.results_lnr.setGeometry(cr.x(), cr.y(), self.results_lnr.lineNumberAreaWidth(), cr.height())
+
+    def setupResultsLayout(self):
+        """Setup the layout for the results container with line numbers"""
+        # Simply add the results widget to the container
+        if hasattr(self, 'results_container') and hasattr(self, 'results'):
+            self.results.setParent(self.results_container)
+            self.results.setGeometry(0, 0, self.results_container.width(), self.results_container.height())
+
+    def resizeResultsContainer(self):
+        """Handle resize events for the results container"""
+        if hasattr(self, 'results_container') and hasattr(self, 'results'):
+            container_size = self.results_container.size()
+            # Update results widget size to fill container
+            self.results.setGeometry(0, 0, container_size.width(), container_size.height())
+            # The line number area will be repositioned by the resize event of the results widget
 
 class Calculator(QWidget):
     def __init__(self):
