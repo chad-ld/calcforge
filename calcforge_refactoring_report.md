@@ -4,20 +4,31 @@
 ## Overview
 This report identifies refactoring opportunities in the CalcForge application (calcforge.py) with a focus on consolidating duplicate classes and improving code organization.
 
-## 🔴 **CRITICAL ISSUES - Duplicate Classes**
+## ✅ **COMPLETED REFACTORINGS**
 
-### 1. **DUPLICATE Calculator Classes** 
-- **Line 615**: `class Calculator(QWidget): pass` (Forward declaration)
-- **Line 4454**: `class Calculator(QWidget):` (Actual implementation)
-- **Problem**: The first one is just a forward declaration but it's confusing and could cause issues
-- **Solution**: Remove the forward declaration and reorganize the code
+### 1. **✅ COMPLETED - Calculator Class Consolidation** 
+- **Was**: Duplicate Calculator classes at lines 615 and 4454
+- **Fixed**: Removed unnecessary forward declaration, kept main implementation
+- **Commit**: `92ba031` - Consolidate duplicate Calculator classes
+- **Result**: Single Calculator class, eliminated confusion, cleaner codebase
 
-### 2. **TWO Syntax Highlighter Classes with Similar Purpose**
-- **FormulaHighlighter** (Line 877): Complex highlighting for formulas with colors, LN references, etc.
-- **ResultsHighlighter** (Line 4967): Simple highlighting just for error text
-- **Solution**: These could potentially be consolidated into a single configurable highlighter class
+### 2. **✅ COMPLETED - Syntax Highlighter Consolidation**
+- **Was**: Two syntax highlighter classes with overlapping functionality
+  - FormulaHighlighter (Line 873): Complex highlighting for formulas
+  - ResultsHighlighter (Line 4962): Simple highlighting with missing return statement bug
+- **Fixed**: Created base class hierarchy with shared functionality
+  - **BaseHighlighter**: Common `_fmt()` and `get_darker_color()` methods
+  - **FormulaHighlighter**: Inherits from BaseHighlighter, keeps advanced features
+  - **ResultsHighlighter**: Inherits from BaseHighlighter, **bug fixed**
+- **Commit**: `426290f` - Consolidate syntax highlighter classes with base class hierarchy
+- **Benefits**: 
+  - ✅ Fixed critical bug in ResultsHighlighter._fmt() missing return statement
+  - ✅ Eliminated code duplication between highlighter classes
+  - ✅ Created extensible base class for future highlighter needs
+  - ✅ Maintained separation of concerns between formula and results highlighting
+  - ✅ Better maintainability and code organization
 
-## 🟡 **MAJOR REFACTORING OPPORTUNITIES - Duplicate Functions**
+## 🔴 **REMAINING CRITICAL ISSUES**
 
 ### 3. **Duplicate preprocess_expression Functions**
 - **Line 489**: `def preprocess_expression(expr):`
