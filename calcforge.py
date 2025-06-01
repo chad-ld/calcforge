@@ -703,6 +703,12 @@ def handle_currency_conversion(expr):
     
     return None
 
+def remove_thousands_commas(match):
+    """Remove thousands separators (commas) from number strings"""
+    number_str = match.group(0)
+    # Remove all commas from the number
+    return number_str.replace(',', '')
+
 class LineData(QTextBlockUserData):
     def __init__(self, id):
         super().__init__()
@@ -3680,11 +3686,6 @@ class Worksheet(QWidget):
             
             # Handle commas in numbers (thousands separators) - but avoid function calls
             # More careful pattern that doesn't match numbers inside parentheses
-            def remove_thousands_commas(match):
-                number_str = match.group(0)
-                # Remove all commas from the number
-                return number_str.replace(',', '')
-            
             # Pattern to match numbers with commas like 1,234 or 1,234.56
             # Use negative lookbehind to avoid matching inside function calls
             # This pattern avoids matching numbers that come after an opening parenthesis
