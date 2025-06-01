@@ -1766,7 +1766,244 @@ class EditorCrossSheetMixin:
         # Clear the set of highlighted sheets
         self._highlighted_sheets.clear()
 
-class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformanceMonitoringMixin, EditorCrossSheetMixin):
+class EditorTextSelectionMixin:
+    """Handles all text selection and navigation functionality for the formula editor"""
+    
+    def select_number_token(self, forward=True):
+        """Select the next/previous number token from current cursor position"""
+        cursor = self.textCursor()
+        block = cursor.block()
+        
+        # If we have a selection, use its start or end as the position
+        if cursor.hasSelection():
+            pos = cursor.selectionEnd() - block.position() if forward else cursor.selectionStart() - block.position()
+            # Move past the current selection
+            if not forward:
+                pos -= 1
+        else:
+            pos = cursor.positionInBlock()
+            
+        start_block = block
+        
+        while True:
+            text = block.text()
+            numbers = list(re.finditer(r'\b\d+(?:\.\d+)?\b', text))
+            
+            if forward:
+                next_num = next((n for n in numbers if n.start() >= pos), None)
+                if next_num:
+                    cursor.setPosition(block.position() + next_num.start())
+                    cursor.setPosition(block.position() + next_num.end(), QTextCursor.KeepAnchor)
+                    self.setTextCursor(cursor)
+                    return
+                block = block.next()
+                if not block.isValid():
+                    block = self.document().firstBlock()
+                pos = 0
+            else:
+                prev_nums = [n for n in numbers if n.end() <= pos]
+                if prev_nums:
+                    next_num = prev_nums[-1]
+                    cursor.setPosition(block.position() + next_num.start())
+                    cursor.setPosition(block.position() + next_num.end(), QTextCursor.KeepAnchor)
+                    self.setTextCursor(cursor)
+                    return
+                block = block.previous()
+                if not block.isValid():
+                    block = self.document().lastBlock()
+                pos = len(block.text())
+            
+            if block == start_block:
+                return
+
+    def expand_selection_with_parens(self):
+        """Expand selection progressively based on parentheses levels"""
+        cursor = self.textCursor()
+        text = cursor.block().text()
+        block_pos = cursor.block().position()
+        
+        # Get current cursor position or selection bounds (relative to line start)
+        if cursor.hasSelection():
+            sel_start = cursor.selectionStart() - block_pos
+            sel_end = cursor.selectionEnd() - block_pos
+        else:
+            pos = cursor.positionInBlock()
+            sel_start = sel_end = pos
+        
+        # Find all matching parentheses pairs
+        stack = []
+        pairs = []
+        for i, ch in enumerate(text):
+            if ch == '(':
+                stack.append(i)
+            elif ch == ')' and stack:
+                start = stack.pop()
+                pairs.append((start, i))
+        
+        # Sort pairs by nesting level (innermost first)
+        pairs.sort(key=lambda p: p[1] - p[0])
+        
+        # Find all parentheses levels that contain the cursor/selection
+        containing_pairs = []
+        for start, end in pairs:
+            # Check if this pair contains the current cursor/selection
+            if start <= sel_start and end >= sel_end:
+                containing_pairs.append((start, end))
+        
+        # Sort containing pairs by size (innermost first)
+        containing_pairs.sort(key=lambda p: p[1] - p[0])
+        
+        # If we have no selection, start with the innermost parentheses content
+        if not cursor.hasSelection():
+            if containing_pairs:
+                start, end = containing_pairs[0]
+                # Select content inside parentheses (excluding the parentheses)
+                cursor.setPosition(block_pos + start + 1)
+                cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
+                self.setTextCursor(cursor)
+                return
+            else:
+                # No parentheses, select entire line
+                self.select_entire_line()
+                return
+        
+        # We have a selection - find the next expansion level
+        for i, (start, end) in enumerate(containing_pairs):
+            # Check if we're selecting the content inside these parentheses (excluding parens)
+            if sel_start == start + 1 and sel_end == end:
+                # Expand to include the parentheses themselves
+                cursor.setPosition(block_pos + start)
+                cursor.setPosition(block_pos + end + 1, QTextCursor.KeepAnchor)
+                self.setTextCursor(cursor)
+                return
+            
+            # Check if we're selecting including these parentheses
+            elif sel_start == start and sel_end == end + 1:
+                # Find the next outer level
+                if i + 1 < len(containing_pairs):
+                    # Expand to content of next outer level
+                    outer_start, outer_end = containing_pairs[i + 1]
+                    cursor.setPosition(block_pos + outer_start + 1)
+                    cursor.setPosition(block_pos + outer_end, QTextCursor.KeepAnchor)
+                    self.setTextCursor(cursor)
+                    return
+                else:
+                    # No outer level found, select entire line
+                    self.select_entire_line()
+                    return
+        
+        # If current selection doesn't match any parentheses pattern exactly,
+        # find the smallest parentheses pair that would be the next logical expansion
+        for start, end in containing_pairs:
+            # If the selection is smaller than this parentheses content
+            if sel_start >= start + 1 and sel_end <= end:
+                # Select content inside this pair
+                cursor.setPosition(block_pos + start + 1)
+                cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
+                self.setTextCursor(cursor)
+                return
+        
+        # Fallback: select entire line
+        self.select_entire_line()
+
+    def find_arithmetic_expression(self, text, pos):
+        """Find the boundaries of an arithmetic expression at the given position"""
+        # Find boundaries of numbers and operators
+        tokens = list(re.finditer(r'\b\d+(?:\.\d+)?\b|[-+*/^]', text))
+        for i, token in enumerate(tokens):
+            if token.start() <= pos <= token.end():
+                # Found token containing cursor, now expand to full expression
+                start = end = i
+                while start > 0 and tokens[start-1].group() in '+-*/^':
+                    start -= 1
+                while end < len(tokens)-1 and tokens[end+1].group() in '+-*/^':
+                    end += 1
+                return tokens[start].start(), tokens[end].end()
+        return None
+
+    def select_entire_line(self):
+        """Select the entire current line, excluding the newline character"""
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.StartOfLine)
+        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+        self.setTextCursor(cursor)
+
+    def select_nearest_word_or_number(self):
+        """Select the nearest word or number from the cursor position"""
+        cursor = self.textCursor()
+        text = cursor.block().text()
+        pos = cursor.positionInBlock()
+        
+        # Define what constitutes a word/number character
+        def is_word_char(c):
+            return c.isalnum() or c in '.-_'
+        
+        # Find the boundaries of the nearest word/number
+        left = pos
+        right = pos
+        
+        # If we're already on a word character, expand from current position
+        if pos < len(text) and is_word_char(text[pos]):
+            # Expand right
+            while right < len(text) and is_word_char(text[right]):
+                right += 1
+            # Expand left
+            while left > 0 and is_word_char(text[left - 1]):
+                left -= 1
+        else:
+            # Look for the nearest word/number
+            left_dist = right_dist = float('inf')
+            
+            # Look left
+            temp_left = pos - 1
+            while temp_left >= 0:
+                if is_word_char(text[temp_left]):
+                    left_dist = pos - temp_left
+                    break
+                temp_left -= 1
+            
+            # Look right
+            temp_right = pos
+            while temp_right < len(text):
+                if is_word_char(text[temp_right]):
+                    right_dist = temp_right - pos
+                    break
+                temp_right += 1
+            
+            # Choose the nearest word/number
+            if left_dist <= right_dist and left_dist != float('inf'):
+                # Word to the left is closer
+                right = pos
+                while temp_left >= 0 and is_word_char(text[temp_left]):
+                    temp_left -= 1
+                left = temp_left + 1
+                while right < len(text) and is_word_char(text[right]):
+                    right += 1
+            elif right_dist != float('inf'):
+                # Word to the right is closer
+                left = temp_right
+                while right < len(text) and is_word_char(text[right]):
+                    right += 1
+        
+        # Set the selection
+        if left != right:
+            cursor.setPosition(cursor.block().position() + left)
+            cursor.setPosition(cursor.block().position() + right, QTextCursor.KeepAnchor)
+            self.setTextCursor(cursor)
+            return True
+        return False
+
+    def get_selected_text(self):
+        """Get selected text with proper line breaks"""
+        cursor = self.textCursor()
+        if not cursor.hasSelection():
+            return ""
+            
+        # Get the raw text and normalize line endings
+        text = cursor.selectedText()
+        return text.replace('\u2029', '\n').replace('\u2028', '\n')
+
+class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformanceMonitoringMixin, EditorCrossSheetMixin, EditorTextSelectionMixin):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -2449,240 +2686,6 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
             other_sheet.editor.setExtraSelections(highlights)
             if other_sheet in cross_sheet_results_highlights and hasattr(other_sheet, 'results'):
                 other_sheet.results.setExtraSelections(cross_sheet_results_highlights[other_sheet])
-
-    def select_number_token(self, forward=True):
-        """Select the next/previous number token from current cursor position"""
-        cursor = self.textCursor()
-        block = cursor.block()
-        
-        # If we have a selection, use its start or end as the position
-        if cursor.hasSelection():
-            pos = cursor.selectionEnd() - block.position() if forward else cursor.selectionStart() - block.position()
-            # Move past the current selection
-            if not forward:
-                pos -= 1
-        else:
-            pos = cursor.positionInBlock()
-            
-        start_block = block
-        
-        while True:
-            text = block.text()
-            numbers = list(re.finditer(r'\b\d+(?:\.\d+)?\b', text))
-            
-            if forward:
-                next_num = next((n for n in numbers if n.start() >= pos), None)
-                if next_num:
-                    cursor.setPosition(block.position() + next_num.start())
-                    cursor.setPosition(block.position() + next_num.end(), QTextCursor.KeepAnchor)
-                    self.setTextCursor(cursor)
-                    return
-                block = block.next()
-                if not block.isValid():
-                    block = self.document().firstBlock()
-                pos = 0
-            else:
-                prev_nums = [n for n in numbers if n.end() <= pos]
-                if prev_nums:
-                    next_num = prev_nums[-1]
-                    cursor.setPosition(block.position() + next_num.start())
-                    cursor.setPosition(block.position() + next_num.end(), QTextCursor.KeepAnchor)
-                    self.setTextCursor(cursor)
-                    return
-                block = block.previous()
-                if not block.isValid():
-                    block = self.document().lastBlock()
-                pos = len(block.text())
-            
-            if block == start_block:
-                return
-
-    def expand_selection_with_parens(self):
-        """Expand selection progressively based on parentheses levels"""
-        cursor = self.textCursor()
-        text = cursor.block().text()
-        block_pos = cursor.block().position()
-        
-        # Get current cursor position or selection bounds (relative to line start)
-        if cursor.hasSelection():
-            sel_start = cursor.selectionStart() - block_pos
-            sel_end = cursor.selectionEnd() - block_pos
-        else:
-            pos = cursor.positionInBlock()
-            sel_start = sel_end = pos
-        
-        # Find all matching parentheses pairs
-        stack = []
-        pairs = []
-        for i, ch in enumerate(text):
-            if ch == '(':
-                stack.append(i)
-            elif ch == ')' and stack:
-                start = stack.pop()
-                pairs.append((start, i))
-        
-        # Sort pairs by nesting level (innermost first)
-        pairs.sort(key=lambda p: p[1] - p[0])
-        
-        # Find all parentheses levels that contain the cursor/selection
-        containing_pairs = []
-        for start, end in pairs:
-            # Check if this pair contains the current cursor/selection
-            if start <= sel_start and end >= sel_end:
-                containing_pairs.append((start, end))
-        
-        # Sort containing pairs by size (innermost first)
-        containing_pairs.sort(key=lambda p: p[1] - p[0])
-        
-        # If we have no selection, start with the innermost parentheses content
-        if not cursor.hasSelection():
-            if containing_pairs:
-                start, end = containing_pairs[0]
-                # Select content inside parentheses (excluding the parentheses)
-                cursor.setPosition(block_pos + start + 1)
-                cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
-                self.setTextCursor(cursor)
-                return
-            else:
-                # No parentheses, select entire line
-                self.select_entire_line()
-                return
-        
-        # We have a selection - find the next expansion level
-        for i, (start, end) in enumerate(containing_pairs):
-            # Check if we're selecting the content inside these parentheses (excluding parens)
-            if sel_start == start + 1 and sel_end == end:
-                # Expand to include the parentheses themselves
-                cursor.setPosition(block_pos + start)
-                cursor.setPosition(block_pos + end + 1, QTextCursor.KeepAnchor)
-                self.setTextCursor(cursor)
-                return
-            
-            # Check if we're selecting including these parentheses
-            elif sel_start == start and sel_end == end + 1:
-                # Find the next outer level
-                if i + 1 < len(containing_pairs):
-                    # Expand to content of next outer level
-                    outer_start, outer_end = containing_pairs[i + 1]
-                    cursor.setPosition(block_pos + outer_start + 1)
-                    cursor.setPosition(block_pos + outer_end, QTextCursor.KeepAnchor)
-                    self.setTextCursor(cursor)
-                    return
-                else:
-                    # No outer level found, select entire line
-                    self.select_entire_line()
-                    return
-        
-        # If current selection doesn't match any parentheses pattern exactly,
-        # find the smallest parentheses pair that would be the next logical expansion
-        for start, end in containing_pairs:
-            # If the selection is smaller than this parentheses content
-            if sel_start >= start + 1 and sel_end <= end:
-                # Select content inside this pair
-                cursor.setPosition(block_pos + start + 1)
-                cursor.setPosition(block_pos + end, QTextCursor.KeepAnchor)
-                self.setTextCursor(cursor)
-                return
-        
-        # Fallback: select entire line
-        self.select_entire_line()
-
-    def find_arithmetic_expression(self, text, pos):
-        """Find the boundaries of an arithmetic expression at the given position"""
-        # Find boundaries of numbers and operators
-        tokens = list(re.finditer(r'\b\d+(?:\.\d+)?\b|[-+*/^]', text))
-        for i, token in enumerate(tokens):
-            if token.start() <= pos <= token.end():
-                # Found token containing cursor, now expand to full expression
-                start = end = i
-                while start > 0 and tokens[start-1].group() in '+-*/^':
-                    start -= 1
-                while end < len(tokens)-1 and tokens[end+1].group() in '+-*/^':
-                    end += 1
-                return tokens[start].start(), tokens[end].end()
-        return None
-
-    def select_entire_line(self):
-        """Select the entire current line, excluding the newline character"""
-        cursor = self.textCursor()
-        cursor.movePosition(QTextCursor.StartOfLine)
-        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-        self.setTextCursor(cursor)
-
-    def select_nearest_word_or_number(self):
-        """Select the nearest word or number from the cursor position"""
-        cursor = self.textCursor()
-        text = cursor.block().text()
-        pos = cursor.positionInBlock()
-        
-        # Define what constitutes a word/number character
-        def is_word_char(c):
-            return c.isalnum() or c in '.-_'
-        
-        # Find the boundaries of the nearest word/number
-        left = pos
-        right = pos
-        
-        # If we're already on a word character, expand from current position
-        if pos < len(text) and is_word_char(text[pos]):
-            # Expand right
-            while right < len(text) and is_word_char(text[right]):
-                right += 1
-            # Expand left
-            while left > 0 and is_word_char(text[left - 1]):
-                left -= 1
-        else:
-            # Look for the nearest word/number
-            left_dist = right_dist = float('inf')
-            
-            # Look left
-            temp_left = pos - 1
-            while temp_left >= 0:
-                if is_word_char(text[temp_left]):
-                    left_dist = pos - temp_left
-                    break
-                temp_left -= 1
-            
-            # Look right
-            temp_right = pos
-            while temp_right < len(text):
-                if is_word_char(text[temp_right]):
-                    right_dist = temp_right - pos
-                    break
-                temp_right += 1
-            
-            # Choose the nearest word/number
-            if left_dist <= right_dist and left_dist != float('inf'):
-                # Word to the left is closer
-                right = pos
-                while temp_left >= 0 and is_word_char(text[temp_left]):
-                    temp_left -= 1
-                left = temp_left + 1
-                while right < len(text) and is_word_char(text[right]):
-                    right += 1
-            elif right_dist != float('inf'):
-                # Word to the right is closer
-                left = temp_right
-                while right < len(text) and is_word_char(text[right]):
-                    right += 1
-        
-        # Set the selection
-        if left != right:
-            cursor.setPosition(cursor.block().position() + left)
-            cursor.setPosition(cursor.block().position() + right, QTextCursor.KeepAnchor)
-            self.setTextCursor(cursor)
-            return True
-        return False
-
-    def get_selected_text(self):
-        """Get selected text with proper line breaks"""
-        cursor = self.textCursor()
-        if not cursor.hasSelection():
-            return ""
-            
-        # Get the raw text and normalize line endings
-        text = cursor.selectedText()
-        return text.replace('\u2029', '\n').replace('\u2028', '\n')
 
     def keyPressEvent(self, event):
         # Handle completion list navigation first
