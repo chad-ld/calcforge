@@ -3131,6 +3131,156 @@ class FormulaEditor(QPlainTextEdit):
             print(entry)
         print("==========================================\n")
 
+    def _handle_unit_conversion(self, expr):
+        """Handle unit conversion expressions like '1 mile to km'"""
+        match = re.match(r'^([\d.]+)\s+(\w+)\s+to\s+(\w+)$', expr.strip())
+        if match:
+            value, from_unit, to_unit = match.groups()
+            # Handle unit abbreviations
+            from_unit = UNIT_ABBR.get(from_unit.lower(), from_unit)
+            to_unit = UNIT_ABBR.get(to_unit.lower(), to_unit)
+            try:
+                # Create quantity and convert
+                q = ureg.Quantity(float(value), from_unit)
+                result = q.to(to_unit)
+                # Get the full spelling for display
+                display_unit = UNIT_DISPLAY.get(to_unit, to_unit)
+                # Return both the value and the unit
+                return {'value': float(result.magnitude), 'unit': display_unit}
+            except:
+                return None
+        return None
+
+    def _evaluate_lines(self, lines, vals, out, doc):
+        """Evaluate each line and populate results"""
+        # Evaluate each line
+        for idx, line in enumerate(lines):
+            self.current_line = line  # Store current line for context
+            s = line.strip()
+            if not s:  # Empty line
+                vals[idx] = None
+                blk = doc.findBlockByNumber(idx)
+                data = blk.userData()
+                if isinstance(data, LineData):
+                    self.editor.ln_value_map[data.id] = vals[idx]
+                out.append("")
+                continue
+            
+            if s.startswith(":::"):  # Comment line
+                vals[idx] = None
+                blk = doc.findBlockByNumber(idx)
+                data = blk.userData()
+                if isinstance(data, LineData):
+                    self.editor.ln_value_map[data.id] = vals[idx]
+                out.append("")
+                continue
+
+            # Try special cases first
+            try:
+                # Get the current block and its ID
+                blk = doc.findBlockByNumber(idx)
+                data = blk.userData()
+                current_id = data.id if isinstance(data, LineData) else None
+
+                # Pre-process the expression to handle padded numbers
+                s = self._preprocess_expression(s)
+
+                # Check for D() function call first
+                d_func_match = re.match(r'D\((.*?)\)', s)
+                if d_func_match:
+                    # Extract the content inside D() and process it directly
+                    date_content = d_func_match.group(1)
+                    date_result = handle_date_arithmetic(date_content)
+                    
+                    if date_result is not None:
+                        vals[idx] = date_result
+                        if current_id:
+                            self.editor.ln_value_map[current_id] = vals[idx]
+                        out.append(self.format_number_for_display(date_result, idx))
+                        continue
+
+                # Check for unit conversion
+                unit_result = self._handle_unit_conversion(s)
+                if unit_result is not None:
+                    vals[idx] = unit_result
+                    if current_id:
+                        self.editor.ln_value_map[current_id] = vals[idx]
+                    out.append(self.format_number_for_display(unit_result, idx))
+                    continue
+
+                # Check for currency conversion
+                currency_result = handle_currency_conversion(s)
+                if currency_result is not None:
+                    vals[idx] = currency_result
+                    if current_id:
+                        self.editor.ln_value_map[current_id] = vals[idx]
+                    out.append(self.format_number_for_display(currency_result, idx))
+                    continue
+
+                # Check for truncate function call (both truncate and TR)
+                trunc_match = re.match(r'(?:truncate|TR)\((.*?),(.*?)\)', s)
+                if trunc_match:
+                    # First evaluate the expression
+                    expr = self.editor.process_ln_refs(trunc_match.group(1).strip())
+                    decimals = int(eval(trunc_match.group(2).strip(), {"truncate": truncate, "TR": truncate, **GLOBALS}, {}))
+                    
+                    # Try unit conversion first
+                    unit_result = self._handle_unit_conversion(expr)
+                    if unit_result is not None:
+                        v = truncate(unit_result, decimals)
+                    else:
+                        # Try currency conversion
+                        currency_result = handle_currency_conversion(expr)
+                        if currency_result is not None:
+                            v = truncate(currency_result, decimals)
+                        else:
+                            # If not a unit or currency conversion, evaluate as regular expression
+                            val = eval(expr, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
+                            v = truncate(val, decimals)
+                        
+                    vals[idx] = v
+                    if current_id:
+                        self.editor.ln_value_map[current_id] = vals[idx]
+                    out.append(self.format_number_for_display(v, idx))
+                    continue
+
+                # Try special commands
+                cmd_result = self._handle_special_commands(s, idx, lines, vals)
+                if cmd_result is not None:
+                    vals[idx] = cmd_result
+                    if current_id:
+                        self.editor.ln_value_map[current_id] = vals[idx]
+                    out.append(self.format_number_for_display(cmd_result, idx))
+                    continue
+
+                # Process LN references if present
+                if re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", s, re.IGNORECASE):
+                    s = self.editor.process_ln_refs(s)
+                    # print(f"Line {idx + 1} after processing refs: {s}")  # Debug print - commented for performance
+
+                # Try to evaluate the expression with math functions
+                v = eval(s, {"truncate": truncate, "mean": statistics.mean, "TR": truncate, **GLOBALS}, {})
+                vals[idx] = v
+                if current_id:
+                    self.editor.ln_value_map[current_id] = vals[idx]
+                    # print(f"Stored value {v} for line ID {current_id}")  # Debug print - commented for performance
+                
+                # Format the output
+                out.append(self.format_number_for_display(v, idx))
+            except TimecodeError as e:
+                # Handle TimecodeError specifically to show the actual error message
+                # print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print - commented for performance
+                vals[idx] = None
+                if current_id:
+                    self.editor.ln_value_map[current_id] = None
+                out.append(f'TC ERROR: {str(e)}')
+            except Exception as e:
+                # print(f"Error evaluating line {idx + 1}: {str(e)}")  # Debug print - commented for performance
+                vals[idx] = None
+                if current_id:
+                    self.editor.ln_value_map[current_id] = None
+                out.append('ERROR!')
+
 class Worksheet(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3983,133 +4133,8 @@ class Worksheet(QWidget):
         # Define truncate function locally
         # Using global truncate function instead
 
-        # Evaluate each line
-        for idx, line in enumerate(lines):
-            self.current_line = line  # Store current line for context
-            s = line.strip()
-            if not s:  # Empty line
-                vals[idx] = None
-                blk = doc.findBlockByNumber(idx)
-                data = blk.userData()
-                if isinstance(data, LineData):
-                    self.editor.ln_value_map[data.id] = vals[idx]
-                out.append("")
-                continue
-            
-            if s.startswith(":::"):  # Comment line
-                vals[idx] = None
-                blk = doc.findBlockByNumber(idx)
-                data = blk.userData()
-                if isinstance(data, LineData):
-                    self.editor.ln_value_map[data.id] = vals[idx]
-                out.append("")
-                continue
-
-            # Try special cases first
-            try:
-                # Get the current block and its ID
-                blk = doc.findBlockByNumber(idx)
-                data = blk.userData()
-                current_id = data.id if isinstance(data, LineData) else None
-
-                # Pre-process the expression to handle padded numbers
-                s = self._preprocess_expression(s)
-
-                # Check for D() function call first
-                d_func_match = re.match(r'D\((.*?)\)', s)
-                if d_func_match:
-                    # Extract the content inside D() and process it directly
-                    date_content = d_func_match.group(1)
-                    date_result = handle_date_arithmetic(date_content)
-                    
-                    if date_result is not None:
-                        vals[idx] = date_result
-                        if current_id:
-                            self.editor.ln_value_map[current_id] = vals[idx]
-                        out.append(self.format_number_for_display(date_result, idx))
-                        continue
-
-                # Check for unit conversion
-                unit_result = self._handle_unit_conversion(s)
-                if unit_result is not None:
-                    vals[idx] = unit_result
-                    if current_id:
-                        self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(unit_result, idx))
-                    continue
-
-                # Check for currency conversion
-                currency_result = handle_currency_conversion(s)
-                if currency_result is not None:
-                    vals[idx] = currency_result
-                    if current_id:
-                        self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(currency_result, idx))
-                    continue
-
-                # Check for truncate function call (both truncate and TR)
-                trunc_match = re.match(r'(?:truncate|TR)\((.*?),(.*?)\)', s)
-                if trunc_match:
-                    # First evaluate the expression
-                    expr = self.editor.process_ln_refs(trunc_match.group(1).strip())
-                    decimals = int(eval(trunc_match.group(2).strip(), {"truncate": truncate, "TR": truncate, **GLOBALS}, {}))
-                    
-                    # Try unit conversion first
-                    unit_result = self._handle_unit_conversion(expr)
-                    if unit_result is not None:
-                        v = truncate(unit_result, decimals)
-                    else:
-                        # Try currency conversion
-                        currency_result = handle_currency_conversion(expr)
-                        if currency_result is not None:
-                            v = truncate(currency_result, decimals)
-                        else:
-                            # If not a unit or currency conversion, evaluate as regular expression
-                            val = eval(expr, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
-                            v = truncate(val, decimals)
-                        
-                    vals[idx] = v
-                    if current_id:
-                        self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(v, idx))
-                    continue
-
-                # Try special commands
-                cmd_result = self._handle_special_commands(s, idx, lines, vals)
-                if cmd_result is not None:
-                    vals[idx] = cmd_result
-                    if current_id:
-                        self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(cmd_result, idx))
-                    continue
-
-                # Process LN references if present
-                if re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", s, re.IGNORECASE):
-                    s = self.editor.process_ln_refs(s)
-                    # print(f"Line {idx + 1} after processing refs: {s}")  # Debug print - commented for performance
-
-                # Try to evaluate the expression with math functions
-                v = eval(s, {"truncate": truncate, "mean": statistics.mean, "TR": truncate, **GLOBALS}, {})
-                vals[idx] = v
-                if current_id:
-                    self.editor.ln_value_map[current_id] = vals[idx]
-                    # print(f"Stored value {v} for line ID {current_id}")  # Debug print - commented for performance
-                
-                # Format the output
-                out.append(self.format_number_for_display(v, idx))
-            except TimecodeError as e:
-                # Handle TimecodeError specifically to show the actual error message
-                # print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print - commented for performance
-                vals[idx] = None
-                if current_id:
-                    self.editor.ln_value_map[current_id] = None
-                out.append(f'TC ERROR: {str(e)}')
-            except Exception as e:
-                # print(f"Error evaluating line {idx + 1}: {str(e)}")  # Debug print - commented for performance
-                vals[idx] = None
-                if current_id:
-                    self.editor.ln_value_map[current_id] = None
-                out.append('ERROR!')
+        # Evaluate each line using the extracted method
+        self._evaluate_lines(lines, vals, out, doc)
 
         # Update results with plain text (no HTML needed since we're using QPlainTextEdit)
         text_content = '\n'.join(out)
@@ -4192,26 +4217,6 @@ class Worksheet(QWidget):
             # Update results widget size to fill container
             self.results.setGeometry(0, 0, container_size.width(), container_size.height())
             # The line number area will be repositioned by the resize event of the results widget
-
-    def _handle_unit_conversion(self, expr):
-        """Handle unit conversion expressions like '1 mile to km'"""
-        match = re.match(r'^([\d.]+)\s+(\w+)\s+to\s+(\w+)$', expr.strip())
-        if match:
-            value, from_unit, to_unit = match.groups()
-            # Handle unit abbreviations
-            from_unit = UNIT_ABBR.get(from_unit.lower(), from_unit)
-            to_unit = UNIT_ABBR.get(to_unit.lower(), to_unit)
-            try:
-                # Create quantity and convert
-                q = ureg.Quantity(float(value), from_unit)
-                result = q.to(to_unit)
-                # Get the full spelling for display
-                display_unit = UNIT_DISPLAY.get(to_unit, to_unit)
-                # Return both the value and the unit
-                return {'value': float(result.magnitude), 'unit': display_unit}
-            except:
-                return None
-        return None
 
 class Calculator(QWidget):
     def __init__(self):
