@@ -4085,6 +4085,20 @@ class Worksheet(QWidget):
 
     def evaluate(self):
         """Evaluate formulas and update results"""
+        # Initialize evaluation state and data structures
+        evaluation_context = self._initialize_evaluation()
+        
+        # Evaluate each line using the extracted method
+        out = self._evaluate_lines_loop(evaluation_context['lines'], evaluation_context['vals'], evaluation_context['doc'])
+
+        # Finalize evaluation and update UI
+        self._finalize_evaluation(out, evaluation_context)
+
+    def _initialize_evaluation(self):
+        """Initialize evaluation state and prepare data structures"""
+        evaluation_context = {}
+        
+        # Debug and performance logging setup
         if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
             start_time = self.editor._log_perf("evaluate")
             print(f"EVALUATION TRIGGERED at line {self.editor.textCursor().blockNumber()}")
@@ -4096,62 +4110,58 @@ class Worksheet(QWidget):
                 print(f"  {frame.filename}:{frame.lineno} in {frame.name}()")
         
         # Store current cursor and scroll positions
-        cursor = self.editor.textCursor()
-        editor_scroll = self.editor.verticalScrollBar().value()
-        results_scroll = self.results.verticalScrollBar().value()
+        evaluation_context['cursor'] = self.editor.textCursor()
+        evaluation_context['editor_scroll'] = self.editor.verticalScrollBar().value()
+        evaluation_context['results_scroll'] = self.results.verticalScrollBar().value()
         
         # Check if this is a cursor-triggered evaluation
-        is_cursor_triggered = hasattr(self.editor, '_cursor_triggered_eval')
-        if is_cursor_triggered:
+        evaluation_context['is_cursor_triggered'] = hasattr(self.editor, '_cursor_triggered_eval')
+        if evaluation_context['is_cursor_triggered']:
             delattr(self.editor, '_cursor_triggered_eval')
         
         # Ensure line IDs are properly assigned
         self.editor.reassign_line_ids()
         
-        lines = self.editor.toPlainText().split("\n")
-        vals = [None]*len(lines)
-        out = []
+        # Initialize data structures
+        evaluation_context['lines'] = self.editor.toPlainText().split("\n")
+        evaluation_context['vals'] = [None] * len(evaluation_context['lines'])
         self.editor.ln_value_map = {}
         id_map = {}
-        doc = self.editor.document()
+        evaluation_context['doc'] = self.editor.document()
         
         # Update separator lines
         self.editor.update_separator_lines()
         
         # Build id_map and initialize ln_value_map
-        for i in range(doc.blockCount()):
-            blk = doc.findBlockByNumber(i)
+        for i in range(evaluation_context['doc'].blockCount()):
+            blk = evaluation_context['doc'].findBlockByNumber(i)
             d = blk.userData()
             if isinstance(d, LineData):
                 id_map[d.id] = i
                 # Initialize with None to ensure the ID exists in the map
                 self.editor.ln_value_map[d.id] = None
         
-        # Update separator lines - DISABLED since we now have blue function highlighting
-        # self.editor.update_separator_lines()
-        
-        # Define truncate function locally
-        # Using global truncate function instead
+        evaluation_context['id_map'] = id_map
+        return evaluation_context
 
-        # Evaluate each line using the extracted method
-        out = self._evaluate_lines_loop(lines, vals, doc)
-
+    def _finalize_evaluation(self, out, evaluation_context):
+        """Finalize evaluation and update UI"""
         # Update results with plain text (no HTML needed since we're using QPlainTextEdit)
         text_content = '\n'.join(out)
         self.results.setPlainText(text_content)
         
         # Restore cursor and synchronized scroll position
-        self.editor.setTextCursor(cursor)
+        self.editor.setTextCursor(evaluation_context['cursor'])
         # Only set one scrollbar - the synchronization will handle the other
         self._syncing_scroll = True  # Temporarily disable sync to avoid double-setting
-        self.editor.verticalScrollBar().setValue(editor_scroll)
+        self.editor.verticalScrollBar().setValue(evaluation_context['editor_scroll'])
         self._syncing_scroll = False
         
         # Force a sync after content update to ensure both are aligned
         QTimer.singleShot(10, lambda: self._force_sync_from_editor())
         
         # Force highlight update if this was cursor-triggered
-        if is_cursor_triggered:
+        if evaluation_context['is_cursor_triggered']:
             self.editor.highlightCurrentLine()
 
     def _force_sync_from_editor(self):
