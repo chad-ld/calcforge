@@ -3009,6 +3009,9 @@ class Worksheet(QWidget):
         self.splitter = QSplitter(Qt.Horizontal)
         self.settings = QSettings('OpenAI', 'SmartCalc')
         
+        # Tab switching optimization - Stage 1: Cross-sheet reference tracking
+        self.has_cross_sheet_refs = False  # Track if this sheet contains cross-sheet references
+        
         # Create results widget first - now using QPlainTextEdit for perfect alignment
         self.results = QPlainTextEdit()
         self.results.setReadOnly(True)
@@ -3237,6 +3240,15 @@ class Worksheet(QWidget):
             # Text actually changed
             self._last_text_content = current_text
             self._is_pure_navigation = False
+            
+            # Tab switching optimization - Stage 1: Set change flag for this sheet
+            calculator = self.editor.get_calculator()
+            if calculator and hasattr(calculator, '_sheet_changed_flags'):
+                # Find our tab index
+                for i in range(calculator.tabs.count()):
+                    if calculator.tabs.widget(i) == self:
+                        calculator._sheet_changed_flags[i] = True
+                        break
             
             if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
                 print(f"TEXT ACTUALLY CHANGED - starting evaluation timer")
@@ -3953,6 +3965,9 @@ class Worksheet(QWidget):
         """Main line-by-line evaluation logic"""
         out = []
         
+        # Tab switching optimization - Stage 1: Detect cross-sheet references during evaluation
+        detected_cross_sheet_refs = False
+        
         # Evaluate each line
         for idx, line in enumerate(lines):
             self.current_line = line  # Store current line for context
@@ -3974,6 +3989,10 @@ class Worksheet(QWidget):
                     self.editor.ln_value_map[data.id] = vals[idx]
                 out.append("")
                 continue
+
+            # Tab switching optimization - Check for cross-sheet references in this line
+            if re.search(r'\bS\.[^.]+\.LN\d+\b', s, re.IGNORECASE):
+                detected_cross_sheet_refs = True
 
             # Try special cases first
             try:
@@ -4081,6 +4100,9 @@ class Worksheet(QWidget):
                     self.editor.ln_value_map[current_id] = None
                 out.append('ERROR!')
         
+        # Tab switching optimization - Stage 1: Update cross-sheet reference flag
+        self.has_cross_sheet_refs = detected_cross_sheet_refs
+        
         return out
 
     def _handle_unit_conversion(self, expr):
@@ -4114,6 +4136,10 @@ class Calculator(QWidget):
         icon_path = os.path.join(os.path.dirname(sys.argv[0]), "calcforge.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
+        
+        # Tab switching optimization - Stage 1: Change tracking system
+        self._sheet_changed_flags = {}  # Tab index -> bool (True if sheet content changed)
+        self._last_active_sheet = None  # Track the previously active sheet index
         
         self.settings = QSettings('OpenAI','SmartCalc')
         if self.settings.contains('geometry'):
@@ -4183,12 +4209,14 @@ class Calculator(QWidget):
             try:
                 data = json.loads(wf.read_text())
                 self.tabs.clear()
-                for name, content in data.items():
+                for idx, (name, content) in enumerate(data.items()):
                     ws = Worksheet(self)
                     self.tabs.addTab(ws, name)
                     ws.editor.setPlainText(content)
                     if self.splitter_state:
                         ws.splitter.restoreState(self.splitter_state)
+                    # Tab switching optimization - Initialize change flag for loaded sheet
+                    self._sheet_changed_flags[idx] = False
                 # Position cursor at end of first sheet
                 if self.tabs.count() > 0:
                     self.position_cursor_at_end(self.tabs.widget(0).editor)
@@ -4268,12 +4296,36 @@ class Calculator(QWidget):
         # Position cursor at end for new tabs
         self.position_cursor_at_end(ws.editor)
         
+        # Tab switching optimization - Initialize change flag for new sheet
+        self._sheet_changed_flags[idx] = False
+        
         # Invalidate cross-sheet caches in all editors
         self.invalidate_all_cross_sheet_caches()
 
     def close_tab(self,idx):
         if self.tabs.count()>1: 
             self.tabs.removeTab(idx)
+            
+            # Tab switching optimization - Clean up change flags for removed tab
+            if idx in self._sheet_changed_flags:
+                del self._sheet_changed_flags[idx]
+            
+            # Adjust change flags for tabs after the removed one (shift indices down)
+            updated_flags = {}
+            for tab_idx, changed in self._sheet_changed_flags.items():
+                if tab_idx > idx:
+                    updated_flags[tab_idx - 1] = changed
+                else:
+                    updated_flags[tab_idx] = changed
+            self._sheet_changed_flags = updated_flags
+            
+            # Update last active sheet index if needed
+            if self._last_active_sheet is not None:
+                if self._last_active_sheet == idx:
+                    self._last_active_sheet = None
+                elif self._last_active_sheet > idx:
+                    self._last_active_sheet -= 1
+                    
             # Invalidate cross-sheet caches in all editors
             self.invalidate_all_cross_sheet_caches()
 
@@ -4577,14 +4629,64 @@ class Calculator(QWidget):
             current_widget.editor.activateWindow()
 
     def on_tab_changed(self, index):
-        """Force evaluation when switching to a sheet to ensure cross-sheet references are up to date"""
-        if index >= 0:  # Valid tab index
-            current_sheet = self.tabs.widget(index)
-            if current_sheet and hasattr(current_sheet, 'evaluate'):
-                # Invalidate cross-sheet caches to ensure fresh lookups
-                self.invalidate_all_cross_sheet_caches()
-                # Force evaluation of the newly focused sheet (without highlighting to preserve cross-sheet highlights)
-                current_sheet.evaluate()
+        """Smart tab switching - only evaluate when necessary (Stage 1 optimization)"""
+        if index < 0:  # Invalid tab index
+            return
+            
+        current_sheet = self.tabs.widget(index)
+        if not current_sheet or not hasattr(current_sheet, 'evaluate'):
+            return
+        
+        # Debug output - ENABLE THIS TO DIAGNOSE TAB SWITCHING PERFORMANCE
+        DEBUG_TAB_SWITCHING = True  # Set to False to disable debug output
+        if DEBUG_TAB_SWITCHING:
+            print(f"\n=== TAB SWITCH DEBUG ===")
+            print(f"Switching to tab {index}, last active: {self._last_active_sheet}")
+            print(f"Change flags: {self._sheet_changed_flags}")
+            print(f"Current sheet has cross-refs: {getattr(current_sheet, 'has_cross_sheet_refs', 'NOT_SET')}")
+        
+        # Check if evaluation is needed
+        should_evaluate = False
+        reason = ""
+        
+        # Case 1: Previous sheet was modified and current sheet has cross-sheet references
+        if (self._last_active_sheet is not None and 
+            self._sheet_changed_flags.get(self._last_active_sheet, False) and
+            hasattr(current_sheet, 'has_cross_sheet_refs') and
+            current_sheet.has_cross_sheet_refs):
+            should_evaluate = True
+            reason = f"Previous sheet {self._last_active_sheet} changed + current has cross-refs"
+            
+        # Case 2: Current sheet was modified (always evaluate)
+        if self._sheet_changed_flags.get(index, False):
+            should_evaluate = True
+            reason = f"Current sheet {index} was modified"
+            
+        # Case 3: First time switch to this tab or no change tracking data yet
+        if index not in self._sheet_changed_flags:
+            should_evaluate = True
+            reason = f"First time switch to sheet {index}"
+            # Initialize change flag for new sheets
+            self._sheet_changed_flags[index] = False
+
+        if DEBUG_TAB_SWITCHING:
+            print(f"Should evaluate: {should_evaluate}")
+            if should_evaluate:
+                print(f"Reason: {reason}")
+            else:
+                print("Reason: No changes detected - SKIPPING EVALUATION")
+            print("========================\n")
+
+        if should_evaluate:
+            # Invalidate cross-sheet caches to ensure fresh lookups
+            self.invalidate_all_cross_sheet_caches()
+            # Force evaluation of the newly focused sheet
+            current_sheet.evaluate()
+            # Clear the change flag for the current sheet after evaluation
+            self._sheet_changed_flags[index] = False
+        
+        # Update last active sheet for next time
+        self._last_active_sheet = index
 
     def invalidate_all_cross_sheet_caches(self):
         """Invalidate cross-sheet caches in all editor instances"""
