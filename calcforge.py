@@ -726,87 +726,119 @@ class LineData(QTextBlockUserData):
         super().__init__()
         self.id = id
 
-class LineNumberArea(QWidget):
-    def __init__(self, editor):
-        super().__init__(editor)
-        self.editor = editor
-    def sizeHint(self):
-        return QSize(self.editor.lineNumberAreaWidth(), 0)
-    def paintEvent(self, event):
-        self.editor.lineNumberAreaPaintEvent(event)
-
-class ResultsLineNumberArea(QWidget):
-    def __init__(self, results_widget):
-        super().__init__(results_widget)
-        self.results_widget = results_widget
+class LineNumberAreaBase(QWidget):
+    """Base class for line number areas with common functionality"""
+    
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.widget = parent  # Generic reference to the parent widget
     
     def sizeHint(self):
         return QSize(self.lineNumberAreaWidth(), 0)
     
     def lineNumberAreaWidth(self):
-        digits = len(str(max(1, self.results_widget.blockCount())))
-        return 3 + self.results_widget.fontMetrics().horizontalAdvance('9') * digits
+        """Calculate width needed for line numbers - override in subclasses"""
+        raise NotImplementedError("Subclasses must implement lineNumberAreaWidth")
     
-    def paintEvent(self, event):
+    def get_current_line_number(self):
+        """Get the current line number for highlighting - override in subclasses"""
+        return -1
+    
+    def get_line_label_and_color(self, block, block_number):
+        """Get the label and color for a line - override in subclasses"""
+        return str(block_number + 1), "#888"
+    
+    def paint_common_logic(self, event, widget):
+        """Common painting logic shared between line number areas"""
         painter = QPainter(self)
         painter.fillRect(event.rect(), QColor("#1e1e1e"))
-        block = self.results_widget.firstVisibleBlock()
-        top = self.results_widget.blockBoundingGeometry(block).translated(self.results_widget.contentOffset()).top()
-        bottom = top + self.results_widget.blockBoundingRect(block).height()
+        block = widget.firstVisibleBlock()
+        top = widget.blockBoundingGeometry(block).translated(widget.contentOffset()).top()
+        bottom = top + widget.blockBoundingRect(block).height()
         
-        # Get access to the editor to check for comment lines and current cursor position
-        worksheet = self.results_widget.parent()
-        while worksheet and not hasattr(worksheet, 'editor'):
-            worksheet = worksheet.parent()
-        
-        # Get the current line number for highlighting
-        current_block_number = -1
-        if worksheet and hasattr(worksheet, 'editor'):
-            current_block_number = worksheet.editor.textCursor().blockNumber()
+        current_block_number = self.get_current_line_number()
         
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 block_number = block.blockNumber()
-                
-                # Default values
-                label = str(block_number + 1)
-                color = "#888"
-                
-                # Check if corresponding editor line exists and is a comment
-                if worksheet and hasattr(worksheet, 'editor'):
-                    editor_doc = worksheet.editor.document()
-                    if block_number < editor_doc.blockCount():
-                        editor_block = editor_doc.findBlockByNumber(block_number)
-                        if editor_block.isValid():
-                            editor_text = editor_block.text().strip()
-                            editor_data = editor_block.userData()
-                            
-                            # Use same logic as editor's line number area
-                            if editor_text.startswith(":::"):
-                                label = "C"
-                                color = "#7ED321"
-                            elif isinstance(editor_data, LineData):
-                                label = str(editor_data.id)
+                label, color = self.get_line_label_and_color(block, block_number)
                 
                 # Check if this is the current line - make it bold and white
                 is_current_line = block_number == current_block_number
                 if is_current_line:
                     color = "#FFFFFF"  # White for current line
-                    # Set bold font
                     font = painter.font()
                     font.setBold(True)
                     painter.setFont(font)
                 else:
-                    # Ensure font is not bold for other lines
                     font = painter.font()
                     font.setBold(False)
                     painter.setFont(font)
                 
                 painter.setPen(QColor(color))
-                painter.drawText(0, int(top), self.width()-2, self.results_widget.fontMetrics().height(), Qt.AlignRight, label)
+                painter.drawText(0, int(top), self.width()-2, widget.fontMetrics().height(), Qt.AlignRight, label)
+            
             block = block.next()
             top = bottom
-            bottom = top + self.results_widget.blockBoundingRect(block).height()
+            bottom = top + widget.blockBoundingRect(block).height()
+
+class LineNumberArea(LineNumberAreaBase):
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor = editor
+    
+    def lineNumberAreaWidth(self):
+        return self.editor.lineNumberAreaWidth()
+    
+    def paintEvent(self, event):
+        self.editor.lineNumberAreaPaintEvent(event)
+
+class ResultsLineNumberArea(LineNumberAreaBase):
+    def __init__(self, results_widget):
+        super().__init__(results_widget)
+        self.results_widget = results_widget
+    
+    def lineNumberAreaWidth(self):
+        digits = len(str(max(1, self.results_widget.blockCount())))
+        return 3 + self.results_widget.fontMetrics().horizontalAdvance('9') * digits
+    
+    def get_current_line_number(self):
+        # Get the current line number from the editor, not the results widget
+        worksheet = self.results_widget.parent()
+        while worksheet and not hasattr(worksheet, 'editor'):
+            worksheet = worksheet.parent()
+        
+        if worksheet and hasattr(worksheet, 'editor'):
+            return worksheet.editor.textCursor().blockNumber()
+        return -1
+    
+    def get_line_label_and_color(self, block, block_number):
+        label = str(block_number + 1)
+        color = "#888"
+        
+        # Check if corresponding editor line exists and is a comment
+        worksheet = self.results_widget.parent()
+        while worksheet and not hasattr(worksheet, 'editor'):
+            worksheet = worksheet.parent()
+        
+        if worksheet and hasattr(worksheet, 'editor'):
+            editor_doc = worksheet.editor.document()
+            if block_number < editor_doc.blockCount():
+                editor_block = editor_doc.findBlockByNumber(block_number)
+                if editor_block.isValid():
+                    editor_text = editor_block.text().strip()
+                    editor_data = editor_block.userData()
+                    
+                    if editor_text.startswith(":::"):
+                        label = "C"
+                        color = "#7ED321"
+                    elif isinstance(editor_data, LineData):
+                        label = str(editor_data.id)
+        
+        return label, color
+    
+    def paintEvent(self, event):
+        self.paint_common_logic(event, self.results_widget)
 
 class BaseHighlighter(QSyntaxHighlighter):
     """Base class for all syntax highlighters with common formatting functionality"""
