@@ -1107,34 +1107,26 @@ class KeyEventFilter(QObject):
             cursor = self.editor.textCursor()
             has_selection = cursor.hasSelection()
             
+            # Preserve selection for Ctrl key
             if has_selection and k == 16777249:  # This is the Ctrl key
                 return True
             
-            if has_selection and ctrl:
-                if k == Qt.Key_C:
-                    # Handle Ctrl+C directly here to prevent Qt from clearing selection
-                    selected_text = cursor.selectedText()
-                    if selected_text:
-                        # Convert Qt's special line breaks to regular line breaks
-                        text = selected_text.replace('\u2029', '\n').replace('\u2028', '\n')
-                        clipboard = QApplication.clipboard()
-                        clipboard.setText(text)
-                        return True  # Event handled, don't pass to Qt
+            # Handle Ctrl+C with selection directly here to prevent Qt from clearing selection
+            if has_selection and ctrl and k == Qt.Key_C:
+                selected_text = cursor.selectedText()
+                if selected_text:
+                    # Convert Qt's special line breaks to regular line breaks
+                    text = selected_text.replace('\u2029', '\n').replace('\u2028', '\n')
+                    clipboard = QApplication.clipboard()
+                    clipboard.setText(text)
+                    return True  # Event handled, don't pass to Qt
                         
-                elif k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Down):
-                    # For Ctrl+arrow keys with an existing selection, preserve selection
-                    # EXCEPT for Ctrl+Up and Ctrl+Down which have special functions
-                    return True  # Block these arrow keys to preserve selection
-            
-            # Let our custom shortcuts pass through to keyPressEvent
-            if (alt and k == Qt.Key_C) or \
-               (ctrl and k in (Qt.Key_Up, Qt.Key_Down)) or \
-               (k == Qt.Key_Tab) or \
-               (ctrl and event.modifiers() & Qt.ShiftModifier and k in (Qt.Key_Left, Qt.Key_Right)) or \
-               (ctrl and k == Qt.Key_C and not has_selection):
-                return False  # Let keyPressEvent handle these
+            # For Ctrl+arrow keys with an existing selection, preserve selection
+            # EXCEPT for Ctrl+Up and Ctrl+Down which have special functions in keyPressEvent
+            elif has_selection and ctrl and k in (Qt.Key_Left, Qt.Key_Right):
+                return True  # Block these arrow keys to preserve selection
         
-        # For all other events, pass through normally
+        # For all other events, let keyPressEvent handle them
         return False
 
 class EditorAutoCompletionMixin:
@@ -2910,8 +2902,29 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         modifiers = event.modifiers()
         key = event.key()
         
+        # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
+        if modifiers & Qt.ControlModifier and key == Qt.Key_C:
+            cursor = self.textCursor()
+            if not cursor.hasSelection():
+                # No selection - copy the result from current line
+                block_number = cursor.blockNumber()
+                if hasattr(self.parent, 'results'):
+                    results_doc = self.parent.results.document()
+                    results_block = results_doc.findBlockByNumber(block_number)
+                    if results_block.isValid():
+                        result_text = results_block.text().strip()
+                        if result_text:
+                            clipboard = QApplication.clipboard()
+                            clipboard.setText(result_text)
+                event.accept()
+                return
+            else:
+                # Has selection - let KeyEventFilter handle this
+                super().keyPressEvent(event)
+                return
+        
         # Alt+C: Copy the current expression line
-        if modifiers & Qt.AltModifier and key == Qt.Key_C:
+        elif modifiers & Qt.AltModifier and key == Qt.Key_C:
             cursor = self.textCursor()
             block = cursor.block()
             line_text = block.text()
@@ -2942,29 +2955,8 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
             event.accept()
             return
         
-        # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
-        elif modifiers & Qt.ControlModifier and key == Qt.Key_C:
-            cursor = self.textCursor()
-            if not cursor.hasSelection():
-                # No selection - copy the result from current line
-                block_number = cursor.blockNumber()
-                if hasattr(self.parent, 'results'):
-                    results_doc = self.parent.results.document()
-                    results_block = results_doc.findBlockByNumber(block_number)
-                    if results_block.isValid():
-                        result_text = results_block.text().strip()
-                        if result_text:
-                            clipboard = QApplication.clipboard()
-                            clipboard.setText(result_text)
-                event.accept()
-                return
-            else:
-                # Has selection - let KeyEventFilter handle this
-                super().keyPressEvent(event)
-                return
-        
         # Ctrl+Shift+Left/Right: Navigate between worksheet tabs
-        if modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
+        elif modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
             # Get the calculator instance and handle tab navigation directly
             calculator = self.get_calculator()
             if calculator:
@@ -4095,14 +4087,8 @@ class Worksheet(QWidget):
         modifiers = event.modifiers()
         key = event.key()
         
-        # Ctrl+Shift+Left/Right: Let these pass through to Calculator for tab navigation
-        if modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
-            # Don't handle here, let it bubble up to Calculator
-            super().keyPressEvent(event)
-            return
-        
         # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
-        elif modifiers & Qt.ControlModifier and key == Qt.Key_C:
+        if modifiers & Qt.ControlModifier and key == Qt.Key_C:
             cursor = self.textCursor()
             if not cursor.hasSelection():
                 # No selection - copy the result from current line
@@ -4151,6 +4137,29 @@ class Worksheet(QWidget):
             if self.completion_list and self.completion_list.isVisible():
                 self.complete_text()
             # Otherwise, do nothing (disable tab insertion)
+            event.accept()
+            return
+        
+        # Ctrl+Shift+Left/Right: Navigate between worksheet tabs
+        elif modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
+            # Get the calculator instance and handle tab navigation directly
+            calculator = self.get_calculator()
+            if calculator:
+                current_index = calculator.tabs.currentIndex()
+                if key == Qt.Key_Left:
+                    # Navigate to previous tab
+                    if current_index > 0:
+                        calculator.tabs.setCurrentIndex(current_index - 1)
+                    else:
+                        # Wrap to last tab
+                        calculator.tabs.setCurrentIndex(calculator.tabs.count() - 1)
+                elif key == Qt.Key_Right:
+                    # Navigate to next tab
+                    if current_index < calculator.tabs.count() - 1:
+                        calculator.tabs.setCurrentIndex(current_index + 1)
+                    else:
+                        # Wrap to first tab
+                        calculator.tabs.setCurrentIndex(0)
             event.accept()
             return
         
