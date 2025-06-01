@@ -1130,7 +1130,462 @@ class KeyEventFilter(QObject):
         # For all other events, pass through normally
         return False
 
-class FormulaEditor(QPlainTextEdit):
+class EditorAutoCompletionMixin:
+    """Handles all auto-completion functionality for the formula editor"""
+    
+    def setup_autocompletion(self):
+        """Setup auto-completion data structures and completions"""
+        # Basic functions and commands - simplified to just show function names
+        self.base_completions = {
+            'TR': 'TR',
+            'truncate': 'truncate',
+            'sqrt': 'sqrt',
+            'sin': 'sin',
+            'cos': 'cos',
+            'tan': 'tan',
+            'asin': 'asin',
+            'acos': 'acos',
+            'atan': 'atan',
+            'sinh': 'sinh',
+            'cosh': 'cosh',
+            'tanh': 'tanh',
+            'asinh': 'asinh',
+            'acosh': 'acosh',
+            'atanh': 'atanh',
+            'log': 'log',
+            'log10': 'log10',
+            'log2': 'log2',
+            'exp': 'exp',
+            'pow': 'pow',
+            'ceil': 'ceil',
+            'floor': 'floor',
+            'abs': 'abs',
+            'factorial': 'factorial',
+            'gcd': 'gcd',
+            'lcm': 'lcm',
+            'TC': 'TC',
+            'AR': 'AR',
+            'D': 'D',
+            'pi': 'pi',
+            'e': 'e',
+            # Statistical functions - just show function names
+            'sum': 'sum',
+            'mean': 'mean',
+            'meanfps': 'meanfps',
+            'median': 'median',
+            'mode': 'mode',
+            'min': 'min',
+            'max': 'max',
+            'range': 'range',
+            'count': 'count',
+            'product': 'product',
+            'variance': 'variance',
+            'stdev': 'stdev',
+            'std': 'std',
+            'geomean': 'geomean',
+            'harmmean': 'harmmean',
+            'sumsq': 'sumsq',
+            'perc5': 'perc5',
+            'perc95': 'perc95'
+        }
+        
+        # Parameter options for different function types
+        self.statistical_range_options = [
+            'above',
+            'below', 
+            'start range - end range',
+            'line1,line2,line3',
+            'cg-above',
+            'cg-below'
+        ]
+        
+        self.tc_options = [
+            'fps, timecode',
+            'fps, frames', 
+            'fps, "timecode + timecode"',
+            'fps, "timecode - timecode"'
+        ]
+        
+        self.ar_options = [
+            '1920x1080, ?x2000',
+            '1920x1080, 1280x?',
+            'original_width x original_height, target_width x ?',
+            'original_width x original_height, ? x target_height'
+        ]
+        
+        self.date_options = [
+            'date start range - date end range',
+            'date start range W- date end range',
+            'date start range + no. of days',
+            'date start range W+ no. of days'
+        ]
+        
+        self.basic_math_options = [
+            'value',
+            'expression'
+        ]
+        
+        self.two_param_options = [
+            'value, decimals',
+            'first_value, second_value'
+        ]
+        
+        # Functions that use statistical range options
+        self.statistical_functions = {
+            'sum', 'mean', 'median', 'mode', 'min', 'max', 'range', 'count', 
+            'product', 'variance', 'stdev', 'std', 'geomean', 'harmmean', 
+            'sumsq', 'perc5', 'perc95'
+        }
+
+    def get_word_under_cursor(self):
+        """Extract word at cursor position with special handling for currency completions"""
+        cursor = self.textCursor()
+        text = cursor.block().text()
+        pos = cursor.positionInBlock()
+        
+        # For currency completion, we might need to handle multi-word currencies
+        # like "canadian dollars", so let's be more flexible
+        
+        # First check if we're in a currency context
+        line_text = text
+        cursor_pos = pos
+        
+        # Check for currency conversion patterns
+        currency_to_pattern = r'([\d.]+)\s+(.+?)\s+to\s+(\w*)$'
+        currency_source_pattern = r'([\d.]+)\s+(\w+)$'
+        
+        # If we're after "to", return the partial target currency
+        to_match = re.search(currency_to_pattern, line_text[:cursor_pos], re.IGNORECASE)
+        if to_match:
+            return to_match.group(3)
+        
+        # If we're typing a source currency, return the current word
+        source_match = re.search(currency_source_pattern, line_text[:cursor_pos], re.IGNORECASE)
+        if source_match:
+            return source_match.group(2)
+        
+        # Default word finding for regular completions
+        left = pos - 1
+        while left >= 0 and (text[left].isalnum() or text[left] == '-'):
+            left -= 1
+        left += 1
+        
+        right = pos
+        while right < len(text) and (text[right].isalnum() or text[right] == '-'):
+            right += 1
+            
+        # Extract the word
+        word = text[left:right].strip()
+        
+        # If we have hyphens before the word, include them
+        hyphens = ''
+        while left > 0 and text[left - 1] == '-':
+            hyphens = '-' + hyphens
+            left -= 1
+            
+        return hyphens + word
+
+    def get_completions(self, prefix):
+        """Generate completion suggestions based on context and prefix"""
+        completions = []
+        
+        # Skip completions for LN references
+        if prefix.lower().startswith('ln'):
+            return []
+        
+        # Get the current line text to check for different contexts
+        cursor = self.textCursor()
+        line_text = cursor.block().text()
+        cursor_pos = cursor.positionInBlock()
+        
+        # Check if we're inside function parentheses
+        text_before_cursor = line_text[:cursor_pos]
+        
+        # Look for function pattern: function_name(
+        function_pattern = r'(\w+)\(\s*([^)]*?)$'
+        function_match = re.search(function_pattern, text_before_cursor)
+        
+        if function_match:
+            function_name = function_match.group(1).lower()
+            params_so_far = function_match.group(2)
+            
+            # We're inside a function - show parameter options
+            if function_name in self.statistical_functions:
+                # For statistical functions, show range options
+                if function_name == 'meanfps':
+                    # Special case for meanfps - needs fps parameter first
+                    if ',' not in params_so_far:
+                        # First parameter (fps)
+                        fps_options = ['23.976', '24', '25', '29.97', '30', '50', '59.94', '60']
+                        for fps in fps_options:
+                            if fps.startswith(prefix.lower()):
+                                completions.append(fps)
+                    else:
+                        # Second parameter (range options)
+                        for option in self.statistical_range_options:
+                            if not prefix or option.lower().startswith(prefix.lower()):
+                                completions.append(option)
+                else:
+                    # Regular statistical functions - show range options
+                    for option in self.statistical_range_options:
+                        if not prefix or option.lower().startswith(prefix.lower()):
+                            completions.append(option)
+                            
+            elif function_name == 'tc':
+                # TC function options
+                for option in self.tc_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+                        
+            elif function_name == 'ar':
+                # AR function options  
+                for option in self.ar_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+                        
+            elif function_name == 'd':
+                # Date function options
+                for option in self.date_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+                        
+            elif function_name in ['tr', 'truncate']:
+                # TR/truncate function options
+                for option in self.two_param_options:
+                    if 'decimal' in option.lower() and (not prefix or prefix.lower() in option.lower()):
+                        completions.append(option)
+                        
+            elif function_name in ['pow', 'gcd', 'lcm']:
+                # Two parameter functions
+                for option in self.two_param_options:
+                    if 'value' in option.lower() and (not prefix or prefix.lower() in option.lower()):
+                        completions.append(option)
+                        
+            else:
+                # Basic math functions
+                for option in self.basic_math_options:
+                    if not prefix or prefix.lower() in option.lower():
+                        completions.append(option)
+            
+            return sorted(completions)
+        
+        # Check if we're in a currency conversion context
+        # Pattern: number + currency + "to" + partial_currency
+        currency_pattern = r'([\d.]+)\s+(\w+)\s+to\s+(\w*)$'
+        match = re.search(currency_pattern, text_before_cursor, re.IGNORECASE)
+        
+        if match:
+            # We're completing the target currency
+            partial_currency = match.group(3).lower()
+            # Get all currency names that start with the partial input
+            for currency_name in CURRENCY_ABBR.keys():
+                if currency_name.startswith(partial_currency):
+                    completions.append(currency_name)
+            return sorted(completions)
+        
+        # Check if we're typing a source currency after a number
+        # Pattern: number + partial_currency (but not followed by "to")
+        source_currency_pattern = r'([\d.]+)\s+(\w+)$'
+        match = re.search(source_currency_pattern, text_before_cursor, re.IGNORECASE)
+        
+        if match:
+            # Check if the partial word could be a currency
+            partial_currency = match.group(2).lower()
+            # Only suggest currencies if the partial input matches currency names
+            currency_matches = []
+            for currency_name in CURRENCY_ABBR.keys():
+                if currency_name.startswith(partial_currency):
+                    currency_matches.append(currency_name + " to ")
+            
+            if currency_matches:
+                return sorted(currency_matches)
+        
+        # Default: show function names
+        for key, value in self.base_completions.items():
+            if key.lower().startswith(prefix.lower()):
+                completions.append(value)
+
+        return sorted(completions)
+
+    def complete_text(self, item=None):
+        """Apply selected completion to the text"""
+        if item is None:
+            item = self.completion_list.currentItem()
+        if item is None:
+            return
+
+        completion_text = item.text()
+        cursor = self.textCursor()
+        
+        # Get current line context
+        line_text = cursor.block().text()
+        cursor_pos = cursor.positionInBlock()
+        text_before_cursor = line_text[:cursor_pos]
+        
+        # Check if we're completing inside function parentheses
+        function_pattern = r'(\w+)\(\s*([^)]*?)$'
+        function_match = re.search(function_pattern, text_before_cursor)
+        
+        if function_match:
+            # We're inside a function - completing parameters
+            cursor.select(QTextCursor.WordUnderCursor)
+            cursor.removeSelectedText()
+            cursor.insertText(completion_text + ')')  # Add closing parenthesis
+            # Move cursor back one position to be just before the closing parenthesis
+            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 1)
+        else:
+            # We're completing a function name or other top-level completion
+            
+            # For --- commands, handle the replacement specially
+            if completion_text.startswith('---'):
+                # Get the current line text
+                cursor.movePosition(QTextCursor.StartOfLine)
+                cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                line_text = cursor.selectedText()
+                
+                # Find where the dashes start
+                dash_start = line_text.find('-')
+                if dash_start >= 0:
+                    # Move to the start of the dashes
+                    cursor.movePosition(QTextCursor.StartOfLine)
+                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
+                    # Select from there to end of line
+                    cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                    # Count the dashes at current position
+                    dash_count = 0
+                    while dash_count < len(line_text) - dash_start and line_text[dash_start + dash_count] == '-':
+                        dash_count += 1
+                    
+                    # If we have exactly 3 dashes, preserve them and add the function
+                    if dash_count == 3:
+                        cursor.movePosition(QTextCursor.StartOfLine)
+                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start + 3)
+                        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                        cursor.removeSelectedText()
+                        cursor.insertText(completion_text[3:])
+                    else:
+                        # Otherwise replace everything with the full completion
+                        cursor.movePosition(QTextCursor.StartOfLine)
+                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
+                        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
+                        cursor.removeSelectedText()
+                        cursor.insertText(completion_text)
+                else:
+                    # If no dashes found, insert the full completion
+                    cursor.removeSelectedText()
+                    cursor.insertText(completion_text)
+            else:
+                # Handle regular completions
+                cursor.select(QTextCursor.WordUnderCursor)
+                cursor.removeSelectedText()
+                
+                # Check if this is a function name that needs parentheses
+                is_function = (completion_text in self.base_completions and 
+                             completion_text not in ['pi', 'e'] and  # Constants don't need parentheses
+                             not completion_text.endswith(' to '))  # Currency completions
+                
+                if is_function:
+                    # Add parentheses and position cursor inside
+                    cursor.insertText(completion_text + '(')
+                    # Trigger completion again to show parameter options after a short delay
+                    QTimer.singleShot(10, self.show_completion_popup)
+                else:
+                    cursor.insertText(completion_text)
+            
+        self.setTextCursor(cursor)
+        
+        # Only hide completion list if we're not expecting parameter completion
+        if not (completion_text in self.base_completions and 
+               completion_text not in ['pi', 'e'] and 
+               not completion_text.endswith(' to ')):
+            self.completion_list.hide()
+
+    def show_completion_popup(self):
+        """Display completion popup with suggestions"""
+        text_cursor = self.textCursor()
+        current_word = self.get_word_under_cursor()
+        
+        # Check if we're inside function parentheses even if there's no current word
+        line_text = text_cursor.block().text()
+        cursor_pos = text_cursor.positionInBlock()
+        text_before_cursor = line_text[:cursor_pos]
+        
+        # Look for function pattern: function_name(
+        function_pattern = r'(\w+)\(\s*([^)]*?)$'
+        function_match = re.search(function_pattern, text_before_cursor)
+        
+        # If we're inside a function, allow empty current_word for parameter completion
+        inside_function = function_match is not None
+        
+        # Don't show completion for pure numbers (but allow empty strings inside functions)
+        if (not inside_function and not current_word) or (current_word and current_word.isdigit()):
+            self.completion_list.hide()
+            return
+
+        # Get completions - use empty string if no current_word but we're inside a function
+        search_prefix = current_word if current_word else ""
+        completions = self.get_completions(search_prefix)
+        if not completions:
+            self.completion_list.hide()
+            return
+
+        # Update completion list
+        self.completion_list.clear()
+        self.completion_list.addItems(completions)
+
+        # Calculate popup position
+        cursor_rect = self.cursorRect()
+        screen_pos = self.mapToGlobal(cursor_rect.bottomLeft())
+        
+        # Get the screen that contains the editor
+        window = self.window()
+        window_center = window.geometry().center()
+        screen = QApplication.screenAt(window_center)
+        if not screen:
+            screen = QApplication.primaryScreen()
+        
+        screen_geom = screen.geometry()
+
+        # Calculate size based on content
+        fm = self.completion_list.fontMetrics()
+        max_width = max(fm.horizontalAdvance(item) for item in completions) + 40  # Add padding
+        width = max(200, max_width)  # Ensure minimum width
+        
+        # Always size popup to show 5 items - simpler approach
+        item_height = 30
+        visible_items = 5
+        padding = 4
+        height = (visible_items * item_height) + padding  # Always 154px
+        
+        # Only show scrollbar if there are more than 5 items
+        if self.completion_list.count() > visible_items:
+            self.completion_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        else:
+            self.completion_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        # Adjust position to be just below the text
+        screen_pos.setY(screen_pos.y() + 5)
+
+        # Ensure popup stays within screen bounds
+        if screen_pos.x() + width > screen_geom.right():
+            screen_pos.setX(screen_geom.right() - width)
+        if screen_pos.y() + height > screen_geom.bottom():
+            screen_pos.setY(cursor_rect.top() - height - 5)
+
+        # Set size and position
+        self.completion_list.setFixedSize(width, height)
+        self.completion_list.move(screen_pos)
+
+        # Show and select first item
+        self.completion_list.show()
+        self.completion_list.setCurrentRow(0)
+        self.completion_list.raise_()  # Ensure popup stays on top
+        
+        # Trigger description box for the first item
+        if completions:
+            self.completion_list.on_selection_changed(0)
+
+class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -1288,280 +1743,9 @@ class FormulaEditor(QPlainTextEdit):
         # self.viewport().update()
         pass  # No longer needed with function highlighting
 
-    def setup_autocompletion(self):
-        # Basic functions and commands - simplified to just show function names
-        self.base_completions = {
-            'TR': 'TR',
-            'truncate': 'truncate',
-            'sqrt': 'sqrt',
-            'sin': 'sin',
-            'cos': 'cos',
-            'tan': 'tan',
-            'asin': 'asin',
-            'acos': 'acos',
-            'atan': 'atan',
-            'sinh': 'sinh',
-            'cosh': 'cosh',
-            'tanh': 'tanh',
-            'asinh': 'asinh',
-            'acosh': 'acosh',
-            'atanh': 'atanh',
-            'log': 'log',
-            'log10': 'log10',
-            'log2': 'log2',
-            'exp': 'exp',
-            'pow': 'pow',
-            'ceil': 'ceil',
-            'floor': 'floor',
-            'abs': 'abs',
-            'factorial': 'factorial',
-            'gcd': 'gcd',
-            'lcm': 'lcm',
-            'TC': 'TC',
-            'AR': 'AR',
-            'D': 'D',
-            'pi': 'pi',
-            'e': 'e',
-            # Statistical functions - just show function names
-            'sum': 'sum',
-            'mean': 'mean',
-            'meanfps': 'meanfps',
-            'median': 'median',
-            'mode': 'mode',
-            'min': 'min',
-            'max': 'max',
-            'range': 'range',
-            'count': 'count',
-            'product': 'product',
-            'variance': 'variance',
-            'stdev': 'stdev',
-            'std': 'std',
-            'geomean': 'geomean',
-            'harmmean': 'harmmean',
-            'sumsq': 'sumsq',
-            'perc5': 'perc5',
-            'perc95': 'perc95'
-        }
-        
-        # Parameter options for different function types
-        self.statistical_range_options = [
-            'above',
-            'below', 
-            'start range - end range',
-            'line1,line2,line3',
-            'cg-above',
-            'cg-below'
-        ]
-        
-        self.tc_options = [
-            'fps, timecode',
-            'fps, frames', 
-            'fps, "timecode + timecode"',
-            'fps, "timecode - timecode"'
-        ]
-        
-        self.ar_options = [
-            '1920x1080, ?x2000',
-            '1920x1080, 1280x?',
-            'original_width x original_height, target_width x ?',
-            'original_width x original_height, ? x target_height'
-        ]
-        
-        self.date_options = [
-            'date start range - date end range',
-            'date start range W- date end range',
-            'date start range + no. of days',
-            'date start range W+ no. of days'
-        ]
-        
-        self.basic_math_options = [
-            'value',
-            'expression'
-        ]
-        
-        self.two_param_options = [
-            'value, decimals',
-            'first_value, second_value'
-        ]
-        
-        # Functions that use statistical range options
-        self.statistical_functions = {
-            'sum', 'mean', 'median', 'mode', 'min', 'max', 'range', 'count', 
-            'product', 'variance', 'stdev', 'std', 'geomean', 'harmmean', 
-            'sumsq', 'perc5', 'perc95'
-        }
-
     def truncate_func(self, value, decimals=2):
         """Deprecated: Use global truncate function instead"""
         return truncate(value, decimals)
-
-    def get_word_under_cursor(self):
-        cursor = self.textCursor()
-        text = cursor.block().text()
-        pos = cursor.positionInBlock()
-        
-        # For currency completion, we might need to handle multi-word currencies
-        # like "canadian dollars", so let's be more flexible
-        
-        # First check if we're in a currency context
-        line_text = text
-        cursor_pos = pos
-        
-        # Check for currency conversion patterns
-        currency_to_pattern = r'([\d.]+)\s+(.+?)\s+to\s+(\w*)$'
-        currency_source_pattern = r'([\d.]+)\s+(\w+)$'
-        
-        # If we're after "to", return the partial target currency
-        to_match = re.search(currency_to_pattern, line_text[:cursor_pos], re.IGNORECASE)
-        if to_match:
-            return to_match.group(3)
-        
-        # If we're typing a source currency, return the current word
-        source_match = re.search(currency_source_pattern, line_text[:cursor_pos], re.IGNORECASE)
-        if source_match:
-            return source_match.group(2)
-        
-        # Default word finding for regular completions
-        left = pos - 1
-        while left >= 0 and (text[left].isalnum() or text[left] == '-'):
-            left -= 1
-        left += 1
-        
-        right = pos
-        while right < len(text) and (text[right].isalnum() or text[right] == '-'):
-            right += 1
-            
-        # Extract the word
-        word = text[left:right].strip()
-        
-        # If we have hyphens before the word, include them
-        hyphens = ''
-        while left > 0 and text[left - 1] == '-':
-            hyphens = '-' + hyphens
-            left -= 1
-            
-        return hyphens + word
-
-    def get_completions(self, prefix):
-        completions = []
-        
-        # Skip completions for LN references
-        if prefix.lower().startswith('ln'):
-            return []
-        
-        # Get the current line text to check for different contexts
-        cursor = self.textCursor()
-        line_text = cursor.block().text()
-        cursor_pos = cursor.positionInBlock()
-        
-        # Check if we're inside function parentheses
-        text_before_cursor = line_text[:cursor_pos]
-        
-        # Look for function pattern: function_name(
-        function_pattern = r'(\w+)\(\s*([^)]*?)$'
-        function_match = re.search(function_pattern, text_before_cursor)
-        
-        if function_match:
-            function_name = function_match.group(1).lower()
-            params_so_far = function_match.group(2)
-            
-            # We're inside a function - show parameter options
-            if function_name in self.statistical_functions:
-                # For statistical functions, show range options
-                if function_name == 'meanfps':
-                    # Special case for meanfps - needs fps parameter first
-                    if ',' not in params_so_far:
-                        # First parameter (fps)
-                        fps_options = ['23.976', '24', '25', '29.97', '30', '50', '59.94', '60']
-                        for fps in fps_options:
-                            if fps.startswith(prefix.lower()):
-                                completions.append(fps)
-                    else:
-                        # Second parameter (range options)
-                        for option in self.statistical_range_options:
-                            if not prefix or option.lower().startswith(prefix.lower()):
-                                completions.append(option)
-                else:
-                    # Regular statistical functions - show range options
-                    for option in self.statistical_range_options:
-                        if not prefix or option.lower().startswith(prefix.lower()):
-                            completions.append(option)
-                            
-            elif function_name == 'tc':
-                # TC function options
-                for option in self.tc_options:
-                    if not prefix or prefix.lower() in option.lower():
-                        completions.append(option)
-                        
-            elif function_name == 'ar':
-                # AR function options  
-                for option in self.ar_options:
-                    if not prefix or prefix.lower() in option.lower():
-                        completions.append(option)
-                        
-            elif function_name == 'd':
-                # Date function options
-                for option in self.date_options:
-                    if not prefix or prefix.lower() in option.lower():
-                        completions.append(option)
-                        
-            elif function_name in ['tr', 'truncate']:
-                # TR/truncate function options
-                for option in self.two_param_options:
-                    if 'decimal' in option.lower() and (not prefix or prefix.lower() in option.lower()):
-                        completions.append(option)
-                        
-            elif function_name in ['pow', 'gcd', 'lcm']:
-                # Two parameter functions
-                for option in self.two_param_options:
-                    if 'value' in option.lower() and (not prefix or prefix.lower() in option.lower()):
-                        completions.append(option)
-                        
-            else:
-                # Basic math functions
-                for option in self.basic_math_options:
-                    if not prefix or prefix.lower() in option.lower():
-                        completions.append(option)
-            
-            return sorted(completions)
-        
-        # Check if we're in a currency conversion context
-        # Pattern: number + currency + "to" + partial_currency
-        currency_pattern = r'([\d.]+)\s+(\w+)\s+to\s+(\w*)$'
-        match = re.search(currency_pattern, text_before_cursor, re.IGNORECASE)
-        
-        if match:
-            # We're completing the target currency
-            partial_currency = match.group(3).lower()
-            # Get all currency names that start with the partial input
-            for currency_name in CURRENCY_ABBR.keys():
-                if currency_name.startswith(partial_currency):
-                    completions.append(currency_name)
-            return sorted(completions)
-        
-        # Check if we're typing a source currency after a number
-        # Pattern: number + partial_currency (but not followed by "to")
-        source_currency_pattern = r'([\d.]+)\s+(\w+)$'
-        match = re.search(source_currency_pattern, text_before_cursor, re.IGNORECASE)
-        
-        if match:
-            # Check if the partial word could be a currency
-            partial_currency = match.group(2).lower()
-            # Only suggest currencies if the partial input matches currency names
-            currency_matches = []
-            for currency_name in CURRENCY_ABBR.keys():
-                if currency_name.startswith(partial_currency):
-                    currency_matches.append(currency_name + " to ")
-            
-            if currency_matches:
-                return sorted(currency_matches)
-        
-        # Default: show function names
-        for key, value in self.base_completions.items():
-            if key.lower().startswith(prefix.lower()):
-                completions.append(value)
-
-        return sorted(completions)
 
     def on_cursor_position_changed(self):
         start_time = self._log_perf("on_cursor_position_changed")
@@ -1631,98 +1815,6 @@ class FormulaEditor(QPlainTextEdit):
             self.parent.results_lnr.update()
             
         self._log_perf("on_cursor_position_changed", start_time)
-
-    def complete_text(self, item=None):
-        if item is None:
-            item = self.completion_list.currentItem()
-        if item is None:
-            return
-
-        completion_text = item.text()
-        cursor = self.textCursor()
-        
-        # Get current line context
-        line_text = cursor.block().text()
-        cursor_pos = cursor.positionInBlock()
-        text_before_cursor = line_text[:cursor_pos]
-        
-        # Check if we're completing inside function parentheses
-        function_pattern = r'(\w+)\(\s*([^)]*?)$'
-        function_match = re.search(function_pattern, text_before_cursor)
-        
-        if function_match:
-            # We're inside a function - completing parameters
-            cursor.select(QTextCursor.WordUnderCursor)
-            cursor.removeSelectedText()
-            cursor.insertText(completion_text + ')')  # Add closing parenthesis
-            # Move cursor back one position to be just before the closing parenthesis
-            cursor.movePosition(QTextCursor.Left, QTextCursor.MoveAnchor, 1)
-        else:
-            # We're completing a function name or other top-level completion
-            
-            # For --- commands, handle the replacement specially
-            if completion_text.startswith('---'):
-                # Get the current line text
-                cursor.movePosition(QTextCursor.StartOfLine)
-                cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                line_text = cursor.selectedText()
-                
-                # Find where the dashes start
-                dash_start = line_text.find('-')
-                if dash_start >= 0:
-                    # Move to the start of the dashes
-                    cursor.movePosition(QTextCursor.StartOfLine)
-                    cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
-                    # Select from there to end of line
-                    cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                    # Count the dashes at current position
-                    dash_count = 0
-                    while dash_count < len(line_text) - dash_start and line_text[dash_start + dash_count] == '-':
-                        dash_count += 1
-                    
-                    # If we have exactly 3 dashes, preserve them and add the function
-                    if dash_count == 3:
-                        cursor.movePosition(QTextCursor.StartOfLine)
-                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start + 3)
-                        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                        cursor.removeSelectedText()
-                        cursor.insertText(completion_text[3:])
-                    else:
-                        # Otherwise replace everything with the full completion
-                        cursor.movePosition(QTextCursor.StartOfLine)
-                        cursor.movePosition(QTextCursor.Right, QTextCursor.MoveAnchor, dash_start)
-                        cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                        cursor.removeSelectedText()
-                        cursor.insertText(completion_text)
-                else:
-                    # If no dashes found, insert the full completion
-                    cursor.removeSelectedText()
-                    cursor.insertText(completion_text)
-            else:
-                # Handle regular completions
-                cursor.select(QTextCursor.WordUnderCursor)
-                cursor.removeSelectedText()
-                
-                # Check if this is a function name that needs parentheses
-                is_function = (completion_text in self.base_completions and 
-                             completion_text not in ['pi', 'e'] and  # Constants don't need parentheses
-                             not completion_text.endswith(' to '))  # Currency completions
-                
-                if is_function:
-                    # Add parentheses and position cursor inside
-                    cursor.insertText(completion_text + '(')
-                    # Trigger completion again to show parameter options after a short delay
-                    QTimer.singleShot(10, self.show_completion_popup)
-                else:
-                    cursor.insertText(completion_text)
-            
-        self.setTextCursor(cursor)
-        
-        # Only hide completion list if we're not expecting parameter completion
-        if not (completion_text in self.base_completions and 
-               completion_text not in ['pi', 'e'] and 
-               not completion_text.endswith(' to ')):
-            self.completion_list.hide()
 
     def assign_stable_ids(self):
         doc = self.document()
@@ -4970,3 +5062,4 @@ if __name__=="__main__":
     QTimer.singleShot(100, delayed_focus)  # 100ms delay
     
     app.exec()
+        
