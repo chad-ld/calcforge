@@ -4174,6 +4174,7 @@ class Calculator(QWidget):
         self.tabs.setMovable(True)  # Make tabs reorderable
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.tabBarDoubleClicked.connect(self.rename_tab)
+        self.tabs.currentChanged.connect(self.on_tab_changed)  # Connect tab change signal
         main.addWidget(self.tabs)
         
         # Load saved worksheets or create new one
@@ -4576,8 +4577,14 @@ class Calculator(QWidget):
             current_widget.editor.activateWindow()
 
     def on_tab_changed(self, index):
-        """Disabled to prevent cursor synchronization issues with cross-sheet highlighting"""
-        pass
+        """Force evaluation when switching to a sheet to ensure cross-sheet references are up to date"""
+        if index >= 0:  # Valid tab index
+            current_sheet = self.tabs.widget(index)
+            if current_sheet and hasattr(current_sheet, 'evaluate'):
+                # Invalidate cross-sheet caches to ensure fresh lookups
+                self.invalidate_all_cross_sheet_caches()
+                # Force evaluation of the newly focused sheet (without highlighting to preserve cross-sheet highlights)
+                current_sheet.evaluate()
 
     def invalidate_all_cross_sheet_caches(self):
         """Invalidate cross-sheet caches in all editor instances"""
