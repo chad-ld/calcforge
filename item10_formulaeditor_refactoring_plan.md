@@ -93,12 +93,35 @@ def clear_highlighted_sheets_only(self)           # Line 3156 → EditorCrossShe
 
 ---
 
-### 🔄 **Stage 4: Extract Text Selection and Navigation** - **PENDING**
-**Target Methods**: `select_number_token()`, `expand_selection_with_parens()`, `find_arithmetic_expression()`, `select_entire_line()`, `select_nearest_word_or_number()`, `get_selected_text()`
-**Estimated Effort**: 2-3 hours  
-**Target Class**: `EditorTextSelectionMixin`
+### **✅ Stage 4: Extract Text Selection and Navigation**
+**Target Lines**: ~2452-2690 (Text selection, navigation, and manipulation)
+**Estimated Effort**: 4-5 hours
+**Status**: ✅ **COMPLETE** - Successfully extracted into `EditorTextSelectionMixin`
 
-### 🔄 **Stage 5: Extract Line Management and Highlighting** - **PENDING**
+#### **Methods Extracted**:
+```python
+def select_number_token(self, forward=True)         # Line 2452 → EditorTextSelectionMixin
+def expand_selection_with_parens(self)              # Line 2499 → EditorTextSelectionMixin
+def find_arithmetic_expression(self, text, pos)     # Line 2589 → EditorTextSelectionMixin
+def select_entire_line(self)                        # Line 2604 → EditorTextSelectionMixin
+def select_nearest_word_or_number(self)             # Line 2611 → EditorTextSelectionMixin
+def get_selected_text(self)                         # Line 2676 → EditorTextSelectionMixin
+```
+
+#### **Related Data**:
+- Text cursor manipulation
+- Selection state management
+- Word/number detection logic
+
+#### **Completed**: `EditorTextSelectionMixin`
+- ✅ All text selection and navigation logic isolated
+- ✅ Smart parentheses-based selection expansion
+- ✅ Number token selection functionality preserved
+- ✅ Application tested and working
+
+---
+
+### **⏳ Stage 5: Extract Line Management and Highlighting**
 **Target Methods**: `assign_stable_ids()`, `reassign_line_ids()`, `highlight_expression()`, `clear_expression_highlight()`, `highlightCurrentLine()`, `_do_highlight_current_line()`, `_do_basic_highlight_only()`
 **Estimated Effort**: 3-4 hours
 **Target Class**: `EditorLineManagementMixin`
