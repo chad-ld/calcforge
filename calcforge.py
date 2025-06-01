@@ -2749,7 +2749,8 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
 
     def _handle_unit_conversion(self, expr):
         """Handle unit conversion expressions like '1 mile to km'"""
-        match = re.match(r'^([\d.]+)\s+(\w+)\s+to\s+(\w+)$', expr.strip())
+        pattern = r'(\d+(?:\.\d+)?)\s+(\w+)\s+to\s+(\w+)'
+        match = re.match(pattern, expr.lower())
         if match:
             value, from_unit, to_unit = match.groups()
             # Handle unit abbreviations
@@ -4064,7 +4065,8 @@ class Worksheet(QWidget):
 
     def _handle_unit_conversion(self, expr):
         """Handle unit conversion expressions like '1 mile to km'"""
-        match = re.match(r'^([\d.]+)\s+(\w+)\s+to\s+(\w+)$', expr.strip())
+        pattern = r'(\d+(?:\.\d+)?)\s+(\w+)\s+to\s+(\w+)'
+        match = re.match(pattern, expr.lower())
         if match:
             value, from_unit, to_unit = match.groups()
             # Handle unit abbreviations
@@ -4081,90 +4083,6 @@ class Worksheet(QWidget):
             except:
                 return None
         return None
-
-    def keyPressEvent(self, event):
-        """Handle keyboard shortcuts for the formula editor"""
-        modifiers = event.modifiers()
-        key = event.key()
-        
-        # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
-        if modifiers & Qt.ControlModifier and key == Qt.Key_C:
-            cursor = self.textCursor()
-            if not cursor.hasSelection():
-                # No selection - copy the result from current line
-                block_number = cursor.blockNumber()
-                if hasattr(self.parent, 'results'):
-                    results_doc = self.parent.results.document()
-                    results_block = results_doc.findBlockByNumber(block_number)
-                    if results_block.isValid():
-                        result_text = results_block.text().strip()
-                        if result_text:
-                            clipboard = QApplication.clipboard()
-                            clipboard.setText(result_text)
-                event.accept()
-                return
-            else:
-                # Has selection - let KeyEventFilter handle this
-                super().keyPressEvent(event)
-                return
-        
-        # Alt+C: Copy the current expression line
-        elif modifiers & Qt.AltModifier and key == Qt.Key_C:
-            cursor = self.textCursor()
-            block = cursor.block()
-            line_text = block.text()
-            if line_text.strip():
-                clipboard = QApplication.clipboard()
-                clipboard.setText(line_text)
-            event.accept()
-            return
-        
-        # Ctrl+Up: Navigate and select text inside parentheses
-        elif modifiers & Qt.ControlModifier and key == Qt.Key_Up:
-            self.expand_selection_with_parens()
-            event.accept()
-            return
-            
-        # Ctrl+Down: Select entire line
-        elif modifiers & Qt.ControlModifier and key == Qt.Key_Down:
-            self.select_entire_line()
-            event.accept()
-            return
-            
-        # Tab key: Disable tab insertion, instead trigger autocompletion or do nothing
-        elif key == Qt.Key_Tab:
-            # If completion popup is open, handle tab there
-            if self.completion_list and self.completion_list.isVisible():
-                self.complete_text()
-            # Otherwise, do nothing (disable tab insertion)
-            event.accept()
-            return
-        
-        # Ctrl+Shift+Left/Right: Navigate between worksheet tabs
-        elif modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
-            # Get the calculator instance and handle tab navigation directly
-            calculator = self.get_calculator()
-            if calculator:
-                current_index = calculator.tabs.currentIndex()
-                if key == Qt.Key_Left:
-                    # Navigate to previous tab
-                    if current_index > 0:
-                        calculator.tabs.setCurrentIndex(current_index - 1)
-                    else:
-                        # Wrap to last tab
-                        calculator.tabs.setCurrentIndex(calculator.tabs.count() - 1)
-                elif key == Qt.Key_Right:
-                    # Navigate to next tab
-                    if current_index < calculator.tabs.count() - 1:
-                        calculator.tabs.setCurrentIndex(current_index + 1)
-                    else:
-                        # Wrap to first tab
-                        calculator.tabs.setCurrentIndex(0)
-            event.accept()
-            return
-        
-        # For all other keys, call parent implementation
-        super().keyPressEvent(event)
 
 class Calculator(QWidget):
     def __init__(self):
