@@ -46,27 +46,52 @@ This violates the Single Responsibility Principle and makes the code:
 - ✅ Improved testability by isolating completion logic
 - ✅ Reduced FormulaEditor class complexity
 
-### ✅ **Stage 2: Extract Performance Monitoring** - **COMPLETE**
-**Completion Date**: January 1, 2025
-**Methods Extracted**: `_log_perf()`, `_check_scroll_sync_issue()`, `print_perf_summary()`
+### **✅ Stage 2: Extract Performance Monitoring**
+**Target Lines**: ~3078-3123 (Performance analysis and debugging)
+**Estimated Effort**: 2-3 hours
+**Status**: ✅ **COMPLETE** - Successfully extracted into `EditorPerformanceMonitoringMixin`
 
-**Implementation Details**:
-- Created `EditorPerformanceMonitoringMixin` class with all performance monitoring methods
-- Updated `FormulaEditor` to inherit from both auto-completion and performance monitoring mixins
-- Successfully extracted 3 performance monitoring methods (~55 lines)
-- All performance monitoring and debugging functionality preserved and tested working
-- Improved separation of concerns for debugging and performance analysis
+#### **Methods Extracted**:
+```python
+def _log_perf(self, method_name, start_time=None)  # Line 3078 → EditorPerformanceMonitoringMixin
+def _check_scroll_sync_issue(self)                 # Line 3105 → EditorPerformanceMonitoringMixin  
+def print_perf_summary(self)                       # Line 3123 → EditorPerformanceMonitoringMixin
+```
 
-**Benefits Achieved**:
-- ✅ Isolated performance monitoring logic from main editor functionality
-- ✅ Made performance monitoring reusable via mixin pattern
-- ✅ Enhanced debugging capabilities modularity
-- ✅ Further reduced FormulaEditor class complexity
+#### **Completed**: `EditorPerformanceMonitoringMixin`
+- ✅ All performance monitoring methods extracted
+- ✅ Debug functionality isolated 
+- ✅ Optional performance tracking
+- ✅ Application tested and working
 
-### 🔄 **Stage 3: Extract Cross-Sheet Reference Handling** - **PENDING**  
-**Target Methods**: `get_sheet_value()`, `process_ln_refs()`, `build_cross_sheet_cache()`, `clear_highlighted_sheets_only()`
-**Estimated Effort**: 3-4 hours
-**Target Class**: `EditorCrossSheetMixin`
+---
+
+### **✅ Stage 3: Extract Cross-Sheet Reference Handling**  
+**Target Lines**: ~1969-2060, ~3132-3175 (Cross-sheet and reference functionality)
+**Estimated Effort**: 4-5 hours
+**Status**: ✅ **COMPLETE** - Successfully extracted into `EditorCrossSheetMixin`
+
+#### **Methods Extracted**:
+```python
+def get_sheet_value(self, sheet_name, ln_number)  # Line 1969 → EditorCrossSheetMixin
+def get_numeric_value(self, value)                # Line 1997 → EditorCrossSheetMixin
+def process_ln_refs(self, expr)                   # Line 2010 → EditorCrossSheetMixin
+def build_cross_sheet_cache(self)                 # Line 3132 → EditorCrossSheetMixin
+def clear_highlighted_sheets_only(self)           # Line 3156 → EditorCrossSheetMixin
+```
+
+#### **Related Data**:
+- `self._cross_sheet_cache`
+- `self._highlighted_sheets`
+- Cross-sheet lookup optimization
+
+#### **Completed**: `EditorCrossSheetMixin`
+- ✅ All cross-sheet reference logic isolated
+- ✅ Performance caching maintained
+- ✅ Sheet highlighting functionality preserved
+- ✅ Application tested and working
+
+---
 
 ### 🔄 **Stage 4: Extract Text Selection and Navigation** - **PENDING**
 **Target Methods**: `select_number_token()`, `expand_selection_with_parens()`, `find_arithmetic_expression()`, `select_entire_line()`, `select_nearest_word_or_number()`, `get_selected_text()`
@@ -145,102 +170,6 @@ class EditorAutoCompletionMixin:
 - ✅ Easier to add new completion types
 - ✅ Testable completion algorithms
 - ✅ Optional feature (can be disabled)
-
----
-
-### **⏳ Stage 2: Extract Cross-Sheet Reference Handling**  
-**Target Lines**: ~1819-2073 (Cross-sheet and highlighting functionality)
-**Estimated Effort**: 4-5 hours
-
-#### **Methods to Extract**:
-```python
-def get_sheet_value(self, sheet_name, ln_number)  # Line 1819
-def process_ln_refs(self, expr)                   # Line 1859
-def build_cross_sheet_cache(self)                 # Line 2982
-def clear_cross_sheet_highlights(self)            # Line 2060
-def clear_highlighted_sheets_only(self)           # Line 3006
-def highlightCurrentLine(self)                    # Line 2073
-def highlight_expression(self, block, start, end) # Line 1899
-def clear_expression_highlight(self)              # Line 1917
-def get_expression_at_operator(self, text, pos)   # Line 1923
-```
-
-#### **Related Data**:
-- `self._cross_sheet_cache`
-- `self._highlighted_sheets`
-- `self.current_highlight`
-- `self._last_highlighted_line`
-- `self._line_ln_cache`
-
-#### **Create**: `CrossSheetReferenceMixin`
-```python
-class CrossSheetReferenceMixin:
-    """Handles cross-sheet references and highlighting functionality"""
-    
-    def get_sheet_value(self, sheet_name, ln_number):
-        # Retrieve values from other sheets
-        
-    def process_ln_refs(self, expr):
-        # Process line number references in expressions
-        
-    def build_cross_sheet_cache(self):
-        # Build lookup cache for performance
-        
-    def highlightCurrentLine(self):
-        # Highlight current line and cross-references
-```
-
-#### **Benefits**:
-- ✅ Separate complex cross-sheet logic
-- ✅ Cacheable reference lookups
-- ✅ Isolated highlighting system
-- ✅ Easier to optimize performance
-
----
-
-### **⏳ Stage 3: Extract Performance Monitoring**
-**Target Lines**: ~3078-3123 (Performance analysis and debugging)
-**Estimated Effort**: 2-3 hours
-
-#### **Methods to Extract**:
-```python
-def _log_perf(self, method_name, start_time=None)  # Line 3078
-def _check_scroll_sync_issue(self)                 # Line 3105
-def print_perf_summary(self)                       # Line 3123
-def _do_highlight_current_line(self)               # Line 3022
-def _end_rapid_navigation(self)                    # Line 3029
-def _do_basic_highlight_only(self)                 # Line 3041
-```
-
-#### **Related Data**:
-- `self._debug_enabled`
-- `self._perf_log`
-- `self._last_perf_time`
-- `self._call_stack`
-- `self._highlight_timer`
-- `self._rapid_nav_timer`
-- `self._is_rapid_navigation`
-
-#### **Create**: `EditorPerformanceMixin`
-```python
-class EditorPerformanceMixin:
-    """Optional performance monitoring and debugging for the editor"""
-    
-    def _log_perf(self, method_name, start_time=None):
-        # Log performance metrics
-        
-    def print_perf_summary(self):
-        # Generate performance report
-        
-    def _setup_performance_monitoring(self):
-        # Initialize debugging tools
-```
-
-#### **Benefits**:
-- ✅ Optional performance monitoring
-- ✅ Can be easily disabled for production
-- ✅ Isolated debugging functionality
-- ✅ Performance optimization insights
 
 ---
 
