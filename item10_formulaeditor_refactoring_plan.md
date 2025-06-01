@@ -1,5 +1,6 @@
 # Item 10: FormulaEditor Class Refactoring Plan
 *Generated: January 1, 2025*
+*Updated: January 1, 2025 - Stage 1 Complete*
 
 ## 📋 **Overview**
 
@@ -25,6 +26,64 @@ This violates the Single Responsibility Principle and makes the code:
 - ❌ Difficult to unit test
 - ❌ Prone to merge conflicts
 - ❌ Complex to understand and modify
+
+## 📈 **Progress Tracking**
+
+### ✅ **Stage 1: Extract Auto-Completion Functionality** - **COMPLETE**
+**Completion Date**: January 1, 2025
+**Methods Extracted**: `setup_autocompletion()`, `get_word_under_cursor()`, `get_completions()`, `complete_text()`, `show_completion_popup()`
+
+**Implementation Details**:
+- Created `EditorAutoCompletionMixin` class with all auto-completion methods
+- Updated `FormulaEditor` to inherit from `EditorAutoCompletionMixin` 
+- Successfully extracted 5 auto-completion methods (~370 lines)
+- All auto-completion functionality preserved and tested working
+- Reduced FormulaEditor responsibility and improved code organization
+
+**Benefits Achieved**:
+- ✅ Separated auto-completion concerns from main editor logic
+- ✅ Made auto-completion functionality reusable via mixin pattern
+- ✅ Improved testability by isolating completion logic
+- ✅ Reduced FormulaEditor class complexity
+
+### 🔄 **Stage 2: Extract Performance Monitoring** - **PENDING**
+**Target Methods**: `_log_perf()`, `print_perf_summary()`, `_check_scroll_sync_issue()`
+**Estimated Effort**: 2-3 hours
+**Target Class**: `EditorPerformanceMonitoringMixin`
+
+### 🔄 **Stage 3: Extract Cross-Sheet Reference Handling** - **PENDING**  
+**Target Methods**: `get_sheet_value()`, `process_ln_refs()`, `build_cross_sheet_cache()`, `clear_highlighted_sheets_only()`
+**Estimated Effort**: 3-4 hours
+**Target Class**: `EditorCrossSheetMixin`
+
+### 🔄 **Stage 4: Extract Text Selection and Navigation** - **PENDING**
+**Target Methods**: `select_number_token()`, `expand_selection_with_parens()`, `find_arithmetic_expression()`, `select_entire_line()`, `select_nearest_word_or_number()`, `get_selected_text()`
+**Estimated Effort**: 2-3 hours  
+**Target Class**: `EditorTextSelectionMixin`
+
+### 🔄 **Stage 5: Extract Line Management and Highlighting** - **PENDING**
+**Target Methods**: `assign_stable_ids()`, `reassign_line_ids()`, `highlight_expression()`, `clear_expression_highlight()`, `highlightCurrentLine()`, `_do_highlight_current_line()`, `_do_basic_highlight_only()`
+**Estimated Effort**: 3-4 hours
+**Target Class**: `EditorLineManagementMixin`
+
+## 🎯 **Refactoring Stages**
+
+### **Stage 1: Extract Auto-Completion Functionality** ✅ **COMPLETE**
+
+**Target Methods**:
+- `setup_autocompletion()` - Sets up completion data structures
+- `get_word_under_cursor()` - Extracts word at cursor with currency handling
+- `get_completions(prefix)` - Generates context-aware completion suggestions  
+- `complete_text(item)` - Applies selected completion to text
+- `show_completion_popup()` - Displays completion popup with positioning
+
+**Benefits**:
+- ✅ Separates auto-completion concerns from main editor logic
+- ✅ Makes auto-completion functionality reusable via mixin pattern
+- ✅ Improves testability by isolating completion logic
+- ✅ Reduces FormulaEditor class complexity
+
+**Implementation**: Create `EditorAutoCompletionMixin` class
 
 ## 🚀 **5-Stage Refactoring Plan**
 
