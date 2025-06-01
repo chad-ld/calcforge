@@ -709,6 +709,18 @@ def remove_thousands_commas(match):
     # Remove all commas from the number
     return number_str.replace(',', '')
 
+def repl_num(m):
+    """Replace numbers with leading zeros, avoiding timecodes and quoted strings"""
+    # Don't replace if it's part of a timecode
+    if re.match(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', m.string[max(0, m.start()-8):m.end()+8]):
+        return m.group(0)
+    # Don't replace if it's inside quotes
+    before_match = m.string[:m.start()]
+    quote_count_before = before_match.count('"') - before_match.count('\\"')
+    if quote_count_before % 2 == 1:  # We're inside quotes
+        return m.group(0)
+    return str(int(m.group(1)))
+
 class LineData(QTextBlockUserData):
     def __init__(self, id):
         super().__init__()
@@ -3693,18 +3705,6 @@ class Worksheet(QWidget):
             expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
             
             # Replace numbers with leading zeros outside of timecodes and quoted strings
-            def repl_num(m):
-                # Don't replace if it's part of a timecode
-                if re.match(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', m.string[max(0, m.start()-8):m.end()+8]):
-                    return m.group(0)
-                # Don't replace if it's inside quotes
-                before_match = m.string[:m.start()]
-                after_match = m.string[m.end():]
-                quote_count_before = before_match.count('"') - before_match.count('\\"')
-                if quote_count_before % 2 == 1:  # We're inside quotes
-                    return m.group(0)
-                return str(int(m.group(1)))
-            
             expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
             
             return expr
