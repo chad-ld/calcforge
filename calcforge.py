@@ -3983,8 +3983,6 @@ class Worksheet(QWidget):
         # Define truncate function locally
         # Using global truncate function instead
 
-            return None
-
         # Evaluate each line
         for idx, line in enumerate(lines):
             self.current_line = line  # Store current line for context
@@ -4032,7 +4030,7 @@ class Worksheet(QWidget):
                         continue
 
                 # Check for unit conversion
-                unit_result = handle_unit_conversion(s)
+                unit_result = self._handle_unit_conversion(s)
                 if unit_result is not None:
                     vals[idx] = unit_result
                     if current_id:
@@ -4057,7 +4055,7 @@ class Worksheet(QWidget):
                     decimals = int(eval(trunc_match.group(2).strip(), {"truncate": truncate, "TR": truncate, **GLOBALS}, {}))
                     
                     # Try unit conversion first
-                    unit_result = handle_unit_conversion(expr)
+                    unit_result = self._handle_unit_conversion(expr)
                     if unit_result is not None:
                         v = truncate(unit_result, decimals)
                     else:
@@ -4194,6 +4192,26 @@ class Worksheet(QWidget):
             # Update results widget size to fill container
             self.results.setGeometry(0, 0, container_size.width(), container_size.height())
             # The line number area will be repositioned by the resize event of the results widget
+
+    def _handle_unit_conversion(self, expr):
+        """Handle unit conversion expressions like '1 mile to km'"""
+        match = re.match(r'^([\d.]+)\s+(\w+)\s+to\s+(\w+)$', expr.strip())
+        if match:
+            value, from_unit, to_unit = match.groups()
+            # Handle unit abbreviations
+            from_unit = UNIT_ABBR.get(from_unit.lower(), from_unit)
+            to_unit = UNIT_ABBR.get(to_unit.lower(), to_unit)
+            try:
+                # Create quantity and convert
+                q = ureg.Quantity(float(value), from_unit)
+                result = q.to(to_unit)
+                # Get the full spelling for display
+                display_unit = UNIT_DISPLAY.get(to_unit, to_unit)
+                # Return both the value and the unit
+                return {'value': float(result.magnitude), 'unit': display_unit}
+            except:
+                return None
+        return None
 
 class Calculator(QWidget):
     def __init__(self):
