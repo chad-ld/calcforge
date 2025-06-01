@@ -1100,6 +1100,7 @@ class KeyEventFilter(QObject):
     def eventFilter(self, obj, event):
         if event.type() == QEvent.KeyPress and obj == self.editor:
             ctrl = event.modifiers() & Qt.ControlModifier
+            alt = event.modifiers() & Qt.AltModifier
             k = event.key()
             
             # Check if we have a selection when Ctrl key events come in
@@ -1120,12 +1121,18 @@ class KeyEventFilter(QObject):
                         clipboard.setText(text)
                         return True  # Event handled, don't pass to Qt
                         
-                elif k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
-                    # For Ctrl+arrow keys with an existing selection, do nothing to preserve selection
-                    # EXCEPT for Ctrl+Up which should expand selection progressively
-                    if k == Qt.Key_Up:
-                        return False  # Allow Ctrl+Up to pass through for progressive selection
-                    return True  # Block other arrow keys to preserve selection
+                elif k in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Down):
+                    # For Ctrl+arrow keys with an existing selection, preserve selection
+                    # EXCEPT for Ctrl+Up and Ctrl+Down which have special functions
+                    return True  # Block these arrow keys to preserve selection
+            
+            # Let our custom shortcuts pass through to keyPressEvent
+            if (alt and k == Qt.Key_C) or \
+               (ctrl and k in (Qt.Key_Up, Qt.Key_Down)) or \
+               (k == Qt.Key_Tab) or \
+               (ctrl and event.modifiers() & Qt.ShiftModifier and k in (Qt.Key_Left, Qt.Key_Right)) or \
+               (ctrl and k == Qt.Key_C and not has_selection):
+                return False  # Let keyPressEvent handle these
         
         # For all other events, pass through normally
         return False
@@ -2898,6 +2905,90 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                     self.editor.ln_value_map[current_id] = None
                 out.append('ERROR!')
 
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts for the formula editor"""
+        modifiers = event.modifiers()
+        key = event.key()
+        
+        # Alt+C: Copy the current expression line
+        if modifiers & Qt.AltModifier and key == Qt.Key_C:
+            cursor = self.textCursor()
+            block = cursor.block()
+            line_text = block.text()
+            if line_text.strip():
+                clipboard = QApplication.clipboard()
+                clipboard.setText(line_text)
+            event.accept()
+            return
+        
+        # Ctrl+Up: Navigate and select text inside parentheses
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_Up:
+            self.expand_selection_with_parens()
+            event.accept()
+            return
+            
+        # Ctrl+Down: Select entire line
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_Down:
+            self.select_entire_line()
+            event.accept()
+            return
+            
+        # Tab key: Disable tab insertion, instead trigger autocompletion or do nothing
+        elif key == Qt.Key_Tab:
+            # If completion popup is open, handle tab there
+            if self.completion_list and self.completion_list.isVisible():
+                self.complete_text()
+            # Otherwise, do nothing (disable tab insertion)
+            event.accept()
+            return
+        
+        # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_C:
+            cursor = self.textCursor()
+            if not cursor.hasSelection():
+                # No selection - copy the result from current line
+                block_number = cursor.blockNumber()
+                if hasattr(self.parent, 'results'):
+                    results_doc = self.parent.results.document()
+                    results_block = results_doc.findBlockByNumber(block_number)
+                    if results_block.isValid():
+                        result_text = results_block.text().strip()
+                        if result_text:
+                            clipboard = QApplication.clipboard()
+                            clipboard.setText(result_text)
+                event.accept()
+                return
+            else:
+                # Has selection - let KeyEventFilter handle this
+                super().keyPressEvent(event)
+                return
+        
+        # Ctrl+Shift+Left/Right: Navigate between worksheet tabs
+        if modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
+            # Get the calculator instance and handle tab navigation directly
+            calculator = self.get_calculator()
+            if calculator:
+                current_index = calculator.tabs.currentIndex()
+                if key == Qt.Key_Left:
+                    # Navigate to previous tab
+                    if current_index > 0:
+                        calculator.tabs.setCurrentIndex(current_index - 1)
+                    else:
+                        # Wrap to last tab
+                        calculator.tabs.setCurrentIndex(calculator.tabs.count() - 1)
+                elif key == Qt.Key_Right:
+                    # Navigate to next tab
+                    if current_index < calculator.tabs.count() - 1:
+                        calculator.tabs.setCurrentIndex(current_index + 1)
+                    else:
+                        # Wrap to first tab
+                        calculator.tabs.setCurrentIndex(0)
+            event.accept()
+            return
+        
+        # For all other keys, call parent implementation
+        super().keyPressEvent(event)
+
 class Worksheet(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -3998,6 +4089,73 @@ class Worksheet(QWidget):
             except:
                 return None
         return None
+
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts for the formula editor"""
+        modifiers = event.modifiers()
+        key = event.key()
+        
+        # Ctrl+Shift+Left/Right: Let these pass through to Calculator for tab navigation
+        if modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
+            # Don't handle here, let it bubble up to Calculator
+            super().keyPressEvent(event)
+            return
+        
+        # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_C:
+            cursor = self.textCursor()
+            if not cursor.hasSelection():
+                # No selection - copy the result from current line
+                block_number = cursor.blockNumber()
+                if hasattr(self.parent, 'results'):
+                    results_doc = self.parent.results.document()
+                    results_block = results_doc.findBlockByNumber(block_number)
+                    if results_block.isValid():
+                        result_text = results_block.text().strip()
+                        if result_text:
+                            clipboard = QApplication.clipboard()
+                            clipboard.setText(result_text)
+                event.accept()
+                return
+            else:
+                # Has selection - let KeyEventFilter handle this
+                super().keyPressEvent(event)
+                return
+        
+        # Alt+C: Copy the current expression line
+        elif modifiers & Qt.AltModifier and key == Qt.Key_C:
+            cursor = self.textCursor()
+            block = cursor.block()
+            line_text = block.text()
+            if line_text.strip():
+                clipboard = QApplication.clipboard()
+                clipboard.setText(line_text)
+            event.accept()
+            return
+        
+        # Ctrl+Up: Navigate and select text inside parentheses
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_Up:
+            self.expand_selection_with_parens()
+            event.accept()
+            return
+            
+        # Ctrl+Down: Select entire line
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_Down:
+            self.select_entire_line()
+            event.accept()
+            return
+            
+        # Tab key: Disable tab insertion, instead trigger autocompletion or do nothing
+        elif key == Qt.Key_Tab:
+            # If completion popup is open, handle tab there
+            if self.completion_list and self.completion_list.isVisible():
+                self.complete_text()
+            # Otherwise, do nothing (disable tab insertion)
+            event.accept()
+            return
+        
+        # For all other keys, call parent implementation
+        super().keyPressEvent(event)
 
 class Calculator(QWidget):
     def __init__(self):
