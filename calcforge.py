@@ -3255,6 +3255,20 @@ class Worksheet(QWidget):
             # Debug output can be enabled by setting DEBUG_TAB_SWITCHING = True in Calculator.on_tab_changed()
             # print("TEXT ACTUALLY CHANGED - starting evaluation timer")  # Uncomment for debugging
             
+            # Capture undo state after a brief delay to avoid capturing every keystroke
+            if hasattr(calculator, 'undo_manager'):
+                # Cancel any existing undo capture timer
+                if hasattr(self, '_undo_capture_timer'):
+                    self._undo_capture_timer.stop()
+                else:
+                    # Create the timer on first use
+                    self._undo_capture_timer = QTimer()
+                    self._undo_capture_timer.setSingleShot(True)
+                    self._undo_capture_timer.timeout.connect(lambda: calculator.undo_manager.capture_state(calculator))
+                
+                # Start timer - capture undo state after 1 second of no typing
+                self._undo_capture_timer.start(1000)
+            
             # Check if cross-sheet references changed
             old_has_refs = getattr(self, 'has_cross_sheet_refs', False)
             
@@ -4270,6 +4284,9 @@ class Calculator(QWidget):
         self._batch_update_timer.setSingleShot(True)
         self._batch_update_timer.timeout.connect(self._process_batch_updates)
         
+        # Undo system initialization
+        self.undo_manager = UndoManager(max_undo_states=200)
+        
         self.settings = QSettings('OpenAI','SmartCalc')
         if self.settings.contains('geometry'):
             self.restoreGeometry(self.settings.value('geometry'))
@@ -4352,6 +4369,9 @@ class Calculator(QWidget):
                     
                 # Stage 3: Build initial dependency graph for loaded worksheets
                 self.build_dependency_graph()
+                
+                # Capture initial state for undo system
+                self.undo_manager.capture_state(self)
             except:
                 self.add_tab()  # Add default tab if loading fails
         else:
@@ -4389,12 +4409,29 @@ class Calculator(QWidget):
 
     def keyPressEvent(self, event):
         """Handle keyboard shortcuts for the Calculator window"""
-        # Check for Shift+Ctrl+Left/Right for tab navigation
+        # Check for modifiers and key
         shift = event.modifiers() & Qt.ShiftModifier
         ctrl = event.modifiers() & Qt.ControlModifier
         key = event.key()
         
-        if shift and ctrl:
+        # Ctrl+Z: Undo
+        if ctrl and key == Qt.Key_Z and not shift:
+            if self.undo_manager.undo(self):
+                # Undo successful
+                pass
+            event.accept()
+            return
+        
+        # Ctrl+Y: Redo
+        elif ctrl and key == Qt.Key_Y:
+            if self.undo_manager.redo(self):
+                # Redo successful
+                pass
+            event.accept()
+            return
+        
+        # Shift+Ctrl+Left/Right for tab navigation
+        elif shift and ctrl:
             if key == Qt.Key_Left:
                 # Navigate to previous tab
                 current_index = self.tabs.currentIndex()
@@ -4438,6 +4475,9 @@ class Calculator(QWidget):
         
         # Invalidate cross-sheet caches in all editors
         self.invalidate_all_cross_sheet_caches()
+        
+        # Capture state for undo system
+        self.undo_manager.capture_state(self)
 
     def close_tab(self,idx):
         if self.tabs.count()>1: 
@@ -4448,7 +4488,7 @@ class Calculator(QWidget):
             reply = QMessageBox.question(
                 self, 
                 "Confirm Sheet Deletion", 
-                f"Are you sure you want to delete sheet '{sheet_name}'?\n\nThis action cannot be undone.",
+                f"Are you sure you want to delete sheet '{sheet_name}'?\n\n(This action can be undone with Ctrl+Z)",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No  # Default to No for safety
             )
@@ -5026,6 +5066,173 @@ class Calculator(QWidget):
         # print("✅ [STAGE 3] Batch updates complete")  # Comment out for normal usage
         # Clear pending updates
         self._pending_updates.clear()
+
+class UndoManager:
+    """Manages undo/redo functionality for the calculator with a FIFO buffer"""
+    
+    def __init__(self, max_undo_states=200):
+        self.max_undo_states = max_undo_states
+        self.undo_stack = []
+        self.redo_stack = []
+        self._last_saved_state = None
+    
+    def capture_state(self, calculator):
+        """Capture the current state of all sheets"""
+        # Don't capture identical consecutive states
+        current_state = self._create_state_snapshot(calculator)
+        if current_state == self._last_saved_state:
+            return
+        
+        # Add to undo stack with FIFO eviction
+        self.undo_stack.append(current_state)
+        if len(self.undo_stack) > self.max_undo_states:
+            self.undo_stack.pop(0)  # Remove oldest state
+        
+        # Clear redo stack when new state is captured
+        self.redo_stack.clear()
+        self._last_saved_state = current_state
+    
+    def _create_state_snapshot(self, calculator):
+        """Create a snapshot of the current calculator state"""
+        state = {
+            'sheets': [],
+            'active_tab_index': calculator.tabs.currentIndex(),
+            'timestamp': time.time()
+        }
+        
+        # Capture all sheet data
+        for i in range(calculator.tabs.count()):
+            sheet = calculator.tabs.widget(i)
+            cursor_position = sheet.editor.textCursor().position()
+            sheet_data = {
+                'name': calculator.tabs.tabText(i),
+                'content': sheet.editor.toPlainText(),
+                'cursor_position': cursor_position
+            }
+            state['sheets'].append(sheet_data)
+        
+        return state
+    
+    def undo(self, calculator):
+        """Perform undo operation"""
+        if not self.can_undo():
+            return False
+        
+        # Save current state to redo stack before undoing
+        current_state = self._create_state_snapshot(calculator)
+        self.redo_stack.append(current_state)
+        
+        # Get the state to restore
+        state_to_restore = self.undo_stack.pop()
+        self._restore_state(calculator, state_to_restore)
+        
+        # Update last saved state
+        self._last_saved_state = state_to_restore
+        return True
+    
+    def redo(self, calculator):
+        """Perform redo operation"""
+        if not self.can_redo():
+            return False
+        
+        # Save current state to undo stack before redoing
+        current_state = self._create_state_snapshot(calculator)
+        self.undo_stack.append(current_state)
+        
+        # Get the state to restore
+        state_to_restore = self.redo_stack.pop()
+        self._restore_state(calculator, state_to_restore)
+        
+        # Update last saved state
+        self._last_saved_state = state_to_restore
+        return True
+    
+    def _restore_state(self, calculator, state):
+        """Restore calculator to a previous state"""
+        # Temporarily disconnect text change signals to avoid capturing undo states during restoration
+        self._disconnect_text_signals(calculator)
+        
+        try:
+            # Restore sheets (add missing ones, remove extras, update existing)
+            target_sheet_count = len(state['sheets'])
+            current_sheet_count = calculator.tabs.count()
+            
+            # Add missing sheets
+            while calculator.tabs.count() < target_sheet_count:
+                calculator.add_tab()
+            
+            # Remove extra sheets (from the end)
+            while calculator.tabs.count() > target_sheet_count:
+                calculator.tabs.removeTab(calculator.tabs.count() - 1)
+            
+            # Restore each sheet's content and name
+            for i, sheet_data in enumerate(state['sheets']):
+                sheet = calculator.tabs.widget(i)
+                
+                # Restore sheet name
+                calculator.tabs.setTabText(i, sheet_data['name'])
+                
+                # Restore content
+                sheet.editor.setPlainText(sheet_data['content'])
+                
+                # Restore cursor position
+                cursor = sheet.editor.textCursor()
+                cursor.setPosition(min(sheet_data['cursor_position'], len(sheet_data['content'])))
+                sheet.editor.setTextCursor(cursor)
+                
+                # Re-evaluate the sheet
+                sheet.evaluate()
+            
+            # Restore active tab
+            if 0 <= state['active_tab_index'] < calculator.tabs.count():
+                calculator.tabs.setCurrentIndex(state['active_tab_index'])
+            
+            # Rebuild dependencies and caches
+            calculator.build_dependency_graph()
+            calculator.invalidate_all_cross_sheet_caches()
+            
+        finally:
+            # Reconnect text change signals
+            self._reconnect_text_signals(calculator)
+    
+    def _disconnect_text_signals(self, calculator):
+        """Temporarily disconnect text change signals during restoration"""
+        for i in range(calculator.tabs.count()):
+            sheet = calculator.tabs.widget(i)
+            try:
+                sheet.editor.textChanged.disconnect()
+            except:
+                pass  # Signal might not be connected
+    
+    def _reconnect_text_signals(self, calculator):
+        """Reconnect text change signals after restoration"""
+        for i in range(calculator.tabs.count()):
+            sheet = calculator.tabs.widget(i)
+            sheet.editor.textChanged.connect(sheet.on_text_potentially_changed)
+    
+    def can_undo(self):
+        """Check if undo is available"""
+        return len(self.undo_stack) > 0
+    
+    def can_redo(self):
+        """Check if redo is available"""
+        return len(self.redo_stack) > 0
+    
+    def clear(self):
+        """Clear all undo/redo history"""
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+        self._last_saved_state = None
+    
+    def get_memory_usage_estimate(self):
+        """Get estimated memory usage of undo system in bytes"""
+        total_size = 0
+        for state in self.undo_stack + self.redo_stack:
+            for sheet in state['sheets']:
+                total_size += len(sheet['content']) * 2  # Rough estimate for Unicode
+                total_size += len(sheet['name']) * 2
+            total_size += 100  # Overhead for other state data
+        return total_size
 
 def verify_icon_file(icon_path):
     """Verify that the icon file contains all required sizes."""
