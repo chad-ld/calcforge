@@ -488,8 +488,33 @@ def AR(original, target):
         raise ValueError(f"Aspect ratio calculation error: {str(e)}")
 
 
+def truncate(value, decimals=2):
+    """Rounds a number to specified decimal places"""
+    if isinstance(value, str):
+        # If it's a string expression, evaluate it first
+        try:
+            value = eval(value, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
+        except:
+            return value
+    if isinstance(value, dict) and 'value' in value:
+        # Handle unit conversion results
+        truncated_value = round(value['value'] * (10 ** decimals)) / (10 ** decimals)
+        # If decimals=0, convert to integer to avoid .0 suffix
+        if decimals == 0:
+            truncated_value = int(truncated_value)
+        return {'value': truncated_value, 'unit': value['unit']}
+    if not isinstance(value, (int, float)):
+        return value
+    factor = 10 ** decimals
+    result = round(value * factor) / factor
+    # If decimals=0, return as integer to avoid .0 suffix that confuses TC function
+    if decimals == 0:
+        result = int(result)
+    return result
+
+
 # Add TC function and math functions to evaluation namespace
-GLOBALS = {"TC": TC, "AR": AR, "TR": lambda x, d=2: round(x * (10 ** d)) / (10 ** d) if d > 0 else int(round(x)), **MATH_FUNCS}
+GLOBALS = {"TC": TC, "AR": AR, "truncate": truncate, "TR": truncate, **MATH_FUNCS}
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
@@ -1262,7 +1287,7 @@ class FormulaEditor(QPlainTextEdit):
         self._call_stack = []  # Track what methods are being called
         
         # Add truncate function to the editor instance
-        self.truncate = self.truncate_func
+        self.truncate = truncate
         
         # Store lines that need separators
         self.separator_lines = set()
@@ -1485,28 +1510,8 @@ class FormulaEditor(QPlainTextEdit):
         }
 
     def truncate_func(self, value, decimals=2):
-        """Rounds a number to specified decimal places"""
-        if isinstance(value, str):
-            # If it's a string expression, evaluate it first
-            try:
-                value = eval(value, {"truncate": self.truncate_func, "TR": self.truncate_func, **GLOBALS}, {})
-            except:
-                return value
-        if isinstance(value, dict) and 'value' in value:
-            # Handle unit conversion results
-            truncated_value = round(value['value'] * (10 ** decimals)) / (10 ** decimals)
-            # If decimals=0, convert to integer to avoid .0 suffix
-            if decimals == 0:
-                truncated_value = int(truncated_value)
-            return {'value': truncated_value, 'unit': value['unit']}
-        if not isinstance(value, (int, float)):
-            return value
-        factor = 10 ** decimals
-        result = round(value * factor) / factor
-        # If decimals=0, return as integer to avoid .0 suffix that confuses TC function
-        if decimals == 0:
-            result = int(result)
-        return result
+        """Deprecated: Use global truncate function instead"""
+        return truncate(value, decimals)
 
     def get_word_under_cursor(self):
         cursor = self.textCursor()
@@ -1870,8 +1875,8 @@ class FormulaEditor(QPlainTextEdit):
             if re.search(r"\bLN(\d+)\b", expr):
                 expr = self.process_ln_refs(expr)
             
-            # Handle the expression evaluation using the local truncate function
-            result = eval(expr, {"truncate": self.truncate_func, "TR": self.truncate_func, **GLOBALS}, {})
+            # Handle the expression evaluation using the global truncate function
+            result = eval(expr, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
             
             # Format the result nicely
             if isinstance(result, float):
@@ -3594,29 +3599,7 @@ class Worksheet(QWidget):
         # self.editor.update_separator_lines()
         
         # Define truncate function locally
-        def truncate(value, decimals=2):
-            """Rounds a number to specified decimal places"""
-            if isinstance(value, str):
-                # If it's a string expression, evaluate it first
-                try:
-                    value = eval(value, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
-                except:
-                    return value
-            if isinstance(value, dict) and 'value' in value:
-                # Handle unit conversion results
-                truncated_value = round(value['value'] * (10 ** decimals)) / (10 ** decimals)
-                # If decimals=0, convert to integer to avoid .0 suffix
-                if decimals == 0:
-                    truncated_value = int(truncated_value)
-                return {'value': truncated_value, 'unit': value['unit']}
-            if not isinstance(value, (int, float)):
-                return value
-            factor = 10 ** decimals
-            result = round(value * factor) / factor
-            # If decimals=0, return as integer to avoid .0 suffix that confuses TC function
-            if decimals == 0:
-                result = int(result)
-            return result
+        # Using global truncate function instead
 
         def preprocess_expression(expr):
             """Pre-process expression to handle padded numbers and other special cases"""
