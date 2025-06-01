@@ -27,6 +27,9 @@ except ImportError:
 class TimecodeError(Exception):
     pass
 
+def lcm(a, b):
+    """Calculate the Least Common Multiple of two numbers"""
+    return abs(a * b) // math.gcd(a, b)
 
 def parse_date(date_str):
     """Parse a date string in various formats"""
@@ -2641,40 +2644,20 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                                 pass
                         break
 
-                # Handle LN reference tooltips (including cross-sheet references)
-                found_ln_tooltip = False
-                
-                # First check for cross-sheet references: s.SheetName.ln2 or S.SheetName.LN2
-                for match in re.finditer(r'\b(?:s|S)\.(.+?)\.(?:ln|LN)(\d+)\b', text):
+                # Handle LN reference tooltips (keep existing LN tooltip logic)
+                for match in re.finditer(r'\bLN(\d+)\b', text):
                     start, end = match.span()
                     if start <= pos <= end:
                         found_operator = True
-                        found_ln_tooltip = True
-                        sheet_name = match.group(1)
-                        ln_id = int(match.group(2))
-                        val = self.get_sheet_value(sheet_name, ln_id)
+                        ln_id = int(match.group(1))
+                        val = self.ln_value_map.get(ln_id)
                         if val is not None:
-                            display = f"S.{sheet_name}.LN{ln_id} = {val}"
+                            display = f"LN{ln_id} = {val}"
                         else:
-                            display = f"S.{sheet_name}.LN{ln_id} not found"
+                            display = f"LN{ln_id} not found"
                         QToolTip.showText(event.globalPosition().toPoint(), display, self)
+                        # Don't return True here - let the mouse event continue for text selection
                         break
-                
-                # If no cross-sheet reference found, check for regular LN references
-                if not found_ln_tooltip:
-                    for match in re.finditer(r'\bLN(\d+)\b', text):
-                        start, end = match.span()
-                        if start <= pos <= end:
-                            found_operator = True
-                            ln_id = int(match.group(1))
-                            val = self.ln_value_map.get(ln_id)
-                            if val is not None:
-                                display = f"LN{ln_id} = {val}"
-                            else:
-                                display = f"LN{ln_id} not found"
-                            QToolTip.showText(event.globalPosition().toPoint(), display, self)
-                            # Don't return True here - let the mouse event continue for text selection
-                            break
 
                 # If we're not over an operator or LN reference, clear highlights
                 if not found_operator:
@@ -3006,9 +2989,6 @@ class Worksheet(QWidget):
         self.splitter = QSplitter(Qt.Horizontal)
         self.settings = QSettings('OpenAI', 'SmartCalc')
         
-        # Tab switching optimization - Stage 1: Cross-sheet reference tracking
-        self.has_cross_sheet_refs = False  # Track if this sheet contains cross-sheet references
-        
         # Create results widget first - now using QPlainTextEdit for perfect alignment
         self.results = QPlainTextEdit()
         self.results.setReadOnly(True)
@@ -3228,59 +3208,28 @@ class Worksheet(QWidget):
         else:
             self.evaluate()
             self.editor.highlightCurrentLine()
-        
-        # Don't clear change flags here - let tab switching logic handle it
-        # This was causing cross-sheet updates to fail because flags were cleared
-        # immediately after text changes before tab switching could detect them
 
     def on_text_potentially_changed(self):
-        """Called when text might have changed - sets change flag if actual changes detected"""
-        # Get current text content
+        """Called when text might have changed - check if it's real change vs navigation"""
         current_text = self.editor.toPlainText()
         
-        # Check if text actually changed
-        if hasattr(self, '_last_text_content') and current_text == self._last_text_content:
-            return  # No actual change
-        
-        # Store new content
-        self._last_text_content = current_text
-        
-        # Get current sheet index
-        calculator = self.editor.get_calculator()
-        if calculator and hasattr(calculator, '_sheet_changed_flags'):
-            current_index = calculator.tabs.currentIndex()
+        if current_text != self._last_text_content:
+            # Text actually changed
+            self._last_text_content = current_text
+            self._is_pure_navigation = False
             
-            # Set change flag
-            calculator._sheet_changed_flags[current_index] = True
-            # Debug output can be enabled by setting DEBUG_TAB_SWITCHING = True in Calculator.on_tab_changed()
-            # print("TEXT ACTUALLY CHANGED - starting evaluation timer")  # Uncomment for debugging
+            if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+                print(f"TEXT ACTUALLY CHANGED - starting evaluation timer")
             
-            # Check if cross-sheet references changed
-            old_has_refs = getattr(self, 'has_cross_sheet_refs', False)
-            
-            # Detect cross-sheet references
-            cross_sheet_pattern = r'\bS\.[^.]+\.LN\d+\b'
-            has_cross_refs = bool(re.search(cross_sheet_pattern, current_text, re.IGNORECASE))
-            self.has_cross_sheet_refs = has_cross_refs
-            
-            # print(f"Cross-sheet refs detected: {has_cross_refs} in sheet {current_index}")  # Uncomment for debugging
-            
-            # Only rebuild dependency graph if cross-sheet reference structure changed
-            if old_has_refs != has_cross_refs or (has_cross_refs and not hasattr(calculator, '_last_dependency_content')):
-                # print(f"🔄 Cross-sheet structure changed - rebuilding dependency graph")  # Comment out for normal usage
-                calculator.build_dependency_graph()
-                calculator._last_dependency_content = current_text
-            elif has_cross_refs:
-                # Check if the actual cross-sheet references changed (not just any text)
-                old_refs = set(re.findall(cross_sheet_pattern, getattr(calculator, '_last_dependency_content', ''), re.IGNORECASE))
-                new_refs = set(re.findall(cross_sheet_pattern, current_text, re.IGNORECASE))
-                if old_refs != new_refs:
-                    # print(f"🔄 Cross-sheet references changed - rebuilding dependency graph")  # Comment out for normal usage
-                    calculator.build_dependency_graph()
-                    calculator._last_dependency_content = current_text
-        
-        # Start evaluation timer
-        self.timer.start(300)  # 300ms delay
+            # Invalidate cross-sheet cache when content changes
+            if hasattr(self.editor, '_cross_sheet_cache'):
+                self.editor._cross_sheet_cache.clear()
+            self.timer.start()
+        else:
+            # No text change - this is pure navigation, don't evaluate
+            if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+                print(f"NO TEXT CHANGE - skipping evaluation (pure navigation)")
+            self._is_pure_navigation = True
 
     def format_number_for_display(self, value, line_number):
         """Format a number for display with commas, storing the raw value separately for copying"""
@@ -3846,108 +3795,6 @@ class Worksheet(QWidget):
         # Finalize evaluation and update UI
         self._finalize_evaluation(out, evaluation_context)
 
-    def evaluate_cross_sheet_lines_only(self):
-        """Stage 2 optimization: Only evaluate lines with cross-sheet references"""
-        if not hasattr(self, 'has_cross_sheet_refs') or not self.has_cross_sheet_refs:
-            return
-        
-        # Pattern to detect cross-sheet references: S.SheetName.LN#
-        cross_sheet_pattern = r'\bS\.[^.]+\.LN\d+\b'
-        
-        # Get current content
-        lines = self.editor.toPlainText().split('\n')
-        doc = self.results.document()
-        
-        # Store current cursor and scroll positions to restore them
-        current_cursor = self.editor.textCursor()
-        current_cursor_position = current_cursor.position()
-        current_cursor_block = current_cursor.blockNumber()
-        editor_scroll = self.editor.verticalScrollBar().value()
-        results_scroll = self.results.verticalScrollBar().value()
-        
-        # Process each line and update only those with cross-sheet references
-        out = [''] * len(lines)  # Initialize with empty strings to maintain line count
-        
-        # First, preserve all existing results
-        for i in range(min(len(lines), doc.blockCount())):
-            block = doc.findBlockByNumber(i)
-            if block.isValid():
-                out[i] = block.text()
-        
-        # Now evaluate only cross-sheet reference lines
-        vals = {}
-        cross_sheet_lines_updated = 0
-        
-        for i, line in enumerate(lines):
-            line = line.strip()
-            if not line:
-                out[i] = ''
-                continue
-            
-            # Check if this line has cross-sheet references
-            if re.search(cross_sheet_pattern, line, re.IGNORECASE):
-                try:
-                    # Process cross-sheet references
-                    processed_line = self.editor.process_ln_refs(line)
-                    
-                    # Evaluate the processed line
-                    result = eval(processed_line, globals(), vals)
-                    
-                    # Store for later lines that might reference this one
-                    vals[f'LN{i+1}'] = result
-                    
-                    # Format the result
-                    formatted_result = self.format_number_for_display(result, i+1)
-                    out[i] = formatted_result
-                    cross_sheet_lines_updated += 1
-                    
-                except Exception as e:
-                    out[i] = f"Error: {str(e)}"
-            # For non-cross-sheet lines, preserve the LN values for reference
-            elif line and not line.startswith('//'):
-                try:
-                    # Still need to evaluate to maintain LN values, but don't change output
-                    result = eval(line, globals(), vals)
-                    vals[f'LN{i+1}'] = result
-                except:
-                    pass  # Keep existing result
-        
-        # Update results display while maintaining line alignment
-        cursor = QTextCursor(doc)
-        cursor.movePosition(QTextCursor.Start)
-        cursor.beginEditBlock()
-        
-        # Clear and rebuild the entire results to ensure proper line alignment
-        cursor.select(QTextCursor.Document)
-        cursor.removeSelectedText()
-        
-        # Insert all results line by line
-        for i, result_text in enumerate(out):
-            if i > 0:
-                cursor.insertText('\n')
-            cursor.insertText(result_text)
-        
-        cursor.endEditBlock()
-        
-        # Restore cursor position properly
-        restored_cursor = QTextCursor(self.editor.document())
-        restored_cursor.setPosition(current_cursor_position)
-        self.editor.setTextCursor(restored_cursor)
-        
-        # Restore scroll positions using the sync mechanism
-        self._syncing_scroll = True  # Temporarily disable sync to avoid double-setting
-        self.editor.verticalScrollBar().setValue(editor_scroll)
-        self.results.verticalScrollBar().setValue(results_scroll)
-        self._syncing_scroll = False
-        
-        # Force highlighting update to ensure cursor line is properly highlighted
-        self.editor.highlightCurrentLine()
-        
-        # Force a delayed sync to ensure perfect alignment
-        QTimer.singleShot(10, lambda: self._force_sync_from_editor())
-        
-        # print(f"⚡ Cross-sheet selective evaluation: {cross_sheet_lines_updated} lines updated")  # Comment out for normal usage
-
     def _initialize_evaluation(self):
         """Initialize evaluation state and prepare data structures"""
         evaluation_context = {}
@@ -4086,9 +3933,6 @@ class Worksheet(QWidget):
         """Main line-by-line evaluation logic"""
         out = []
         
-        # Tab switching optimization - Stage 1: Detect cross-sheet references during evaluation
-        detected_cross_sheet_refs = False
-        
         # Evaluate each line
         for idx, line in enumerate(lines):
             self.current_line = line  # Store current line for context
@@ -4110,10 +3954,6 @@ class Worksheet(QWidget):
                     self.editor.ln_value_map[data.id] = vals[idx]
                 out.append("")
                 continue
-
-            # Tab switching optimization - Check for cross-sheet references in this line
-            if re.search(r'\bS\.[^.]+\.LN\d+\b', s, re.IGNORECASE):
-                detected_cross_sheet_refs = True
 
             # Try special cases first
             try:
@@ -4221,9 +4061,6 @@ class Worksheet(QWidget):
                     self.editor.ln_value_map[current_id] = None
                 out.append('ERROR!')
         
-        # Tab switching optimization - Stage 1: Update cross-sheet reference flag
-        self.has_cross_sheet_refs = detected_cross_sheet_refs
-        
         return out
 
     def _handle_unit_conversion(self, expr):
@@ -4247,6 +4084,90 @@ class Worksheet(QWidget):
                 return None
         return None
 
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts for the formula editor"""
+        modifiers = event.modifiers()
+        key = event.key()
+        
+        # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
+        if modifiers & Qt.ControlModifier and key == Qt.Key_C:
+            cursor = self.textCursor()
+            if not cursor.hasSelection():
+                # No selection - copy the result from current line
+                block_number = cursor.blockNumber()
+                if hasattr(self.parent, 'results'):
+                    results_doc = self.parent.results.document()
+                    results_block = results_doc.findBlockByNumber(block_number)
+                    if results_block.isValid():
+                        result_text = results_block.text().strip()
+                        if result_text:
+                            clipboard = QApplication.clipboard()
+                            clipboard.setText(result_text)
+                event.accept()
+                return
+            else:
+                # Has selection - let KeyEventFilter handle this
+                super().keyPressEvent(event)
+                return
+        
+        # Alt+C: Copy the current expression line
+        elif modifiers & Qt.AltModifier and key == Qt.Key_C:
+            cursor = self.textCursor()
+            block = cursor.block()
+            line_text = block.text()
+            if line_text.strip():
+                clipboard = QApplication.clipboard()
+                clipboard.setText(line_text)
+            event.accept()
+            return
+        
+        # Ctrl+Up: Navigate and select text inside parentheses
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_Up:
+            self.expand_selection_with_parens()
+            event.accept()
+            return
+            
+        # Ctrl+Down: Select entire line
+        elif modifiers & Qt.ControlModifier and key == Qt.Key_Down:
+            self.select_entire_line()
+            event.accept()
+            return
+            
+        # Tab key: Disable tab insertion, instead trigger autocompletion or do nothing
+        elif key == Qt.Key_Tab:
+            # If completion popup is open, handle tab there
+            if self.completion_list and self.completion_list.isVisible():
+                self.complete_text()
+            # Otherwise, do nothing (disable tab insertion)
+            event.accept()
+            return
+        
+        # Ctrl+Shift+Left/Right: Navigate between worksheet tabs
+        elif modifiers & Qt.ControlModifier and modifiers & Qt.ShiftModifier and key in (Qt.Key_Left, Qt.Key_Right):
+            # Get the calculator instance and handle tab navigation directly
+            calculator = self.get_calculator()
+            if calculator:
+                current_index = calculator.tabs.currentIndex()
+                if key == Qt.Key_Left:
+                    # Navigate to previous tab
+                    if current_index > 0:
+                        calculator.tabs.setCurrentIndex(current_index - 1)
+                    else:
+                        # Wrap to last tab
+                        calculator.tabs.setCurrentIndex(calculator.tabs.count() - 1)
+                elif key == Qt.Key_Right:
+                    # Navigate to next tab
+                    if current_index < calculator.tabs.count() - 1:
+                        calculator.tabs.setCurrentIndex(current_index + 1)
+                    else:
+                        # Wrap to first tab
+                        calculator.tabs.setCurrentIndex(0)
+            event.accept()
+            return
+        
+        # For all other keys, call parent implementation
+        super().keyPressEvent(event)
+
 class Calculator(QWidget):
     def __init__(self):
         super().__init__()
@@ -4257,18 +4178,6 @@ class Calculator(QWidget):
         icon_path = os.path.join(os.path.dirname(sys.argv[0]), "calcforge.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
-        
-        # Tab switching optimization - Stage 1: Change tracking system
-        self._sheet_changed_flags = {}  # Tab index -> bool (True if sheet content changed)
-        self._last_active_sheet = None  # Track the previously active sheet index
-        
-        # Stage 3: Dependency Graph Optimization
-        self._sheet_dependencies = {}  # Tab index -> set of tab indices that this sheet references
-        self._sheet_dependents = {}   # Tab index -> set of tab indices that reference this sheet
-        self._pending_updates = set() # Tab indices that need evaluation due to dependency cascade
-        self._batch_update_timer = QTimer()
-        self._batch_update_timer.setSingleShot(True)
-        self._batch_update_timer.timeout.connect(self._process_batch_updates)
         
         self.settings = QSettings('OpenAI','SmartCalc')
         if self.settings.contains('geometry'):
@@ -4329,7 +4238,6 @@ class Calculator(QWidget):
         self.tabs.setMovable(True)  # Make tabs reorderable
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.tabBarDoubleClicked.connect(self.rename_tab)
-        self.tabs.currentChanged.connect(self.on_tab_changed)  # Connect tab change signal
         main.addWidget(self.tabs)
         
         # Load saved worksheets or create new one
@@ -4338,20 +4246,15 @@ class Calculator(QWidget):
             try:
                 data = json.loads(wf.read_text())
                 self.tabs.clear()
-                for idx, (name, content) in enumerate(data.items()):
+                for name, content in data.items():
                     ws = Worksheet(self)
                     self.tabs.addTab(ws, name)
                     ws.editor.setPlainText(content)
                     if self.splitter_state:
                         ws.splitter.restoreState(self.splitter_state)
-                    # Tab switching optimization - Initialize change flag for loaded sheet
-                    self._sheet_changed_flags[idx] = False
                 # Position cursor at end of first sheet
                 if self.tabs.count() > 0:
                     self.position_cursor_at_end(self.tabs.widget(0).editor)
-                    
-                # Stage 3: Build initial dependency graph for loaded worksheets
-                self.build_dependency_graph()
             except:
                 self.add_tab()  # Add default tab if loading fails
         else:
@@ -4428,72 +4331,12 @@ class Calculator(QWidget):
         # Position cursor at end for new tabs
         self.position_cursor_at_end(ws.editor)
         
-        # Tab switching optimization - Initialize change flag for new sheet
-        self._sheet_changed_flags[idx] = False
-        
-        # Stage 3: Initialize dependency tracking for new sheet
-        self._sheet_dependencies[idx] = set()
-        # Rebuild dependency graph to account for new sheet
-        self.build_dependency_graph()
-        
         # Invalidate cross-sheet caches in all editors
         self.invalidate_all_cross_sheet_caches()
 
     def close_tab(self,idx):
         if self.tabs.count()>1: 
             self.tabs.removeTab(idx)
-            
-            # Tab switching optimization - Clean up change flags for removed tab
-            if idx in self._sheet_changed_flags:
-                del self._sheet_changed_flags[idx]
-            
-            # Stage 3: Clean up dependency tracking for removed tab
-            if idx in self._sheet_dependencies:
-                del self._sheet_dependencies[idx]
-            if idx in self._sheet_dependents:
-                del self._sheet_dependents[idx]
-            
-            # Adjust change flags for tabs after the removed one (shift indices down)
-            updated_flags = {}
-            for tab_idx, changed in self._sheet_changed_flags.items():
-                if tab_idx > idx:
-                    updated_flags[tab_idx - 1] = changed
-                else:
-                    updated_flags[tab_idx] = changed
-            self._sheet_changed_flags = updated_flags
-            
-            # Adjust dependency tracking for shifted indices
-            updated_dependencies = {}
-            updated_dependents = {}
-            
-            for tab_idx, deps in self._sheet_dependencies.items():
-                new_idx = tab_idx - 1 if tab_idx > idx else tab_idx
-                new_deps = set()
-                for dep_idx in deps:
-                    if dep_idx != idx:  # Skip the removed tab
-                        new_dep_idx = dep_idx - 1 if dep_idx > idx else dep_idx
-                        new_deps.add(new_dep_idx)
-                updated_dependencies[new_idx] = new_deps
-            
-            for tab_idx, deps in self._sheet_dependents.items():
-                new_idx = tab_idx - 1 if tab_idx > idx else tab_idx
-                new_deps = set()
-                for dep_idx in deps:
-                    if dep_idx != idx:  # Skip the removed tab
-                        new_dep_idx = dep_idx - 1 if dep_idx > idx else dep_idx
-                        new_deps.add(new_dep_idx)
-                updated_dependents[new_idx] = new_deps
-            
-            self._sheet_dependencies = updated_dependencies
-            self._sheet_dependents = updated_dependents
-            
-            # Update last active sheet index if needed
-            if self._last_active_sheet is not None:
-                if self._last_active_sheet == idx:
-                    self._last_active_sheet = None
-                elif self._last_active_sheet > idx:
-                    self._last_active_sheet -= 1
-                    
             # Invalidate cross-sheet caches in all editors
             self.invalidate_all_cross_sheet_caches()
 
@@ -4502,10 +4345,6 @@ class Calculator(QWidget):
             text,ok=QInputDialog.getText(self,"Rename Sheet","New name:")
             if ok and text: 
                 self.tabs.setTabText(idx,text)
-                
-                # Stage 3: Rebuild dependency graph since sheet names affect cross-sheet references
-                self.build_dependency_graph()
-                
                 # Invalidate cross-sheet caches in all editors
                 self.invalidate_all_cross_sheet_caches()
 
@@ -4520,6 +4359,9 @@ class Calculator(QWidget):
 
     def show_help(self):
         # Create a custom dialog with 16:9 aspect ratio
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QTextEdit, QPushButton, QHBoxLayout
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QIcon
         
         dialog = QDialog(self)
         dialog.setWindowTitle("calcforge Help")
@@ -4783,7 +4625,7 @@ class Calculator(QWidget):
         layout.addLayout(button_layout)
         
         dialog.exec()
-  
+
     def force_focus(self):
         """Force the window and current editor to get focus - useful for keyboard shortcuts"""
         # Force window to front and activate
@@ -4798,117 +4640,8 @@ class Calculator(QWidget):
             current_widget.editor.activateWindow()
 
     def on_tab_changed(self, index):
-        """Smart tab switching with Stage 3 dependency graph optimization"""
-        if index < 0:  # Invalid tab index
-            return
-            
-        current_sheet = self.tabs.widget(index)
-        if not current_sheet or not hasattr(current_sheet, 'evaluate'):
-            return
-        
-        # Debug output - ENABLE THIS TO DIAGNOSE TAB SWITCHING PERFORMANCE
-        DEBUG_TAB_SWITCHING = False  # Set to True to enable debug output
-        if DEBUG_TAB_SWITCHING:
-            print(f"\n=== TAB SWITCH DEBUG ===")
-            print(f"Switching to tab {index} ({self.tabs.tabText(index)}), last active: {self._last_active_sheet}")
-            print(f"Change flags: {self._sheet_changed_flags}")
-            print(f"Current sheet has cross-refs: {getattr(current_sheet, 'has_cross_sheet_refs', 'NOT_SET')}")
-            if hasattr(self, '_sheet_dependencies'):
-                print(f"Dependencies for tab {index}: {self._sheet_dependencies.get(index, set())}")
-                print(f"Dependents of tab {index}: {self._sheet_dependents.get(index, set())}")
-        
-        # Check if evaluation is needed
-        should_evaluate = False
-        reason = ""
-        
-        # Stage 3: Check if this sheet has dependencies on recently changed sheets
-        needs_dependency_update = False
-        if (hasattr(self, '_sheet_dependencies') and 
-            index in self._sheet_dependencies):
-            # Check if any of the sheets this one depends on have changed
-            dependencies = self._sheet_dependencies[index]
-            for dep_idx in dependencies:
-                if self._sheet_changed_flags.get(dep_idx, False):
-                    needs_dependency_update = True
-                    break
-        
-        # Case 1: This sheet depends on recently changed sheets (Stage 3 optimization)
-        if needs_dependency_update:
-            should_evaluate = True
-            reason = f"Sheet {index} depends on changed sheets"
-            
-        # Case 2: Previous sheet was modified and current sheet has cross-sheet references (Stage 1/2)
-        elif (self._last_active_sheet is not None and 
-            self._sheet_changed_flags.get(self._last_active_sheet, False) and
-            hasattr(current_sheet, 'has_cross_sheet_refs') and
-            current_sheet.has_cross_sheet_refs):
-            should_evaluate = True
-            reason = f"Previous sheet {self._last_active_sheet} changed + current has cross-refs"
-            
-        # Case 3: Current sheet was modified (always evaluate)
-        elif self._sheet_changed_flags.get(index, False):
-            should_evaluate = True
-            reason = f"Current sheet {index} was modified"
-            
-        # Case 4: First time switch to this tab or no change tracking data yet
-        elif index not in self._sheet_changed_flags:
-            should_evaluate = True
-            reason = f"First time switch to sheet {index}"
-            # Initialize change flag for new sheets
-            self._sheet_changed_flags[index] = False
-
-        if DEBUG_TAB_SWITCHING:
-            print(f"Should evaluate: {should_evaluate}")
-            if should_evaluate:
-                print(f"Reason: {reason}")
-            else:
-                print("Reason: No changes detected - SKIPPING EVALUATION ✅ [STAGE 1 OPTIMIZATION]")
-            print("========================\n")
-
-        if should_evaluate:
-            # Invalidate cross-sheet caches to ensure fresh lookups
-            self.invalidate_all_cross_sheet_caches()
-            
-            # Remove premature change flag clearing - do it after evaluation instead
-            # self._sheet_changed_flags[index] = False  # MOVED TO AFTER EACH EVALUATION TYPE
-            
-            # Stage 3: Use dependency-aware evaluation
-            if needs_dependency_update:
-                # Only evaluate cross-sheet lines for dependency updates
-                if DEBUG_TAB_SWITCHING:
-                    print("🚀 [STAGE 3] Dependency-aware selective evaluation")
-                current_sheet.evaluate_cross_sheet_lines_only()
-                # Clear change flags for dependencies that were just processed
-                if hasattr(self, '_sheet_dependencies'):
-                    dependencies = self._sheet_dependencies[index]
-                    for dep_idx in dependencies:
-                        self._sheet_changed_flags[dep_idx] = False
-            # Stage 2 optimization: Use selective evaluation when only cross-sheet updates are needed
-            elif (reason.startswith("Previous sheet") and 
-                "changed + current has cross-refs" in reason and
-                hasattr(current_sheet, 'evaluate_cross_sheet_lines_only')):
-                # Only evaluate cross-sheet reference lines for better performance
-                if DEBUG_TAB_SWITCHING:
-                    print("⚡ [STAGE 2] Cross-sheet selective evaluation")
-                current_sheet.evaluate_cross_sheet_lines_only()
-                # Clear the change flag for the previous sheet since we processed its changes
-                if self._last_active_sheet is not None:
-                    self._sheet_changed_flags[self._last_active_sheet] = False
-            else:
-                # Full evaluation for other cases (current sheet modified, first-time switch)
-                if DEBUG_TAB_SWITCHING:
-                    print("📊 [FULL EVAL] Complete sheet evaluation")
-                current_sheet.evaluate()
-                # Clear the change flag for the current sheet after full evaluation
-                self._sheet_changed_flags[index] = False
-        
-        # Clear change flag for previous sheet if it was just evaluated due to dependencies
-        if self._last_active_sheet is not None and needs_dependency_update:
-            # Don't clear the flag if the sheet was actually modified by user
-            pass
-        
-        # Update last active sheet
-        self._last_active_sheet = index
+        """Disabled to prevent cursor synchronization issues with cross-sheet highlighting"""
+        pass
 
     def invalidate_all_cross_sheet_caches(self):
         """Invalidate cross-sheet caches in all editor instances"""
@@ -4916,102 +4649,6 @@ class Calculator(QWidget):
             sheet = self.tabs.widget(i)
             if hasattr(sheet, 'editor') and hasattr(sheet.editor, '_cross_sheet_cache'):
                 sheet.editor._cross_sheet_cache.clear()
-
-    def build_dependency_graph(self):
-        """Stage 3: Build complete dependency graph for all sheets"""
-        # Clear existing dependencies
-        self._sheet_dependencies.clear()
-        self._sheet_dependents.clear()
-        
-        # Pattern to detect cross-sheet references: S.SheetName.LN#
-        cross_sheet_pattern = r'\bS\.([^.]+)\.LN\d+\b'
-        
-        for sheet_idx in range(self.tabs.count()):
-            sheet = self.tabs.widget(sheet_idx)
-            if not sheet or not hasattr(sheet, 'editor'):
-                continue
-                
-            # Initialize dependencies for this sheet
-            self._sheet_dependencies[sheet_idx] = set()
-            
-            # Get sheet content and find cross-sheet references
-            content = sheet.editor.toPlainText()
-            matches = re.finditer(cross_sheet_pattern, content, re.IGNORECASE)
-            
-            for match in matches:
-                referenced_sheet_name = match.group(1).lower()
-                
-                # Find the tab index for this sheet name
-                for target_idx in range(self.tabs.count()):
-                    target_sheet_name = self.tabs.tabText(target_idx).lower()
-                    if target_sheet_name == referenced_sheet_name:
-                        # This sheet (sheet_idx) depends on target_idx
-                        self._sheet_dependencies[sheet_idx].add(target_idx)
-                        
-                        # Add reverse dependency: target_idx has sheet_idx as a dependent
-                        if target_idx not in self._sheet_dependents:
-                            self._sheet_dependents[target_idx] = set()
-                        self._sheet_dependents[target_idx].add(sheet_idx)
-                        break
-        
-        # Print dependency summary (only in debug mode)
-        DEBUG_TAB_SWITCHING = False  # This should match the debug flag
-        if DEBUG_TAB_SWITCHING:
-            print("📊 Dependency Graph Summary:")
-            any_deps = False
-            for sheet_idx in range(self.tabs.count()):
-                sheet_name = self.tabs.tabText(sheet_idx)
-                deps = self._sheet_dependencies.get(sheet_idx, set())
-                dependents = self._sheet_dependents.get(sheet_idx, set())
-                
-                if deps or dependents:
-                    any_deps = True
-                    print(f"  {sheet_name} (#{sheet_idx}):")
-                    if deps:
-                        dep_names = [self.tabs.tabText(i) for i in deps]
-                        print(f"    Depends on: {dep_names}")
-                    if dependents:
-                        dep_names = [self.tabs.tabText(i) for i in dependents]
-                        print(f"    Referenced by: {dep_names}")
-            
-            if not any_deps:
-                print("  No cross-sheet dependencies found")
-            print("✅ Dependency graph complete\n")
-    
-    def get_dependent_sheets(self, changed_sheet_idx):
-        """Stage 3: Get all sheets that depend on the changed sheet"""
-        return self._sheet_dependents.get(changed_sheet_idx, set())
-    
-    def schedule_dependency_update(self, changed_sheet_idx):
-        """Stage 3: Schedule updates for all sheets dependent on the changed sheet"""
-        dependent_sheets = self.get_dependent_sheets(changed_sheet_idx)
-        
-        if dependent_sheets:
-            # print(f"⏱️  [STAGE 3] Scheduling dependency updates for sheets: {dependent_sheets}")  # Comment out for normal usage
-            # Add dependent sheets to pending updates
-            self._pending_updates.update(dependent_sheets)
-            
-            # Start/restart the batch timer (50ms delay to batch multiple changes)
-            self._batch_update_timer.start(50)
-    
-    def _process_batch_updates(self):
-        """Stage 3: Process all pending dependency updates in a batch"""
-        if not self._pending_updates:
-            return
-            
-        # print(f"🔄 [STAGE 3] Processing batch updates for sheets: {self._pending_updates}")  # Comment out for normal usage
-        
-        # Process each pending update
-        for sheet_idx in self._pending_updates:
-            if sheet_idx < self.tabs.count():
-                sheet = self.tabs.widget(sheet_idx)
-                if sheet and hasattr(sheet, 'evaluate_cross_sheet_lines_only'):
-                    # Use selective evaluation for dependency updates
-                    sheet.evaluate_cross_sheet_lines_only()
-        
-        # print("✅ [STAGE 3] Batch updates complete")  # Comment out for normal usage
-        # Clear pending updates
-        self._pending_updates.clear()
 
 def verify_icon_file(icon_path):
     """Verify that the icon file contains all required sizes."""
