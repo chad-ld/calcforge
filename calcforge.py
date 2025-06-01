@@ -1643,7 +1643,130 @@ class EditorPerformanceMonitoringMixin:
             print(entry)
         print("==========================================\n")
 
-class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformanceMonitoringMixin):
+class EditorCrossSheetMixin:
+    """Handles all cross-sheet reference functionality for the formula editor"""
+    
+    def get_sheet_value(self, sheet_name, ln_number):
+        """Get a value from a specific sheet by name and line number"""
+        calculator = self.get_calculator()
+        if not calculator:
+            return None
+            
+        # Find the sheet by name (case insensitive)
+        for i in range(calculator.tabs.count()):
+            if calculator.tabs.tabText(i).lower() == sheet_name.lower():
+                sheet = calculator.tabs.widget(i)
+                if hasattr(sheet, 'editor'):
+                    # First try to find the line by its ID
+                    if ln_number in sheet.editor.ln_value_map:
+                        return sheet.editor.ln_value_map[ln_number]
+                    
+                    # If not found by ID, try to find by line number
+                    doc = sheet.editor.document()
+                    if ln_number <= doc.blockCount():
+                        block = doc.findBlockByNumber(ln_number - 1)  # Convert to 0-based index
+                        if block.isValid():
+                            user_data = block.userData()
+                            if isinstance(user_data, LineData):
+                                line_id = user_data.id
+                                if line_id in sheet.editor.ln_value_map:
+                                    return sheet.editor.ln_value_map[line_id]
+        return None
+
+    def get_numeric_value(self, value):
+        """Extract numeric value from a result, stripping any units or formatting"""
+        if isinstance(value, (int, float)):
+            return value
+        if isinstance(value, dict) and 'value' in value:
+            return value['value']
+        if isinstance(value, str):
+            # Try to extract first number from string
+            match = re.match(r'[-+]?\d*\.?\d+', value)
+            if match:
+                return float(match.group())
+        return value
+
+    def process_ln_refs(self, expr):
+        """Replace LN references and cross-sheet references with their values"""
+        def repl(m):
+            # Check if this is a cross-sheet reference
+            if m.group(1) and m.group(2):  # We have a sheet reference
+                sheet_name = m.group(2)
+                ln = int(m.group(3))
+                v = self.get_sheet_value(sheet_name, ln)
+                if v is not None:
+                    # Extract numeric value if needed
+                    v = self.get_numeric_value(v)
+                    return str(v)
+                return "0"
+            else:  # Regular LN reference
+                ln = int(m.group(4))
+                if ln in self.ln_value_map:
+                    v = self.ln_value_map[ln]
+                    if v is not None:
+                        # Extract numeric value if needed
+                        v = self.get_numeric_value(v)
+                        return str(v)
+                return "0"
+
+        # First capitalize s. to S. for consistency
+        expr = re.sub(r'\bs\.(.*?)\.ln', lambda m: f"S.{m.group(1)}.LN", expr, flags=re.IGNORECASE)
+        # Then capitalize ln to LN in all cases
+        expr = re.sub(r'\bln(\d+)\b', lambda m: f"LN{m.group(1)}", expr, flags=re.IGNORECASE)
+        
+        # Pattern for both cross-sheet and regular references
+        # Group 1 and 2 will be None for regular LN refs
+        pattern = r'\b(S\.)(.*?)\.LN(\d+)\b|\bLN(\d+)\b'
+        
+        # Keep replacing until no more changes
+        prev_expr = None
+        while prev_expr != expr:
+            prev_expr = expr
+            expr = re.sub(pattern, repl, expr)
+            
+        return expr
+
+    def build_cross_sheet_cache(self):
+        """Build cache for fast cross-sheet lookups"""
+        calculator = self.get_calculator()
+        if not calculator:
+            return
+            
+        self._cross_sheet_cache.clear()
+        
+        # Build cache for all sheets
+        for i in range(calculator.tabs.count()):
+            sheet = calculator.tabs.widget(i)
+            if sheet != self.parent and hasattr(sheet, 'editor'):
+                sheet_name = calculator.tabs.tabText(i).lower()
+                sheet_cache = {}
+                
+                doc = sheet.editor.document()
+                for j in range(doc.blockCount()):
+                    blk = doc.findBlockByNumber(j)
+                    user_data = blk.userData()
+                    if isinstance(user_data, LineData):
+                        sheet_cache[user_data.id] = j
+                        
+                self._cross_sheet_cache[sheet_name] = sheet_cache
+
+    def clear_highlighted_sheets_only(self):
+        """Clear highlights only from sheets that were previously highlighted"""
+        calculator = self.get_calculator()
+        if not calculator:
+            return
+            
+        # Only clear sheets that we know have highlights
+        for sheet in self._highlighted_sheets:
+            if hasattr(sheet, 'editor'):
+                sheet.editor.setExtraSelections([])
+                if hasattr(sheet, 'results'):
+                    sheet.results.setExtraSelections([])
+        
+        # Clear the set of highlighted sheets
+        self._highlighted_sheets.clear()
+
+class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformanceMonitoringMixin, EditorCrossSheetMixin):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
@@ -1966,86 +2089,6 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                             self.operator_results_map[abs_pos] = result
                     except Exception as e:
                         pass
-
-    def get_sheet_value(self, sheet_name, ln_number):
-        """Get a value from a specific sheet by name and line number"""
-        calculator = self.get_calculator()
-        if not calculator:
-            return None
-            
-        # Find the sheet by name (case insensitive)
-        for i in range(calculator.tabs.count()):
-            if calculator.tabs.tabText(i).lower() == sheet_name.lower():
-                sheet = calculator.tabs.widget(i)
-                if hasattr(sheet, 'editor'):
-                    # First try to find the line by its ID
-                    if ln_number in sheet.editor.ln_value_map:
-                        return sheet.editor.ln_value_map[ln_number]
-                    
-                    # If not found by ID, try to find by line number
-                    doc = sheet.editor.document()
-                    if ln_number <= doc.blockCount():
-                        block = doc.findBlockByNumber(ln_number - 1)  # Convert to 0-based index
-                        if block.isValid():
-                            user_data = block.userData()
-                            if isinstance(user_data, LineData):
-                                line_id = user_data.id
-                                if line_id in sheet.editor.ln_value_map:
-                                    return sheet.editor.ln_value_map[line_id]
-        return None
-
-    def get_numeric_value(self, value):
-        """Extract numeric value from a result, stripping any units or formatting"""
-        if isinstance(value, (int, float)):
-            return value
-        if isinstance(value, dict) and 'value' in value:
-            return value['value']
-        if isinstance(value, str):
-            # Try to extract first number from string
-            match = re.match(r'[-+]?\d*\.?\d+', value)
-            if match:
-                return float(match.group())
-        return value
-
-    def process_ln_refs(self, expr):
-        """Replace LN references and cross-sheet references with their values"""
-        def repl(m):
-            # Check if this is a cross-sheet reference
-            if m.group(1) and m.group(2):  # We have a sheet reference
-                sheet_name = m.group(2)
-                ln = int(m.group(3))
-                v = self.get_sheet_value(sheet_name, ln)
-                if v is not None:
-                    # Extract numeric value if needed
-                    v = self.get_numeric_value(v)
-                    return str(v)
-                return "0"
-            else:  # Regular LN reference
-                ln = int(m.group(4))
-                if ln in self.ln_value_map:
-                    v = self.ln_value_map[ln]
-                    if v is not None:
-                        # Extract numeric value if needed
-                        v = self.get_numeric_value(v)
-                        return str(v)
-                return "0"
-
-        # First capitalize s. to S. for consistency
-        expr = re.sub(r'\bs\.(.*?)\.ln', lambda m: f"S.{m.group(1)}.LN", expr, flags=re.IGNORECASE)
-        # Then capitalize ln to LN in all cases
-        expr = re.sub(r'\bln(\d+)\b', lambda m: f"LN{m.group(1)}", expr, flags=re.IGNORECASE)
-        
-        # Pattern for both cross-sheet and regular references
-        # Group 1 and 2 will be None for regular LN refs
-        pattern = r'\b(S\.)(.*?)\.LN(\d+)\b|\bLN(\d+)\b'
-        
-        # Keep replacing until no more changes
-        prev_expr = None
-        while prev_expr != expr:
-            prev_expr = expr
-            expr = re.sub(pattern, repl, expr)
-            
-        return expr
 
     def highlight_expression(self, block, start, end):
         """Highlight the expression with a light background color"""
@@ -3129,46 +3172,6 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         #             
         #     painter.end()
         pass  # No separator lines needed with function highlighting
-
-    def build_cross_sheet_cache(self):
-        """Build cache for fast cross-sheet lookups"""
-        calculator = self.get_calculator()
-        if not calculator:
-            return
-            
-        self._cross_sheet_cache.clear()
-        
-        # Build cache for all sheets
-        for i in range(calculator.tabs.count()):
-            sheet = calculator.tabs.widget(i)
-            if sheet != self.parent and hasattr(sheet, 'editor'):
-                sheet_name = calculator.tabs.tabText(i).lower()
-                sheet_cache = {}
-                
-                doc = sheet.editor.document()
-                for j in range(doc.blockCount()):
-                    blk = doc.findBlockByNumber(j)
-                    user_data = blk.userData()
-                    if isinstance(user_data, LineData):
-                        sheet_cache[user_data.id] = j
-                        
-                self._cross_sheet_cache[sheet_name] = sheet_cache
-
-    def clear_highlighted_sheets_only(self):
-        """Clear highlights only from sheets that were previously highlighted"""
-        calculator = self.get_calculator()
-        if not calculator:
-            return
-            
-        # Only clear sheets that we know have highlights
-        for sheet in self._highlighted_sheets:
-            if hasattr(sheet, 'editor'):
-                sheet.editor.setExtraSelections([])
-                if hasattr(sheet, 'results'):
-                    sheet.results.setExtraSelections([])
-        
-        # Clear the set of highlighted sheets
-        self._highlighted_sheets.clear()
 
     def _do_highlight_current_line(self):
         """Actual highlighting implementation - called by debounced timer"""
