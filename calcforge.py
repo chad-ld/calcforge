@@ -1585,7 +1585,65 @@ class EditorAutoCompletionMixin:
         if completions:
             self.completion_list.on_selection_changed(0)
 
-class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin):
+class EditorPerformanceMonitoringMixin:
+    """Handles all performance monitoring and debugging functionality for the formula editor"""
+    
+    def _log_perf(self, method_name, start_time=None):
+        """Log performance measurements"""
+        if not self._debug_enabled:
+            return
+            
+        current_time = time.time() * 1000
+        if start_time is None:
+            # Starting measurement
+            self._call_stack.append((method_name, current_time))
+            return current_time
+        else:
+            # Ending measurement
+            duration = current_time - start_time
+            if duration > 10:  # Only log operations taking more than 10ms
+                cursor_line = self.textCursor().blockNumber()
+                log_entry = f"[{current_time:.0f}] {method_name}: {duration:.1f}ms (line {cursor_line})"
+                self._perf_log.append(log_entry)
+                print(log_entry)  # Real-time console output
+                
+                # Keep only last 50 entries
+                if len(self._perf_log) > 50:
+                    self._perf_log = self._perf_log[-50:]
+            
+            # Remove from call stack
+            if self._call_stack and self._call_stack[-1][0] == method_name:
+                self._call_stack.pop()
+
+    def _check_scroll_sync_issue(self):
+        """Check if scroll positions are mismatched"""
+        if not self._debug_enabled or not hasattr(self.parent, 'results'):
+            return
+            
+        editor_scroll = self.verticalScrollBar().value()
+        results_scroll = self.parent.results.verticalScrollBar().value()
+        
+        editor_max = self.verticalScrollBar().maximum()
+        results_max = self.parent.results.verticalScrollBar().maximum()
+        
+        if editor_max > 0 and results_max > 0:
+            editor_ratio = editor_scroll / editor_max
+            results_ratio = results_scroll / results_max
+            
+            if abs(editor_ratio - results_ratio) > 0.05:  # 5% difference
+                print(f"SCROLL SYNC ISSUE: Editor {editor_scroll}/{editor_max} ({editor_ratio:.2f}) vs Results {results_scroll}/{results_max} ({results_ratio:.2f})")
+
+    def print_perf_summary(self):
+        """Print recent performance log to console"""
+        if not self._debug_enabled:
+            return
+            
+        print("\n=== PERFORMANCE LOG (Last 10 entries) ===")
+        for entry in self._perf_log[-10:]:
+            print(entry)
+        print("==========================================\n")
+
+class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformanceMonitoringMixin):
     def __init__(self, parent):
         super().__init__(parent)
         self.parent = parent
