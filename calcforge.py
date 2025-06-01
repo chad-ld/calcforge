@@ -3009,6 +3009,20 @@ class Worksheet(QWidget):
         # Tab switching optimization - Stage 1: Cross-sheet reference tracking
         self.has_cross_sheet_refs = False  # Track if this sheet contains cross-sheet references
         
+        # Stage 1 Performance Optimizations: Smart Change Detection and Caching
+        # Line-level change tracking for efficient evaluation
+        self._last_lines = []  # Store lines from previous text state
+        self._changed_lines = set()  # Track which lines have changed
+        self._line_hashes = {}  # Cache line content hashes for quick comparison
+        
+        # Expression result caching to avoid recomputing unchanged expressions
+        self._expression_cache = {}  # line_hash -> (result, formatted_result)
+        self._cache_max_size = 1000  # Limit cache size to prevent memory bloat
+        
+        # Smart evaluation timing based on content type
+        self._last_change_time = 0
+        self._change_type = 'unknown'  # 'simple_math', 'ln_reference', 'complex', 'whitespace'
+        
         # Create results widget first - now using QPlainTextEdit for perfect alignment
         self.results = QPlainTextEdit()
         self.results.setReadOnly(True)
@@ -3128,11 +3142,11 @@ class Worksheet(QWidget):
         self.splitter.setSizes([600, 200])
         layout.addWidget(self.splitter)
         
-        # Setup evaluation timer with longer delay to reduce excessive evaluation during navigation
+        # Stage 1: Smart evaluation timer - starts with intelligent timing
         self.timer = QTimer(self)
-        self.timer.setInterval(500)  # Increased from 300ms to 500ms to reduce evaluation frequency
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.evaluate_and_highlight)
+        # Dynamic interval set by start_smart_evaluation_timer()
         
         # Add performance flags to prevent excessive evaluation during navigation
         self._is_navigating = False
@@ -3146,6 +3160,9 @@ class Worksheet(QWidget):
         
         # Store initial text content for change detection
         self._last_text_content = self.editor.toPlainText()
+        # Stage 1: Initialize line tracking
+        self._last_lines = self._last_text_content.split('\n')
+        self._update_line_hashes()
         
         # Initial evaluation
         QTimer.singleShot(0, self.evaluate_and_highlight)
@@ -3234,13 +3251,22 @@ class Worksheet(QWidget):
         # immediately after text changes before tab switching could detect them
 
     def on_text_potentially_changed(self):
-        """Called when text might have changed - sets change flag if actual changes detected"""
+        """Called when text might have changed - Stage 1 optimized with smart change detection"""
         # Get current text content
         current_text = self.editor.toPlainText()
         
         # Check if text actually changed
         if hasattr(self, '_last_text_content') and current_text == self._last_text_content:
             return  # No actual change
+        
+        # Stage 1: Detect which lines changed for smarter evaluation
+        old_text = getattr(self, '_last_text_content', '')
+        changed_lines = self.detect_changed_lines(old_text, current_text)
+        
+        # Stage 1: Check if we should skip evaluation entirely
+        if self.should_skip_evaluation(changed_lines):
+            self._last_text_content = current_text
+            return
         
         # Store new content
         self._last_text_content = current_text
@@ -3293,8 +3319,8 @@ class Worksheet(QWidget):
                     calculator.build_dependency_graph()
                     calculator._last_dependency_content = current_text
         
-        # Start evaluation timer
-        self.timer.start(300)  # 300ms delay
+        # Stage 1: Start smart evaluation timer with intelligent timing
+        self.start_smart_evaluation_timer(changed_lines)
 
     def format_number_for_display(self, value, line_number):
         """Format a number for display with commas, storing the raw value separately for copying"""
@@ -3785,10 +3811,18 @@ class Worksheet(QWidget):
                     for arg in start_end.split(','):
                         line_num = int(arg.strip()) - 1
                         if line_num < len(vals) and vals[line_num] is not None:
-                            if isinstance(vals[line_num], (int, float)):
-                                numbers.append(float(vals[line_num]))
-                            elif is_timecode(vals[line_num]):
-                                return "ERROR: Timecode values not supported for this function"
+                            if timecode_mode or is_timecode(vals[line_num]):
+                                values.append(vals[line_num])
+                            elif isinstance(vals[line_num], (int, float)):
+                                values.append(vals[line_num])
+                        elif line_num >= len(vals) or vals[line_num] is None:
+                            # Try to evaluate if not yet processed
+                            value = evaluate_line_if_needed(line_num)
+                            if value is not None:
+                                if timecode_mode or is_timecode(value):
+                                    values.append(value)
+                                elif isinstance(value, (int, float)):
+                                    values.append(value)
             except:
                 pass
             return numbers
@@ -4097,7 +4131,7 @@ class Worksheet(QWidget):
             # The line number area will be repositioned by the resize event of the results widget
 
     def _evaluate_lines_loop(self, lines, vals, doc):
-        """Main line-by-line evaluation logic"""
+        """Main line-by-line evaluation logic with Stage 1 caching optimization"""
         out = []
         
         # Tab switching optimization - Stage 1: Detect cross-sheet references during evaluation
@@ -4125,6 +4159,36 @@ class Worksheet(QWidget):
                 out.append("")
                 continue
 
+            # Stage 1: Check for cached result first (skip for LN references and cross-sheet refs)
+            has_references = (re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", s, re.IGNORECASE) or
+                            re.search(r'\bS\.[^.]+\.LN\d+\b', s, re.IGNORECASE))
+            
+            if not has_references:
+                cached_result = self.get_cached_result(s, idx + 1)
+                if cached_result is not None:
+                    # Use cached result
+                    out.append(cached_result)
+                    # We need to also set vals[idx] for potential LN references
+                    # Extract the raw value from cache for vals
+                    if idx + 1 in self.raw_values:
+                        vals[idx] = self.raw_values[idx + 1]
+                    else:
+                        # Try to parse numeric value from cached result
+                        try:
+                            if isinstance(cached_result, str) and cached_result.replace(',', '').replace('.', '').replace('-', '').isdigit():
+                                vals[idx] = float(cached_result.replace(',', ''))
+                            else:
+                                vals[idx] = cached_result
+                        except:
+                            vals[idx] = cached_result
+                    
+                    # Update LN value map
+                    blk = doc.findBlockByNumber(idx)
+                    data = blk.userData()
+                    if isinstance(data, LineData):
+                        self.editor.ln_value_map[data.id] = vals[idx]
+                    continue
+
             # Tab switching optimization - Check for cross-sheet references in this line
             if re.search(r'\bS\.[^.]+\.LN\d+\b', s, re.IGNORECASE):
                 detected_cross_sheet_refs = True
@@ -4150,7 +4214,11 @@ class Worksheet(QWidget):
                         vals[idx] = date_result
                         if current_id:
                             self.editor.ln_value_map[current_id] = vals[idx]
-                        out.append(self.format_number_for_display(date_result, idx))
+                        formatted_result = self.format_number_for_display(date_result, idx)
+                        out.append(formatted_result)
+                        # Stage 1: Cache the result (if no references)
+                        if not has_references:
+                            self.cache_evaluation_result(line.strip(), date_result, formatted_result, idx + 1)
                         continue
 
                 # Check for unit conversion
@@ -4159,7 +4227,11 @@ class Worksheet(QWidget):
                     vals[idx] = unit_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(unit_result, idx))
+                    formatted_result = self.format_number_for_display(unit_result, idx)
+                    out.append(formatted_result)
+                    # Stage 1: Cache the result (if no references)
+                    if not has_references:
+                        self.cache_evaluation_result(line.strip(), unit_result, formatted_result, idx + 1)
                     continue
 
                 # Check for currency conversion
@@ -4168,7 +4240,11 @@ class Worksheet(QWidget):
                     vals[idx] = currency_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(currency_result, idx))
+                    formatted_result = self.format_number_for_display(currency_result, idx)
+                    out.append(formatted_result)
+                    # Stage 1: Cache the result (if no references)
+                    if not has_references:
+                        self.cache_evaluation_result(line.strip(), currency_result, formatted_result, idx + 1)
                     continue
 
                 # Check for truncate function call (both truncate and TR)
@@ -4220,7 +4296,12 @@ class Worksheet(QWidget):
                     # print(f"Stored value {v} for line ID {current_id}")  # Debug print - commented for performance
                 
                 # Format the output
-                out.append(self.format_number_for_display(v, idx))
+                formatted_result = self.format_number_for_display(v, idx)
+                out.append(formatted_result)
+                
+                # Stage 1: Cache the result (if no references)
+                if not has_references:
+                    self.cache_evaluation_result(line.strip(), v, formatted_result, idx + 1)
             except TimecodeError as e:
                 # Handle TimecodeError specifically to show the actual error message
                 # print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print - commented for performance
@@ -4260,6 +4341,209 @@ class Worksheet(QWidget):
             except:
                 return None
         return None
+
+    # Stage 1 Performance Optimization Methods
+    def _update_line_hashes(self):
+        """Update cached hashes for all current lines"""
+        import hashlib
+        self._line_hashes = {}
+        for i, line in enumerate(self._last_lines):
+            # Create a hash of the line content for fast comparison
+            line_hash = hashlib.md5(line.encode('utf-8')).hexdigest()
+            self._line_hashes[i] = line_hash
+
+    def detect_changed_lines(self, old_text, new_text):
+        """Compare line by line to identify actual changes - Stage 1 optimization"""
+        import hashlib
+        
+        old_lines = old_text.split('\n')
+        new_lines = new_text.split('\n')
+        changed_lines = set()
+        
+        # Check for content changes in existing lines
+        max_lines = max(len(old_lines), len(new_lines))
+        for i in range(max_lines):
+            old_line = old_lines[i] if i < len(old_lines) else ""
+            new_line = new_lines[i] if i < len(new_lines) else ""
+            
+            if old_line != new_line:
+                changed_lines.add(i)
+        
+        # Update our tracking variables
+        self._last_lines = new_lines
+        self._changed_lines = changed_lines
+        self._update_line_hashes()
+        
+        return changed_lines
+
+    def analyze_change_type(self, changed_lines):
+        """Analyze the type of changes to determine optimal evaluation strategy - Stage 1"""
+        if not changed_lines:
+            return 'none'
+        
+        # Sample a few changed lines to determine change type
+        sample_lines = []
+        for line_idx in list(changed_lines)[:3]:  # Sample up to 3 lines
+            if line_idx < len(self._last_lines):
+                sample_lines.append(self._last_lines[line_idx].strip())
+        
+        # Check if changes are only whitespace
+        non_whitespace_changes = False
+        for line in sample_lines:
+            if line and not line.isspace():
+                non_whitespace_changes = True
+                break
+        
+        if not non_whitespace_changes:
+            return 'whitespace'
+        
+        # Check for simple math expressions
+        simple_math_pattern = r'^[0-9\s+\-*/().]+$'
+        ln_pattern = r'\bLN\d+\b'
+        cross_sheet_pattern = r'\bS\.[^.]+\.LN\d+\b'
+        function_pattern = r'\b(?:TC|AR|truncate|mean|TR)\s*\('
+        
+        has_ln_refs = False
+        has_cross_sheet = False
+        has_functions = False
+        has_simple_math = False
+        
+        for line in sample_lines:
+            if not line:
+                continue
+                
+            if re.search(cross_sheet_pattern, line, re.IGNORECASE):
+                has_cross_sheet = True
+            elif re.search(ln_pattern, line, re.IGNORECASE):
+                has_ln_refs = True
+            elif re.search(function_pattern, line, re.IGNORECASE):
+                has_functions = True
+            elif re.match(simple_math_pattern, line):
+                has_simple_math = True
+        
+        # Return most complex type found
+        if has_cross_sheet:
+            return 'cross_sheet'
+        elif has_ln_refs:
+            return 'ln_reference'
+        elif has_functions:
+            return 'complex'
+        elif has_simple_math:
+            return 'simple_math'
+        else:
+            return 'complex'  # Default to complex for unknown patterns
+
+    def start_smart_evaluation_timer(self, changed_lines):
+        """Start evaluation timer with intelligent delay based on change type - Stage 1"""
+        import time
+        
+        self._last_change_time = time.time()
+        change_type = self.analyze_change_type(changed_lines)
+        self._change_type = change_type
+        
+        # Set timer interval based on change type
+        if change_type == 'none' or change_type == 'whitespace':
+            # No evaluation needed for whitespace-only changes
+            return
+        elif change_type == 'simple_math':
+            # Fast evaluation for simple math
+            interval = 100  # 100ms for simple expressions
+        elif change_type == 'ln_reference':
+            # Medium delay for LN references
+            interval = 200  # 200ms for LN references
+        elif change_type == 'cross_sheet':
+            # Longer delay for cross-sheet references
+            interval = 400  # 400ms for cross-sheet refs
+        else:  # complex or unknown
+            # Standard delay for complex expressions
+            interval = 300  # 300ms for complex expressions
+        
+        self.timer.setInterval(interval)
+        self.timer.start()
+
+    def get_cached_result(self, line_content, line_number):
+        """Get cached evaluation result if available - Stage 1 optimization"""
+        import hashlib
+        
+        if not line_content.strip():
+            return None
+            
+        # Create hash for the line content
+        line_hash = hashlib.md5(line_content.encode('utf-8')).hexdigest()
+        
+        # Check if we have a cached result
+        if line_hash in self._expression_cache:
+            cached_result, cached_formatted = self._expression_cache[line_hash]
+            
+            # Update raw values for cached results
+            if isinstance(cached_result, (int, float)):
+                self.raw_values[line_number] = cached_result
+            
+            return cached_formatted
+        
+        return None
+
+    def cache_evaluation_result(self, line_content, result, formatted_result, line_number):
+        """Cache evaluation result for future use - Stage 1 optimization"""
+        import hashlib
+        
+        if not line_content.strip():
+            return
+            
+        # Create hash for the line content
+        line_hash = hashlib.md5(line_content.encode('utf-8')).hexdigest()
+        
+        # Manage cache size
+        if len(self._expression_cache) >= self._cache_max_size:
+            # Remove oldest entries (simple FIFO approach)
+            keys_to_remove = list(self._expression_cache.keys())[:100]
+            for key in keys_to_remove:
+                del self._expression_cache[key]
+        
+        # Store the result
+        self._expression_cache[line_hash] = (result, formatted_result)
+
+    def should_skip_evaluation(self, changed_lines):
+        """Determine if evaluation should be skipped - Stage 1 optimization"""
+        if not changed_lines:
+            return True
+            
+        # Skip if only whitespace changes
+        change_type = self.analyze_change_type(changed_lines)
+        if change_type == 'whitespace':
+            return True
+            
+        return False
+
+    def _sync_editor_to_results(self, value):
+        """Sync results scrollbar when editor scrollbar changes"""
+        if not self._syncing_scroll:
+            start_time = None
+            if hasattr(self.editor, '_log_perf'):
+                start_time = self.editor._log_perf("_sync_editor_to_results")
+                
+            self._syncing_scroll = True
+            try:
+                # Get the editor's scrollbar
+                editor_scrollbar = self.editor.verticalScrollBar()
+                results_scrollbar = self.results.verticalScrollBar()
+                
+                # Calculate the scroll ratio to handle different content heights
+                editor_max = max(1, editor_scrollbar.maximum())
+                results_max = max(1, results_scrollbar.maximum())
+                
+                if editor_max > 0 and results_max > 0:
+                    # Calculate proportional position
+                    ratio = value / editor_max if editor_max > 0 else 0
+                    target_value = int(ratio * results_max)
+                    results_scrollbar.setValue(target_value)
+                else:
+                    # Direct value if no scaling needed
+                    results_scrollbar.setValue(value)
+            finally:
+                self._syncing_scroll = False
+                if start_time and hasattr(self.editor, '_log_perf'):
+                    self.editor._log_perf("_sync_editor_to_results", start_time)
 
 class Calculator(QWidget):
     def __init__(self):
