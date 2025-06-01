@@ -3523,6 +3523,416 @@ class Worksheet(QWidget):
         
         return expr
 
+    def _handle_special_commands(self, expr, idx, lines, vals):
+        """Handle special commands like sum() and mean(), with timecode support for min/max/mean"""
+        # Extract range or list from parentheses
+        match = re.match(r'(\w+)\((.*?)\)', expr.strip())
+        if not match:
+            return None
+        
+        cmd_type, args = match.groups()
+        cmd_type = cmd_type.lower()  # Make case-insensitive
+        
+        # Check if this is a special command
+        if cmd_type not in ('sum', 'mean', 'meanfps', 'median', 'mode', 'min', 'max', 'range', 'count', 
+                          'product', 'variance', 'stdev', 'std', 'geomean', 'harmmean', 
+                          'sumsq', 'perc5', 'perc95'):
+            return None
+        
+        # Helper function to detect if a value is a timecode
+        def is_timecode(value):
+            if isinstance(value, str):
+                # Check if it matches timecode pattern HH:MM:SS:FF
+                return bool(re.match(r'^\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}$', value))
+            return False
+        
+        # Helper function to convert timecode to frames (using 24fps as default for comparison)
+        def timecode_to_frames_for_comparison(tc_str, fps=24.0):
+            try:
+                return timecode_to_frames(tc_str, fps)
+            except:
+                return 0
+        
+        # Helper function to find nearest comment line above
+        def find_comment_above(start_idx):
+            for i in range(start_idx - 1, -1, -1):
+                if i < len(lines):
+                    line_text = lines[i].strip()
+                    if line_text.startswith(":::"):
+                        return i
+            return -1  # No comment found, go to beginning
+        
+        # Helper function to find nearest comment line below
+        def find_comment_below(start_idx):
+            for i in range(start_idx + 1, len(lines)):
+                line_text = lines[i].strip()
+                if line_text.startswith(":::"):
+                    return i
+            return len(lines)  # No comment found, go to end
+        
+        # Helper function to temporarily evaluate a line if it hasn't been evaluated yet
+        def evaluate_line_if_needed(line_idx):
+            if line_idx >= len(vals) or line_idx >= len(lines):
+                return None
+                
+            # If already evaluated, return existing value
+            if vals[line_idx] is not None:
+                return vals[line_idx]
+            
+            # Skip empty lines and comments
+            line_text = lines[line_idx].strip()
+            if not line_text or line_text.startswith(":::"):
+                return None
+            
+            # Try to evaluate the line temporarily
+            try:
+                # Pre-process the expression
+                processed_line = self._preprocess_expression(line_text)
+                
+                # Handle special cases that need evaluation context
+                if re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", processed_line, re.IGNORECASE):
+                    # This line has LN references, we can't evaluate it safely here
+                    return None
+                
+                # Try simple evaluation
+                result = eval(processed_line, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
+                return result
+            except:
+                return None
+        
+        # Function to get values from a range of lines (supporting both numbers and timecodes)
+        def get_values_from_range(start_end, timecode_mode=False):
+            values = []
+            try:
+                # Handle special keywords
+                if start_end.lower() == 'above':
+                    # All lines above current
+                    for i in range(idx):
+                        if i < len(vals) and vals[i] is not None:
+                            if timecode_mode or is_timecode(vals[i]):
+                                values.append(vals[i])
+                            elif isinstance(vals[i], (int, float)):
+                                values.append(vals[i])
+                elif start_end.lower() == 'below':
+                    # All lines below current - evaluate if needed
+                    for i in range(idx + 1, len(lines)):
+                        value = evaluate_line_if_needed(i)
+                        if value is not None:
+                            if timecode_mode or is_timecode(value):
+                                values.append(value)
+                            elif isinstance(value, (int, float)):
+                                values.append(value)
+                elif start_end.lower() == 'cg-above':
+                    # From current line to nearest comment above
+                    comment_idx = find_comment_above(idx)
+                    start_line = comment_idx + 1 if comment_idx >= 0 else 0
+                    for i in range(start_line, idx):
+                        if i < len(vals) and vals[i] is not None:
+                            if timecode_mode or is_timecode(vals[i]):
+                                values.append(vals[i])
+                            elif isinstance(vals[i], (int, float)):
+                                values.append(vals[i])
+                elif start_end.lower() == 'cg-below':
+                    # From current line to nearest comment below - evaluate if needed
+                    comment_idx = find_comment_below(idx)
+                    for i in range(idx + 1, comment_idx):
+                        value = evaluate_line_if_needed(i)
+                        if value is not None:
+                            if timecode_mode or is_timecode(value):
+                                values.append(value)
+                            elif isinstance(value, (int, float)):
+                                values.append(value)
+                elif '-' in start_end and ',' not in start_end:
+                    # Range notation like "1-5"
+                    start, end = map(int, start_end.split('-'))
+                    for i in range(start-1, end):
+                        if i < len(vals) and vals[i] is not None:
+                            if timecode_mode or is_timecode(vals[i]):
+                                values.append(vals[i])
+                            elif isinstance(vals[i], (int, float)):
+                                values.append(vals[i])
+                        elif i >= len(vals) or vals[i] is None:
+                            # Try to evaluate if not yet processed
+                            value = evaluate_line_if_needed(i)
+                            if value is not None:
+                                if timecode_mode or is_timecode(value):
+                                    values.append(value)
+                                elif isinstance(value, (int, float)):
+                                    values.append(value)
+                else:
+                    # Comma-separated line numbers like "1,3,5"
+                    for arg in start_end.split(','):
+                        line_num = int(arg.strip()) - 1
+                        if line_num < len(vals) and vals[line_num] is not None:
+                            if timecode_mode or is_timecode(vals[line_num]):
+                                values.append(vals[line_num])
+                            elif isinstance(vals[line_num], (int, float)):
+                                values.append(vals[line_num])
+                        elif line_num >= len(vals) or vals[line_num] is None:
+                            # Try to evaluate if not yet processed
+                            value = evaluate_line_if_needed(line_num)
+                            if value is not None:
+                                if timecode_mode or is_timecode(value):
+                                    values.append(value)
+                                elif isinstance(value, (int, float)):
+                                    values.append(value)
+            except:
+                pass
+            return values
+
+        # Special handling for meanfps function with timecode support
+        if cmd_type == 'meanfps':
+            # meanfps(fps, range) format for timecode averaging
+            args_list = [arg.strip() for arg in args.split(',') if arg.strip()]
+            
+            if len(args_list) < 1:
+                return "ERROR: meanfps requires fps parameter: meanfps(fps, range)"
+            
+            try:
+                fps = float(args_list[0])
+                range_args = ','.join(args_list[1:]) if len(args_list) > 1 else ''
+                
+                # Get values for the range
+                if not range_args:
+                    # Empty range, use all lines above
+                    values = []
+                    for i in range(idx):
+                        if vals[i] is not None:
+                            values.append(vals[i])
+                else:
+                    values = get_values_from_range(range_args, timecode_mode=True)
+                
+                if not values:
+                    return None
+                
+                # Convert all timecodes to frame counts
+                frame_counts = []
+                for v in values:
+                    if is_timecode(v):
+                        try:
+                            frame_counts.append(timecode_to_frames(v, fps))
+                        except:
+                            continue
+                    elif isinstance(v, (int, float)):
+                        # If it's already a number, assume it's frame count
+                        frame_counts.append(int(v))
+                
+                if not frame_counts:
+                    return None
+                
+                # Calculate mean frame count
+                mean_frames = sum(frame_counts) / len(frame_counts)
+                
+                # Truncate to integer
+                mean_frames_int = int(round(mean_frames))
+                
+                # Convert back to timecode using the provided fps
+                try:
+                    result_timecode = frames_to_timecode(mean_frames_int, fps)
+                    return result_timecode
+                except:
+                    return None
+            except:
+                return "ERROR: Invalid fps parameter in meanfps function"
+        
+        # Simplified mean function (numbers only)
+        if cmd_type == 'mean':
+            # Get values from range
+            if not args.strip():
+                # Empty parentheses, use all lines above
+                values = []
+                for i in range(idx):
+                    if vals[i] is not None:
+                        if isinstance(vals[i], (int, float)):
+                            values.append(float(vals[i]))
+                        elif is_timecode(vals[i]):
+                            return "ERROR: Timecode detected - use meanfps(fps, range) for timecode averaging"
+            else:
+                values = get_values_from_range(args)
+                if isinstance(values, str):  # Error message
+                    return values
+                values = [float(v) for v in values if isinstance(v, (int, float))]
+            
+            if not values:
+                return None
+            
+            return sum(values) / len(values)
+        
+        # Handle min and max with timecode support
+        if cmd_type in ('min', 'max'):
+            # Get values from range
+            if not args.strip():
+                # Empty parentheses, use all lines above
+                values = []
+                for i in range(idx):
+                    if vals[i] is not None:
+                        values.append(vals[i])
+            else:
+                values = get_values_from_range(args)
+            
+            if not values:
+                return None
+            
+            # Check if any values are timecodes
+            has_timecodes = any(is_timecode(v) for v in values)
+            
+            if has_timecodes:
+                # All values should be timecodes for consistent comparison
+                timecode_values = [v for v in values if is_timecode(v)]
+                if len(timecode_values) != len(values):
+                    # Mixed timecode and numeric values
+                    return f"ERROR: {cmd_type.upper()} function cannot mix timecode and numeric values"
+                
+                # Convert to frames for comparison (using 24fps as default)
+                timecode_frames = []
+                for tc in timecode_values:
+                    try:
+                        frames = timecode_to_frames_for_comparison(tc, 24.0)
+                        timecode_frames.append((frames, tc))
+                    except:
+                        continue
+                
+                if not timecode_frames:
+                    return None
+                
+                # Find min or max based on frame count
+                if cmd_type == 'min':
+                    result = min(timecode_frames, key=lambda x: x[0])
+                else:  # max
+                    result = max(timecode_frames, key=lambda x: x[0])
+                
+                return result[1]  # Return the original timecode string
+            else:
+                # Regular numeric values
+                numbers = [float(v) for v in values if isinstance(v, (int, float))]
+                if not numbers:
+                    return None
+                
+                if cmd_type == 'min':
+                    return min(numbers)
+                else:  # max
+                    return max(numbers)
+        
+        # Regular processing for other functions (numbers only)
+        def get_numbers_from_range(start_end):
+            numbers = []
+            try:
+                # Handle special keywords
+                if start_end.lower() == 'above':
+                    # All lines above current
+                    for i in range(idx):
+                        if i < len(vals) and vals[i] is not None:
+                            if isinstance(vals[i], (int, float)):
+                                numbers.append(float(vals[i]))
+                            elif is_timecode(vals[i]):
+                                return "ERROR: Timecode values not supported for this function"
+                elif start_end.lower() == 'below':
+                    # All lines below current - evaluate if needed
+                    for i in range(idx + 1, len(lines)):
+                        value = evaluate_line_if_needed(i)
+                        if value is not None:
+                            if isinstance(value, (int, float)):
+                                numbers.append(float(value))
+                            elif is_timecode(value):
+                                return "ERROR: Timecode values not supported for this function"
+                elif start_end.lower() == 'cg-above':
+                    # From current line to nearest comment above
+                    comment_idx = find_comment_above(idx)
+                    start_line = comment_idx + 1 if comment_idx >= 0 else 0
+                    for i in range(start_line, idx):
+                        if i < len(vals) and vals[i] is not None:
+                            if isinstance(vals[i], (int, float)):
+                                numbers.append(float(vals[i]))
+                            elif is_timecode(vals[i]):
+                                return "ERROR: Timecode values not supported for this function"
+                elif start_end.lower() == 'cg-below':
+                    # From current line to nearest comment below - evaluate if needed
+                    comment_idx = find_comment_below(idx)
+                    for i in range(idx + 1, comment_idx):
+                        value = evaluate_line_if_needed(i)
+                        if value is not None:
+                            if isinstance(value, (int, float)):
+                                numbers.append(float(value))
+                            elif is_timecode(value):
+                                return "ERROR: Timecode values not supported for this function"
+                elif '-' in start_end and ',' not in start_end:
+                    # Range notation like "1-5"
+                    start, end = map(int, start_end.split('-'))
+                    for i in range(start-1, end):
+                        if i < len(vals) and vals[i] is not None:
+                            if isinstance(vals[i], (int, float)):
+                                numbers.append(float(vals[i]))
+                            elif is_timecode(vals[i]):
+                                return "ERROR: Timecode values not supported for this function"
+                else:
+                    # Comma-separated line numbers like "1,3,5"
+                    for arg in start_end.split(','):
+                        line_num = int(arg.strip()) - 1
+                        if line_num < len(vals) and vals[line_num] is not None:
+                            if isinstance(vals[line_num], (int, float)):
+                                numbers.append(float(vals[line_num]))
+                            elif is_timecode(vals[line_num]):
+                                return "ERROR: Timecode values not supported for this function"
+            except:
+                pass
+            return numbers
+
+        # If no arguments provided, use all lines above
+        if not args.strip():
+            numbers = []
+            for i in range(idx):
+                if vals[i] is not None:
+                    if isinstance(vals[i], (int, float)):
+                        numbers.append(float(vals[i]))
+                    elif is_timecode(vals[i]) and cmd_type not in ('min', 'max', 'mean', 'meanfps'):
+                        return f"ERROR: Timecode values not supported for {cmd_type.upper()} function"
+        else:
+            numbers = get_numbers_from_range(args)
+            if isinstance(numbers, str):  # Error message
+                return numbers
+        
+        if not numbers:
+            return 0 if cmd_type == 'sum' else None
+
+        # Apply the appropriate operation
+        try:
+            if cmd_type == 'sum':
+                return sum(numbers)
+            elif cmd_type == 'median':
+                return statistics.median(numbers)
+            elif cmd_type == 'mode':
+                try:
+                    return statistics.mode(numbers)
+                except statistics.StatisticsError:
+                    return None  # No unique mode
+            elif cmd_type == 'range':
+                return max(numbers) - min(numbers)
+            elif cmd_type == 'count':
+                return len(numbers)
+            elif cmd_type == 'product':
+                result = 1
+                for n in numbers:
+                    result *= n
+                return result
+            elif cmd_type == 'variance':
+                return statistics.variance(numbers)
+            elif cmd_type in ('stdev', 'std'):
+                return statistics.stdev(numbers)
+            elif cmd_type == 'geomean':
+                return statistics.geometric_mean(numbers)
+            elif cmd_type == 'harmmean':
+                return statistics.harmonic_mean(numbers)
+            elif cmd_type == 'sumsq':
+                return sum(x*x for x in numbers)
+            elif cmd_type == 'perc5':
+                return statistics.quantiles(numbers, n=20)[0]  # 5th percentile
+            elif cmd_type == 'perc95':
+                return statistics.quantiles(numbers, n=20)[18]  # 95th percentile
+        except:
+            return None
+        
+        return None
+
     def evaluate(self):
         """Evaluate formulas and update results"""
         if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
@@ -3572,416 +3982,6 @@ class Worksheet(QWidget):
         
         # Define truncate function locally
         # Using global truncate function instead
-
-        def handle_special_commands(expr, idx):
-            """Handle special commands like sum() and mean(), with timecode support for min/max/mean"""
-            # Extract range or list from parentheses
-            match = re.match(r'(\w+)\((.*?)\)', expr.strip())
-            if not match:
-                return None
-            
-            cmd_type, args = match.groups()
-            cmd_type = cmd_type.lower()  # Make case-insensitive
-            
-            # Check if this is a special command
-            if cmd_type not in ('sum', 'mean', 'meanfps', 'median', 'mode', 'min', 'max', 'range', 'count', 
-                              'product', 'variance', 'stdev', 'std', 'geomean', 'harmmean', 
-                              'sumsq', 'perc5', 'perc95'):
-                return None
-            
-            # Helper function to detect if a value is a timecode
-            def is_timecode(value):
-                if isinstance(value, str):
-                    # Check if it matches timecode pattern HH:MM:SS:FF
-                    return bool(re.match(r'^\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}$', value))
-                return False
-            
-            # Helper function to convert timecode to frames (using 24fps as default for comparison)
-            def timecode_to_frames_for_comparison(tc_str, fps=24.0):
-                try:
-                    return timecode_to_frames(tc_str, fps)
-                except:
-                    return 0
-            
-            # Helper function to find nearest comment line above
-            def find_comment_above(start_idx):
-                for i in range(start_idx - 1, -1, -1):
-                    if i < len(lines):
-                        line_text = lines[i].strip()
-                        if line_text.startswith(":::"):
-                            return i
-                return -1  # No comment found, go to beginning
-            
-            # Helper function to find nearest comment line below
-            def find_comment_below(start_idx):
-                for i in range(start_idx + 1, len(lines)):
-                    line_text = lines[i].strip()
-                    if line_text.startswith(":::"):
-                        return i
-                return len(lines)  # No comment found, go to end
-            
-            # Helper function to temporarily evaluate a line if it hasn't been evaluated yet
-            def evaluate_line_if_needed(line_idx):
-                if line_idx >= len(vals) or line_idx >= len(lines):
-                    return None
-                    
-                # If already evaluated, return existing value
-                if vals[line_idx] is not None:
-                    return vals[line_idx]
-                
-                # Skip empty lines and comments
-                line_text = lines[line_idx].strip()
-                if not line_text or line_text.startswith(":::"):
-                    return None
-                
-                # Try to evaluate the line temporarily
-                try:
-                    # Pre-process the expression
-                    processed_line = self._preprocess_expression(line_text)
-                    
-                    # Handle special cases that need evaluation context
-                    if re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", processed_line, re.IGNORECASE):
-                        # This line has LN references, we can't evaluate it safely here
-                        return None
-                    
-                    # Try simple evaluation
-                    result = eval(processed_line, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
-                    return result
-                except:
-                    return None
-            
-            # Function to get values from a range of lines (supporting both numbers and timecodes)
-            def get_values_from_range(start_end, timecode_mode=False):
-                values = []
-                try:
-                    # Handle special keywords
-                    if start_end.lower() == 'above':
-                        # All lines above current
-                        for i in range(idx):
-                            if i < len(vals) and vals[i] is not None:
-                                if timecode_mode or is_timecode(vals[i]):
-                                    values.append(vals[i])
-                                elif isinstance(vals[i], (int, float)):
-                                    values.append(vals[i])
-                    elif start_end.lower() == 'below':
-                        # All lines below current - evaluate if needed
-                        for i in range(idx + 1, len(lines)):
-                            value = evaluate_line_if_needed(i)
-                            if value is not None:
-                                if timecode_mode or is_timecode(value):
-                                    values.append(value)
-                                elif isinstance(value, (int, float)):
-                                    values.append(value)
-                    elif start_end.lower() == 'cg-above':
-                        # From current line to nearest comment above
-                        comment_idx = find_comment_above(idx)
-                        start_line = comment_idx + 1 if comment_idx >= 0 else 0
-                        for i in range(start_line, idx):
-                            if i < len(vals) and vals[i] is not None:
-                                if timecode_mode or is_timecode(vals[i]):
-                                    values.append(vals[i])
-                                elif isinstance(vals[i], (int, float)):
-                                    values.append(vals[i])
-                    elif start_end.lower() == 'cg-below':
-                        # From current line to nearest comment below - evaluate if needed
-                        comment_idx = find_comment_below(idx)
-                        for i in range(idx + 1, comment_idx):
-                            value = evaluate_line_if_needed(i)
-                            if value is not None:
-                                if timecode_mode or is_timecode(value):
-                                    values.append(value)
-                                elif isinstance(value, (int, float)):
-                                    values.append(value)
-                    elif '-' in start_end and ',' not in start_end:
-                        # Range notation like "1-5"
-                        start, end = map(int, start_end.split('-'))
-                        for i in range(start-1, end):
-                            if i < len(vals) and vals[i] is not None:
-                                if timecode_mode or is_timecode(vals[i]):
-                                    values.append(vals[i])
-                                elif isinstance(vals[i], (int, float)):
-                                    values.append(vals[i])
-                            elif i >= len(vals) or vals[i] is None:
-                                # Try to evaluate if not yet processed
-                                value = evaluate_line_if_needed(i)
-                                if value is not None:
-                                    if timecode_mode or is_timecode(value):
-                                        values.append(value)
-                                    elif isinstance(value, (int, float)):
-                                        values.append(value)
-                    else:
-                        # Comma-separated line numbers like "1,3,5"
-                        for arg in start_end.split(','):
-                            line_num = int(arg.strip()) - 1
-                            if line_num < len(vals) and vals[line_num] is not None:
-                                if timecode_mode or is_timecode(vals[line_num]):
-                                    values.append(vals[line_num])
-                                elif isinstance(vals[line_num], (int, float)):
-                                    values.append(vals[line_num])
-                            elif line_num >= len(vals) or vals[line_num] is None:
-                                # Try to evaluate if not yet processed
-                                value = evaluate_line_if_needed(line_num)
-                                if value is not None:
-                                    if timecode_mode or is_timecode(value):
-                                        values.append(value)
-                                    elif isinstance(value, (int, float)):
-                                        values.append(value)
-                except:
-                    pass
-                return values
-
-            # Special handling for meanfps function with timecode support
-            if cmd_type == 'meanfps':
-                # meanfps(fps, range) format for timecode averaging
-                args_list = [arg.strip() for arg in args.split(',') if arg.strip()]
-                
-                if len(args_list) < 1:
-                    return "ERROR: meanfps requires fps parameter: meanfps(fps, range)"
-                
-                try:
-                    fps = float(args_list[0])
-                    range_args = ','.join(args_list[1:]) if len(args_list) > 1 else ''
-                    
-                    # Get values for the range
-                    if not range_args:
-                        # Empty range, use all lines above
-                        values = []
-                        for i in range(idx):
-                            if vals[i] is not None:
-                                values.append(vals[i])
-                    else:
-                        values = get_values_from_range(range_args, timecode_mode=True)
-                    
-                    if not values:
-                        return None
-                    
-                    # Convert all timecodes to frame counts
-                    frame_counts = []
-                    for v in values:
-                        if is_timecode(v):
-                            try:
-                                frame_counts.append(timecode_to_frames(v, fps))
-                            except:
-                                continue
-                        elif isinstance(v, (int, float)):
-                            # If it's already a number, assume it's frame count
-                            frame_counts.append(int(v))
-                    
-                    if not frame_counts:
-                        return None
-                    
-                    # Calculate mean frame count
-                    mean_frames = sum(frame_counts) / len(frame_counts)
-                    
-                    # Truncate to integer
-                    mean_frames_int = int(round(mean_frames))
-                    
-                    # Convert back to timecode using the provided fps
-                    try:
-                        result_timecode = frames_to_timecode(mean_frames_int, fps)
-                        return result_timecode
-                    except:
-                        return None
-                except:
-                    return "ERROR: Invalid fps parameter in meanfps function"
-            
-            # Simplified mean function (numbers only)
-            if cmd_type == 'mean':
-                # Get values from range
-                if not args.strip():
-                    # Empty parentheses, use all lines above
-                    values = []
-                    for i in range(idx):
-                        if vals[i] is not None:
-                            if isinstance(vals[i], (int, float)):
-                                values.append(float(vals[i]))
-                            elif is_timecode(vals[i]):
-                                return "ERROR: Timecode detected - use meanfps(fps, range) for timecode averaging"
-                else:
-                    values = get_values_from_range(args)
-                    if isinstance(values, str):  # Error message
-                        return values
-                    values = [float(v) for v in values if isinstance(v, (int, float))]
-                
-                if not values:
-                    return None
-                
-                return sum(values) / len(values)
-            
-            # Handle min and max with timecode support
-            if cmd_type in ('min', 'max'):
-                # Get values from range
-                if not args.strip():
-                    # Empty parentheses, use all lines above
-                    values = []
-                    for i in range(idx):
-                        if vals[i] is not None:
-                            values.append(vals[i])
-                else:
-                    values = get_values_from_range(args)
-                
-                if not values:
-                    return None
-                
-                # Check if any values are timecodes
-                has_timecodes = any(is_timecode(v) for v in values)
-                
-                if has_timecodes:
-                    # All values should be timecodes for consistent comparison
-                    timecode_values = [v for v in values if is_timecode(v)]
-                    if len(timecode_values) != len(values):
-                        # Mixed timecode and numeric values
-                        return f"ERROR: {cmd_type.upper()} function cannot mix timecode and numeric values"
-                    
-                    # Convert to frames for comparison (using 24fps as default)
-                    timecode_frames = []
-                    for tc in timecode_values:
-                        try:
-                            frames = timecode_to_frames_for_comparison(tc, 24.0)
-                            timecode_frames.append((frames, tc))
-                        except:
-                            continue
-                    
-                    if not timecode_frames:
-                        return None
-                    
-                    # Find min or max based on frame count
-                    if cmd_type == 'min':
-                        result = min(timecode_frames, key=lambda x: x[0])
-                    else:  # max
-                        result = max(timecode_frames, key=lambda x: x[0])
-                    
-                    return result[1]  # Return the original timecode string
-                else:
-                    # Regular numeric values
-                    numbers = [float(v) for v in values if isinstance(v, (int, float))]
-                    if not numbers:
-                        return None
-                    
-                    if cmd_type == 'min':
-                        return min(numbers)
-                    else:  # max
-                        return max(numbers)
-            
-            # Regular processing for other functions (numbers only)
-            def get_numbers_from_range(start_end):
-                numbers = []
-                try:
-                    # Handle special keywords
-                    if start_end.lower() == 'above':
-                        # All lines above current
-                        for i in range(idx):
-                            if i < len(vals) and vals[i] is not None:
-                                if isinstance(vals[i], (int, float)):
-                                    numbers.append(float(vals[i]))
-                                elif is_timecode(vals[i]):
-                                    return "ERROR: Timecode values not supported for this function"
-                    elif start_end.lower() == 'below':
-                        # All lines below current - evaluate if needed
-                        for i in range(idx + 1, len(lines)):
-                            value = evaluate_line_if_needed(i)
-                            if value is not None:
-                                if isinstance(value, (int, float)):
-                                    numbers.append(float(value))
-                                elif is_timecode(value):
-                                    return "ERROR: Timecode values not supported for this function"
-                    elif start_end.lower() == 'cg-above':
-                        # From current line to nearest comment above
-                        comment_idx = find_comment_above(idx)
-                        start_line = comment_idx + 1 if comment_idx >= 0 else 0
-                        for i in range(start_line, idx):
-                            if i < len(vals) and vals[i] is not None:
-                                if isinstance(vals[i], (int, float)):
-                                    numbers.append(float(vals[i]))
-                                elif is_timecode(vals[i]):
-                                    return "ERROR: Timecode values not supported for this function"
-                    elif start_end.lower() == 'cg-below':
-                        # From current line to nearest comment below - evaluate if needed
-                        comment_idx = find_comment_below(idx)
-                        for i in range(idx + 1, comment_idx):
-                            value = evaluate_line_if_needed(i)
-                            if value is not None:
-                                if isinstance(value, (int, float)):
-                                    numbers.append(float(value))
-                                elif is_timecode(value):
-                                    return "ERROR: Timecode values not supported for this function"
-                    elif '-' in start_end and ',' not in start_end:
-                        # Range notation like "1-5"
-                        start, end = map(int, start_end.split('-'))
-                        for i in range(start-1, end):
-                            if i < len(vals) and vals[i] is not None:
-                                if isinstance(vals[i], (int, float)):
-                                    numbers.append(float(vals[i]))
-                                elif is_timecode(vals[i]):
-                                    return "ERROR: Timecode values not supported for this function"
-                    else:
-                        # Comma-separated line numbers like "1,3,5"
-                        for arg in start_end.split(','):
-                            line_num = int(arg.strip()) - 1
-                            if line_num < len(vals) and vals[line_num] is not None:
-                                if isinstance(vals[line_num], (int, float)):
-                                    numbers.append(float(vals[line_num]))
-                                elif is_timecode(vals[line_num]):
-                                    return "ERROR: Timecode values not supported for this function"
-                except:
-                    pass
-                return numbers
-
-            # If no arguments provided, use all lines above
-            if not args.strip():
-                numbers = []
-                for i in range(idx):
-                    if vals[i] is not None:
-                        if isinstance(vals[i], (int, float)):
-                            numbers.append(float(vals[i]))
-                        elif is_timecode(vals[i]) and cmd_type not in ('min', 'max', 'mean', 'meanfps'):
-                            return f"ERROR: Timecode values not supported for {cmd_type.upper()} function"
-            else:
-                numbers = get_numbers_from_range(args)
-                if isinstance(numbers, str):  # Error message
-                    return numbers
-            
-            if not numbers:
-                return 0 if cmd_type == 'sum' else None
-
-            # Apply the appropriate operation
-            try:
-                if cmd_type == 'sum':
-                    return sum(numbers)
-                elif cmd_type == 'median':
-                    return statistics.median(numbers)
-                elif cmd_type == 'mode':
-                    try:
-                        return statistics.mode(numbers)
-                    except statistics.StatisticsError:
-                        return None  # No unique mode
-                elif cmd_type == 'range':
-                    return max(numbers) - min(numbers)
-                elif cmd_type == 'count':
-                    return len(numbers)
-                elif cmd_type == 'product':
-                    result = 1
-                    for n in numbers:
-                        result *= n
-                    return result
-                elif cmd_type == 'variance':
-                    return statistics.variance(numbers)
-                elif cmd_type in ('stdev', 'std'):
-                    return statistics.stdev(numbers)
-                elif cmd_type == 'geomean':
-                    return statistics.geometric_mean(numbers)
-                elif cmd_type == 'harmmean':
-                    return statistics.harmonic_mean(numbers)
-                elif cmd_type == 'sumsq':
-                    return sum(x*x for x in numbers)
-                elif cmd_type == 'perc5':
-                    return statistics.quantiles(numbers, n=20)[0]  # 5th percentile
-                elif cmd_type == 'perc95':
-                    return statistics.quantiles(numbers, n=20)[18]  # 95th percentile
-            except:
-                return None
-            
-            return None
 
         def handle_unit_conversion(expr):
             """Handle unit conversion expressions like '1 mile to km'"""
@@ -4095,7 +4095,7 @@ class Worksheet(QWidget):
                     continue
 
                 # Try special commands
-                cmd_result = handle_special_commands(s, idx)
+                cmd_result = self._handle_special_commands(s, idx, lines, vals)
                 if cmd_result is not None:
                     vals[idx] = cmd_result
                     if current_id:
