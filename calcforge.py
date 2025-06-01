@@ -1683,7 +1683,19 @@ class EditorCrossSheetMixin:
         return value
 
     def process_ln_refs(self, expr):
-        """Replace LN references and cross-sheet references with their values"""
+        """Replace LN references and cross-sheet references with their values - Stage 2 Optimized"""
+        # Stage 2 Optimization: Check cache first
+        expr_hash = hash(expr)
+        if expr_hash in self._ln_reference_cache:
+            return self._ln_reference_cache[expr_hash]
+        
+        original_expr = expr
+        
+        # Stage 2 Optimization: Single-pass normalization using pre-compiled patterns
+        expr = self._ln_normalization_pattern.sub(lambda m: f"S.{m.group(1)}.LN", expr)
+        expr = self._ln_case_pattern.sub(lambda m: f"LN{m.group(1)}", expr)
+        
+        # Stage 2 Optimization: Single-pass replacement using efficient callback
         def repl(m):
             # Check if this is a cross-sheet reference
             if m.group(1) and m.group(2):  # We have a sheet reference
@@ -1704,22 +1716,32 @@ class EditorCrossSheetMixin:
                         v = self.get_numeric_value(v)
                         return str(v)
                 return "0"
-
-        # First capitalize s. to S. for consistency
-        expr = re.sub(r'\bs\.(.*?)\.ln', lambda m: f"S.{m.group(1)}.LN", expr, flags=re.IGNORECASE)
-        # Then capitalize ln to LN in all cases
-        expr = re.sub(r'\bln(\d+)\b', lambda m: f"LN{m.group(1)}", expr, flags=re.IGNORECASE)
         
-        # Pattern for both cross-sheet and regular references
-        # Group 1 and 2 will be None for regular LN refs
-        pattern = r'\b(S\.)(.*?)\.LN(\d+)\b|\bLN(\d+)\b'
-        
-        # Keep replacing until no more changes
-        prev_expr = None
-        while prev_expr != expr:
-            prev_expr = expr
-            expr = re.sub(pattern, repl, expr)
+        # Stage 2 Optimization: Single-pass replacement instead of loop
+        # Check if we need to process any LN references at all
+        if 'LN' in expr:
+            prev_expr = None
+            iteration_count = 0
+            max_iterations = 10  # Safety limit to prevent infinite loops
             
+            while prev_expr != expr and iteration_count < max_iterations:
+                prev_expr = expr
+                expr = self._ln_combined_pattern.sub(repl, expr)
+                iteration_count += 1
+                
+                # Early exit if no more LN references to process
+                if 'LN' not in expr:
+                    break
+        
+        # Stage 2 Optimization: Cache the result for future use
+        self._ln_reference_cache[expr_hash] = expr
+        
+        # Limit cache size to prevent memory issues
+        if len(self._ln_reference_cache) > 1000:
+            # Remove oldest entries (simple FIFO)
+            items = list(self._ln_reference_cache.items())
+            self._ln_reference_cache = dict(items[-500:])  # Keep last 500 entries
+        
         return expr
 
     def build_cross_sheet_cache(self):
@@ -2303,8 +2325,15 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         self._nav_move_count = 0
         self._last_nav_time = 0
         
+        # Add pre-compiled regex patterns for Stage 2 optimization after the existing cache declarations
         # Cache LN reference parsing to avoid regex on every move
         self._line_ln_cache = {}  # line_number -> list of ln_matches
+        
+        # Stage 2 Optimization: Pre-compiled regex patterns for LN reference processing
+        self._ln_normalization_pattern = re.compile(r'\bs\.(.*?)\.ln', re.IGNORECASE)
+        self._ln_case_pattern = re.compile(r'\bln(\d+)\b', re.IGNORECASE)
+        self._ln_combined_pattern = re.compile(r'\b(S\.)(.*?)\.LN(\d+)\b|\bLN(\d+)\b')
+        self._ln_reference_cache = {}  # expr_hash -> processed_expr for caching LN reference processing
         
         # Add debugging tools for performance analysis
         self._debug_enabled = True  # Set to False to disable debugging
@@ -2998,6 +3027,47 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         
         # For all other keys, call parent implementation
         super().keyPressEvent(event)
+
+    def clear_ln_reference_cache(self):
+        """Clear the LN reference cache - Stage 2 Optimization support method"""
+        if hasattr(self, '_ln_reference_cache'):
+            self._ln_reference_cache.clear()
+
+    def build_cross_sheet_cache(self):
+        """Build cache for fast cross-sheet lookups"""
+        calculator = self.get_calculator()
+        if not calculator:
+            return
+            
+        self._cross_sheet_cache.clear()
+        
+        # Build cache for all sheets
+        for i in range(calculator.tabs.count()):
+            sheet = calculator.tabs.widget(i)
+            if sheet != self.parent and hasattr(sheet, 'editor'):
+                sheet_name = calculator.tabs.tabText(i).lower()
+                sheet_cache = {}
+                
+                doc = sheet.editor.document()
+                for j in range(doc.blockCount()):
+                    blk = doc.findBlockByNumber(j)
+                    user_data = blk.userData()
+                    if isinstance(user_data, LineData):
+                        sheet_cache[user_data.id] = j
+                        
+                self._cross_sheet_cache[sheet_name] = sheet_cache
+
+    def invalidate_all_cross_sheet_caches(self):
+        """Invalidate cross-sheet caches in all editor instances"""
+        for i in range(self.tabs.count()):
+            sheet = self.tabs.widget(i)
+            if hasattr(sheet, 'editor'):
+                # Clear original cross-sheet cache
+                if hasattr(sheet.editor, '_cross_sheet_cache'):
+                    sheet.editor._cross_sheet_cache.clear()
+                # Stage 2 Fix: Also clear LN reference cache when cross-sheet values change
+                if hasattr(sheet.editor, '_ln_reference_cache'):
+                    sheet.editor._ln_reference_cache.clear()
 
 class Worksheet(QWidget):
     def __init__(self, parent=None):
@@ -4028,6 +4098,10 @@ class Worksheet(QWidget):
         evaluation_context['lines'] = self.editor.toPlainText().split("\n")
         evaluation_context['vals'] = [None] * len(evaluation_context['lines'])
         self.editor.ln_value_map = {}
+        
+        # Stage 2 Optimization: Clear LN reference cache when values change
+        self.editor.clear_ln_reference_cache()
+        
         id_map = {}
         evaluation_context['doc'] = self.editor.document()
         
@@ -5207,6 +5281,16 @@ class Calculator(QWidget):
             # Invalidate cross-sheet caches to ensure fresh lookups
             self.invalidate_all_cross_sheet_caches()
             
+            # Stage 2 Fix: Reset highlighting and navigation state when switching tabs
+            if hasattr(current_sheet, 'editor'):
+                # Reset rapid navigation state that might interfere with proper highlighting
+                current_sheet.editor._is_rapid_navigation = False
+                current_sheet.editor._nav_move_count = 0
+                current_sheet.editor._last_nav_time = 0
+                # Stop any pending rapid navigation timer
+                if hasattr(current_sheet.editor, '_rapid_nav_timer'):
+                    current_sheet.editor._rapid_nav_timer.stop()
+            
             # Remove premature change flag clearing - do it after evaluation instead
             # self._sheet_changed_flags[index] = False  # MOVED TO AFTER EACH EVALUATION TYPE
             
@@ -5240,6 +5324,11 @@ class Calculator(QWidget):
                 # Clear the change flag for the current sheet after full evaluation
                 self._sheet_changed_flags[index] = False
         
+        # Stage 2 Fix: Force proper highlighting after tab switch and evaluation
+        if should_evaluate and hasattr(current_sheet, 'editor'):
+            # Force highlighting update with a slight delay to ensure evaluation is complete
+            QTimer.singleShot(50, lambda: current_sheet.editor.highlightCurrentLine())
+        
         # Clear change flag for previous sheet if it was just evaluated due to dependencies
         if self._last_active_sheet is not None and needs_dependency_update:
             # Don't clear the flag if the sheet was actually modified by user
@@ -5252,8 +5341,13 @@ class Calculator(QWidget):
         """Invalidate cross-sheet caches in all editor instances"""
         for i in range(self.tabs.count()):
             sheet = self.tabs.widget(i)
-            if hasattr(sheet, 'editor') and hasattr(sheet.editor, '_cross_sheet_cache'):
-                sheet.editor._cross_sheet_cache.clear()
+            if hasattr(sheet, 'editor'):
+                # Clear original cross-sheet cache
+                if hasattr(sheet.editor, '_cross_sheet_cache'):
+                    sheet.editor._cross_sheet_cache.clear()
+                # Stage 2 Fix: Also clear LN reference cache when cross-sheet values change
+                if hasattr(sheet.editor, '_ln_reference_cache'):
+                    sheet.editor._ln_reference_cache.clear()
 
     def build_dependency_graph(self):
         """Stage 3: Build complete dependency graph for all sheets"""
