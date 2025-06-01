@@ -39,7 +39,7 @@ Implement a smart change tracking system that only evaluates cross-sheet referen
 - Handled tab add/remove/rename operations to maintain flag integrity
 - Initialized change flags for both new and loaded worksheets
 
-### Stage 2: Selective Cross-Sheet Evaluation **[PLANNED]**
+### Stage 2: Selective Cross-Sheet Evaluation ✅ **[COMPLETED]**
 
 **Objectives:**
 - Only re-evaluate lines containing cross-sheet references
@@ -47,14 +47,21 @@ Implement a smart change tracking system that only evaluates cross-sheet referen
 - Pattern detection for `S.SheetName.LN#` references
 
 **Components to implement:**
-- [ ] Add `evaluate_cross_sheet_lines_only()` method to Worksheet
-- [ ] Implement selective line evaluation logic
-- [ ] Cross-sheet pattern detection and line filtering
-- [ ] Preserve non-cross-sheet results during selective evaluation
+- [x] Add `evaluate_cross_sheet_lines_only()` method to Worksheet
+- [x] Implement selective line evaluation logic
+- [x] Cross-sheet pattern detection and line filtering
+- [x] Preserve non-cross-sheet results during selective evaluation
 
 **Expected Performance Gain:**
 - Even faster evaluation when cross-sheet updates are needed
 - Reduced computation overhead on large sheets
+
+**Implementation Summary:**
+- Added `evaluate_cross_sheet_lines_only()` method that only processes lines with S.SheetName.LN# pattern
+- Preserves existing results for non-cross-sheet lines to avoid unnecessary computation
+- Modified `on_tab_changed()` to use selective evaluation for cross-sheet dependency cases
+- Uses regex pattern `\bS\.[^.]+\.LN\d+\b` to identify cross-sheet reference lines
+- Maintains cursor position and scroll synchronization during selective updates
 
 ### Stage 3: Dependency Graph Optimization **[FUTURE]**
 

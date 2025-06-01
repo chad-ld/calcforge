@@ -3827,6 +3827,134 @@ class Worksheet(QWidget):
         # Finalize evaluation and update UI
         self._finalize_evaluation(out, evaluation_context)
 
+    def evaluate_cross_sheet_lines_only(self):
+        """Stage 2 optimization: Only re-evaluate lines containing cross-sheet references"""
+        # Get current content and identify cross-sheet lines
+        lines = self.editor.toPlainText().split("\n")
+        cross_sheet_lines = []
+        
+        # Pattern to detect cross-sheet references: S.SheetName.LN#
+        cross_sheet_pattern = r'\bS\.[^.]+\.LN\d+\b'
+        
+        for idx, line in enumerate(lines):
+            if re.search(cross_sheet_pattern, line, re.IGNORECASE):
+                cross_sheet_lines.append(idx)
+        
+        if not cross_sheet_lines:
+            # No cross-sheet references found, nothing to update
+            return
+        
+        # Get current results text to preserve non-cross-sheet lines
+        current_results = self.results.toPlainText().split('\n')
+        
+        # Ensure we have enough result lines
+        while len(current_results) < len(lines):
+            current_results.append('')
+        
+        # Initialize evaluation context (similar to full evaluation)
+        evaluation_context = self._initialize_evaluation()
+        
+        # Only evaluate the cross-sheet lines
+        doc = evaluation_context['doc']
+        vals = evaluation_context['vals']
+        
+        for line_idx in cross_sheet_lines:
+            if line_idx >= len(lines):
+                continue
+                
+            line = lines[line_idx]
+            self.current_line = line
+            s = line.strip()
+            
+            if not s or s.startswith(":::"):  # Skip empty lines and comments
+                continue
+            
+            # Get the current block and its ID
+            blk = doc.findBlockByNumber(line_idx)
+            data = blk.userData()
+            current_id = data.id if isinstance(data, LineData) else None
+            
+            try:
+                # Pre-process the expression
+                s = self._preprocess_expression(s)
+                
+                # Check for special cases (D(), unit conversion, etc.)
+                d_func_match = re.match(r'D\((.*?)\)', s)
+                if d_func_match:
+                    date_content = d_func_match.group(1)
+                    date_result = handle_date_arithmetic(date_content)
+                    if date_result is not None:
+                        vals[line_idx] = date_result
+                        if current_id:
+                            self.editor.ln_value_map[current_id] = vals[line_idx]
+                        current_results[line_idx] = self.format_number_for_display(date_result, line_idx)
+                        continue
+                
+                # Check for unit conversion
+                unit_result = self._handle_unit_conversion(s)
+                if unit_result is not None:
+                    vals[line_idx] = unit_result
+                    if current_id:
+                        self.editor.ln_value_map[current_id] = vals[line_idx]
+                    current_results[line_idx] = self.format_number_for_display(unit_result, line_idx)
+                    continue
+                
+                # Check for special commands
+                special_result = self._handle_special_commands(s, line_idx, lines, vals)
+                if special_result is not None:
+                    vals[line_idx] = special_result
+                    if current_id:
+                        self.editor.ln_value_map[current_id] = vals[line_idx]
+                    current_results[line_idx] = self.format_number_for_display(special_result, line_idx)
+                    continue
+                
+                # Check for currency conversion
+                currency_result = handle_currency_conversion(s)
+                if currency_result is not None:
+                    vals[line_idx] = currency_result
+                    if current_id:
+                        self.editor.ln_value_map[current_id] = vals[line_idx]
+                    current_results[line_idx] = self.format_number_for_display(currency_result, line_idx)
+                    continue
+                
+                # Process LN references (including cross-sheet ones)
+                s = self.editor.process_ln_refs(s)
+                
+                # Evaluate the expression
+                from calcforge import GLOBALS
+                v = eval(s, {"truncate": truncate, "mean": statistics.mean, "TR": truncate, **GLOBALS}, {})
+                vals[line_idx] = v
+                if current_id:
+                    self.editor.ln_value_map[current_id] = vals[line_idx]
+                
+                # Update only this line in the results
+                current_results[line_idx] = self.format_number_for_display(v, line_idx)
+                
+            except TimecodeError as e:
+                vals[line_idx] = None
+                if current_id:
+                    self.editor.ln_value_map[current_id] = None
+                current_results[line_idx] = f'TC ERROR: {str(e)}'
+            except Exception as e:
+                vals[line_idx] = None
+                if current_id:
+                    self.editor.ln_value_map[current_id] = None
+                current_results[line_idx] = 'ERROR!'
+        
+        # Update results with the modified content
+        updated_results = '\n'.join(current_results)
+        self.results.setPlainText(updated_results)
+        
+        # Preserve cursor and scroll positions
+        cursor = evaluation_context['cursor']
+        self.editor.setTextCursor(cursor)
+        self._syncing_scroll = True
+        self.editor.verticalScrollBar().setValue(evaluation_context['editor_scroll'])
+        self._syncing_scroll = False
+        
+        # Force a sync after content update
+        QTimer.singleShot(10, lambda: self._force_sync_from_editor())
+
     def _initialize_evaluation(self):
         """Initialize evaluation state and prepare data structures"""
         evaluation_context = {}
@@ -4638,7 +4766,7 @@ class Calculator(QWidget):
             return
         
         # Debug output - ENABLE THIS TO DIAGNOSE TAB SWITCHING PERFORMANCE
-        DEBUG_TAB_SWITCHING = True  # Set to False to disable debug output
+        DEBUG_TAB_SWITCHING = False  # Set to False to disable debug output
         if DEBUG_TAB_SWITCHING:
             print(f"\n=== TAB SWITCH DEBUG ===")
             print(f"Switching to tab {index}, last active: {self._last_active_sheet}")
@@ -4680,8 +4808,17 @@ class Calculator(QWidget):
         if should_evaluate:
             # Invalidate cross-sheet caches to ensure fresh lookups
             self.invalidate_all_cross_sheet_caches()
-            # Force evaluation of the newly focused sheet
-            current_sheet.evaluate()
+            
+            # Stage 2 optimization: Use selective evaluation when only cross-sheet updates are needed
+            if (reason.startswith("Previous sheet") and 
+                "changed + current has cross-refs" in reason and
+                hasattr(current_sheet, 'evaluate_cross_sheet_lines_only')):
+                # Only evaluate cross-sheet reference lines for better performance
+                current_sheet.evaluate_cross_sheet_lines_only()
+            else:
+                # Full evaluation for other cases (current sheet modified, first-time switch)
+                current_sheet.evaluate()
+                
             # Clear the change flag for the current sheet after evaluation
             self._sheet_changed_flags[index] = False
         
