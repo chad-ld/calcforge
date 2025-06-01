@@ -3433,6 +3433,96 @@ class Worksheet(QWidget):
         # For non-numeric values, don't store raw value
         return str(value)
 
+    def _preprocess_expression(self, expr):
+        """Pre-process expression to handle padded numbers and other special cases"""
+        # Handle timecode arithmetic first (BEFORE comma removal to preserve function arguments)
+        tc_match = re.match(r'TC\((.*?)\)', expr)
+        if tc_match:
+            tc_args = tc_match.group(1)
+            
+            # Split on commas that aren't inside arithmetic expressions
+            parts = []
+            current = ""
+            paren_level = 0
+            for char in tc_args:
+                if char == ',' and paren_level == 0:
+                    parts.append(current.strip())
+                    current = ""
+                else:
+                    if char == '(':
+                        paren_level += 1
+                    elif char == ')':
+                        paren_level -= 1
+                    current += char
+            if current:
+                parts.append(current.strip())
+            
+            # Process each part
+            processed_parts = []
+            for i, part in enumerate(parts):
+                # Skip the first part (fps)
+                if i == 0:
+                    processed_parts.append(part)
+                    continue
+                    
+                # Handle arithmetic in timecode expressions
+                if any(op in part for op in '+-*/'):
+                    # First convert any timecodes to frame counts
+                    def convert_tc(m):
+                        tc = m.group(0).replace('.', ':')  # Normalize separators
+                        fps = float(parts[0])  # Get fps from first argument
+                        # Use the global timecode_to_frames function
+                        return str(globals()['timecode_to_frames'](tc, fps))
+                    # Match both . and : as separators
+                    part = re.sub(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', convert_tc, part)
+                    # Then evaluate the arithmetic
+                    try:
+                        result = eval(part)
+                        processed_parts.append(str(result))
+                    except:
+                        processed_parts.append(part)
+                else:
+                    # For non-arithmetic parts, check if it's a timecode and quote it
+                    if re.match(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', part):
+                        # Quote the timecode string
+                        part = f'"{part}"'
+                    # If it's a frame number, leave it as is
+                    elif part.isdigit():
+                        pass
+                    # If it looks like a timecode but might have spaces, clean it up and quote it
+                    elif re.search(r'\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}', part):
+                        cleaned = re.sub(r'\s+', '', part).replace('.', ':')
+                        part = f'"{cleaned}"'
+                    processed_parts.append(part)
+            
+            # Reconstruct the TC call
+            expr = f"TC({','.join(processed_parts)})"
+        
+        # Handle aspect ratio calculations
+        ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
+        if ar_match:
+            ar_args = ar_match.group(1)
+            # Split on comma
+            parts = [part.strip() for part in ar_args.split(',')]
+            
+            if len(parts) == 2:
+                # Quote both parts since they contain dimension strings
+                quoted_parts = [f'"{part}"' for part in parts]
+                expr = f"AR({','.join(quoted_parts)})"
+        
+        # Handle commas in numbers (thousands separators) - but avoid function calls
+        # More careful pattern that doesn't match numbers inside parentheses
+        # Pattern to match numbers with commas like 1,234 or 1,234.56
+        # Use negative lookbehind to avoid matching inside function calls
+        # This pattern avoids matching numbers that come after an opening parenthesis
+        comma_number_pattern = r'(?<!\()\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b(?![^()]*\))'
+        expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
+        
+        # Replace numbers with leading zeros outside of timecodes and quoted strings
+        expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
+        
+        return expr
+
     def evaluate(self):
         """Evaluate formulas and update results"""
         if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
@@ -3482,96 +3572,6 @@ class Worksheet(QWidget):
         
         # Define truncate function locally
         # Using global truncate function instead
-
-        def preprocess_expression(expr):
-            """Pre-process expression to handle padded numbers and other special cases"""
-            # Handle timecode arithmetic first (BEFORE comma removal to preserve function arguments)
-            tc_match = re.match(r'TC\((.*?)\)', expr)
-            if tc_match:
-                tc_args = tc_match.group(1)
-                
-                # Split on commas that aren't inside arithmetic expressions
-                parts = []
-                current = ""
-                paren_level = 0
-                for char in tc_args:
-                    if char == ',' and paren_level == 0:
-                        parts.append(current.strip())
-                        current = ""
-                    else:
-                        if char == '(':
-                            paren_level += 1
-                        elif char == ')':
-                            paren_level -= 1
-                        current += char
-                if current:
-                    parts.append(current.strip())
-                
-                # Process each part
-                processed_parts = []
-                for i, part in enumerate(parts):
-                    # Skip the first part (fps)
-                    if i == 0:
-                        processed_parts.append(part)
-                        continue
-                        
-                    # Handle arithmetic in timecode expressions
-                    if any(op in part for op in '+-*/'):
-                        # First convert any timecodes to frame counts
-                        def convert_tc(m):
-                            tc = m.group(0).replace('.', ':')  # Normalize separators
-                            fps = float(parts[0])  # Get fps from first argument
-                            # Use the global timecode_to_frames function
-                            return str(globals()['timecode_to_frames'](tc, fps))
-                        # Match both . and : as separators
-                        part = re.sub(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', convert_tc, part)
-                        # Then evaluate the arithmetic
-                        try:
-                            result = eval(part)
-                            processed_parts.append(str(result))
-                        except:
-                            processed_parts.append(part)
-                    else:
-                        # For non-arithmetic parts, check if it's a timecode and quote it
-                        if re.match(r'\d{1,2}[:.]\d{1,2}[:.]\d{1,2}[:.]\d{1,2}', part):
-                            # Quote the timecode string
-                            part = f'"{part}"'
-                        # If it's a frame number, leave it as is
-                        elif part.isdigit():
-                            pass
-                        # If it looks like a timecode but might have spaces, clean it up and quote it
-                        elif re.search(r'\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}\s*[:.]\s*\d{1,2}', part):
-                            cleaned = re.sub(r'\s+', '', part).replace('.', ':')
-                            part = f'"{cleaned}"'
-                        processed_parts.append(part)
-                
-                # Reconstruct the TC call
-                expr = f"TC({','.join(processed_parts)})"
-            
-            # Handle aspect ratio calculations
-            ar_match = re.match(r'AR\((.*?)\)', expr, re.IGNORECASE)
-            if ar_match:
-                ar_args = ar_match.group(1)
-                # Split on comma
-                parts = [part.strip() for part in ar_args.split(',')]
-                
-                if len(parts) == 2:
-                    # Quote both parts since they contain dimension strings
-                    quoted_parts = [f'"{part}"' for part in parts]
-                    expr = f"AR({','.join(quoted_parts)})"
-            
-            # Handle commas in numbers (thousands separators) - but avoid function calls
-            # More careful pattern that doesn't match numbers inside parentheses
-            # Pattern to match numbers with commas like 1,234 or 1,234.56
-            # Use negative lookbehind to avoid matching inside function calls
-            # This pattern avoids matching numbers that come after an opening parenthesis
-            comma_number_pattern = r'(?<!\()\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b(?![^()]*\))'
-            expr = re.sub(comma_number_pattern, remove_thousands_commas, expr)
-            
-            # Replace numbers with leading zeros outside of timecodes and quoted strings
-            expr = re.sub(r'\b0+(\d+)\b', repl_num, expr)
-            
-            return expr
 
         def handle_special_commands(expr, idx):
             """Handle special commands like sum() and mean(), with timecode support for min/max/mean"""
@@ -3637,7 +3637,7 @@ class Worksheet(QWidget):
                 # Try to evaluate the line temporarily
                 try:
                     # Pre-process the expression
-                    processed_line = preprocess_expression(line_text)
+                    processed_line = self._preprocess_expression(line_text)
                     
                     # Handle special cases that need evaluation context
                     if re.search(r"\b(?:s\.|S\.)?(?:ln|LN)\d+\b", processed_line, re.IGNORECASE):
@@ -4033,7 +4033,7 @@ class Worksheet(QWidget):
                 current_id = data.id if isinstance(data, LineData) else None
 
                 # Pre-process the expression to handle padded numbers
-                s = preprocess_expression(s)
+                s = self._preprocess_expression(s)
 
                 # Check for D() function call first
                 d_func_match = re.match(r'D\((.*?)\)', s)
