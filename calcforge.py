@@ -3983,24 +3983,6 @@ class Worksheet(QWidget):
         # Define truncate function locally
         # Using global truncate function instead
 
-        def handle_unit_conversion(expr):
-            """Handle unit conversion expressions like '1 mile to km'"""
-            match = re.match(r'^([\d.]+)\s+(\w+)\s+to\s+(\w+)$', expr.strip())
-            if match:
-                value, from_unit, to_unit = match.groups()
-                # Handle unit abbreviations
-                from_unit = UNIT_ABBR.get(from_unit.lower(), from_unit)
-                to_unit = UNIT_ABBR.get(to_unit.lower(), to_unit)
-                try:
-                    # Create quantity and convert
-                    q = ureg.Quantity(float(value), from_unit)
-                    result = q.to(to_unit)
-                    # Get the full spelling for display
-                    display_unit = UNIT_DISPLAY.get(to_unit, to_unit)
-                    # Return both the value and the unit
-                    return {'value': float(result.magnitude), 'unit': display_unit}
-                except:
-                    return None
             return None
 
         # Evaluate each line
