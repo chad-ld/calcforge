@@ -2644,20 +2644,40 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                                 pass
                         break
 
-                # Handle LN reference tooltips (keep existing LN tooltip logic)
-                for match in re.finditer(r'\bLN(\d+)\b', text):
+                # Handle LN reference tooltips (including cross-sheet references)
+                found_ln_tooltip = False
+                
+                # First check for cross-sheet references: s.SheetName.ln2 or S.SheetName.LN2
+                for match in re.finditer(r'\b(?:s|S)\.(.+?)\.(?:ln|LN)(\d+)\b', text):
                     start, end = match.span()
                     if start <= pos <= end:
                         found_operator = True
-                        ln_id = int(match.group(1))
-                        val = self.ln_value_map.get(ln_id)
+                        found_ln_tooltip = True
+                        sheet_name = match.group(1)
+                        ln_id = int(match.group(2))
+                        val = self.get_sheet_value(sheet_name, ln_id)
                         if val is not None:
-                            display = f"LN{ln_id} = {val}"
+                            display = f"S.{sheet_name}.LN{ln_id} = {val}"
                         else:
-                            display = f"LN{ln_id} not found"
+                            display = f"S.{sheet_name}.LN{ln_id} not found"
                         QToolTip.showText(event.globalPosition().toPoint(), display, self)
-                        # Don't return True here - let the mouse event continue for text selection
                         break
+                
+                # If no cross-sheet reference found, check for regular LN references
+                if not found_ln_tooltip:
+                    for match in re.finditer(r'\bLN(\d+)\b', text):
+                        start, end = match.span()
+                        if start <= pos <= end:
+                            found_operator = True
+                            ln_id = int(match.group(1))
+                            val = self.ln_value_map.get(ln_id)
+                            if val is not None:
+                                display = f"LN{ln_id} = {val}"
+                            else:
+                                display = f"LN{ln_id} not found"
+                            QToolTip.showText(event.globalPosition().toPoint(), display, self)
+                            # Don't return True here - let the mouse event continue for text selection
+                            break
 
                 # If we're not over an operator or LN reference, clear highlights
                 if not found_operator:
