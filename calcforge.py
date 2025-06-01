@@ -4441,61 +4441,75 @@ class Calculator(QWidget):
 
     def close_tab(self,idx):
         if self.tabs.count()>1: 
-            self.tabs.removeTab(idx)
+            # Get the sheet name for the confirmation dialog
+            sheet_name = self.tabs.tabText(idx)
             
-            # Tab switching optimization - Clean up change flags for removed tab
-            if idx in self._sheet_changed_flags:
-                del self._sheet_changed_flags[idx]
+            # Show confirmation dialog
+            reply = QMessageBox.question(
+                self, 
+                "Confirm Sheet Deletion", 
+                f"Are you sure you want to delete sheet '{sheet_name}'?\n\nThis action cannot be undone.",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No  # Default to No for safety
+            )
             
-            # Stage 3: Clean up dependency tracking for removed tab
-            if idx in self._sheet_dependencies:
-                del self._sheet_dependencies[idx]
-            if idx in self._sheet_dependents:
-                del self._sheet_dependents[idx]
-            
-            # Adjust change flags for tabs after the removed one (shift indices down)
-            updated_flags = {}
-            for tab_idx, changed in self._sheet_changed_flags.items():
-                if tab_idx > idx:
-                    updated_flags[tab_idx - 1] = changed
-                else:
-                    updated_flags[tab_idx] = changed
-            self._sheet_changed_flags = updated_flags
-            
-            # Adjust dependency tracking for shifted indices
-            updated_dependencies = {}
-            updated_dependents = {}
-            
-            for tab_idx, deps in self._sheet_dependencies.items():
-                new_idx = tab_idx - 1 if tab_idx > idx else tab_idx
-                new_deps = set()
-                for dep_idx in deps:
-                    if dep_idx != idx:  # Skip the removed tab
-                        new_dep_idx = dep_idx - 1 if dep_idx > idx else dep_idx
-                        new_deps.add(new_dep_idx)
-                updated_dependencies[new_idx] = new_deps
-            
-            for tab_idx, deps in self._sheet_dependents.items():
-                new_idx = tab_idx - 1 if tab_idx > idx else tab_idx
-                new_deps = set()
-                for dep_idx in deps:
-                    if dep_idx != idx:  # Skip the removed tab
-                        new_dep_idx = dep_idx - 1 if dep_idx > idx else dep_idx
-                        new_deps.add(new_dep_idx)
-                updated_dependents[new_idx] = new_deps
-            
-            self._sheet_dependencies = updated_dependencies
-            self._sheet_dependents = updated_dependents
-            
-            # Update last active sheet index if needed
-            if self._last_active_sheet is not None:
-                if self._last_active_sheet == idx:
-                    self._last_active_sheet = None
-                elif self._last_active_sheet > idx:
-                    self._last_active_sheet -= 1
-                    
-            # Invalidate cross-sheet caches in all editors
-            self.invalidate_all_cross_sheet_caches()
+            # Only proceed with deletion if user confirms
+            if reply == QMessageBox.Yes:
+                self.tabs.removeTab(idx)
+                
+                # Tab switching optimization - Clean up change flags for removed tab
+                if idx in self._sheet_changed_flags:
+                    del self._sheet_changed_flags[idx]
+                
+                # Stage 3: Clean up dependency tracking for removed tab
+                if idx in self._sheet_dependencies:
+                    del self._sheet_dependencies[idx]
+                if idx in self._sheet_dependents:
+                    del self._sheet_dependents[idx]
+                
+                # Adjust change flags for tabs after the removed one (shift indices down)
+                updated_flags = {}
+                for tab_idx, changed in self._sheet_changed_flags.items():
+                    if tab_idx > idx:
+                        updated_flags[tab_idx - 1] = changed
+                    else:
+                        updated_flags[tab_idx] = changed
+                self._sheet_changed_flags = updated_flags
+                
+                # Adjust dependency tracking for shifted indices
+                updated_dependencies = {}
+                updated_dependents = {}
+                
+                for tab_idx, deps in self._sheet_dependencies.items():
+                    new_idx = tab_idx - 1 if tab_idx > idx else tab_idx
+                    new_deps = set()
+                    for dep_idx in deps:
+                        if dep_idx != idx:  # Skip the removed tab
+                            new_dep_idx = dep_idx - 1 if dep_idx > idx else dep_idx
+                            new_deps.add(new_dep_idx)
+                    updated_dependencies[new_idx] = new_deps
+                
+                for tab_idx, deps in self._sheet_dependents.items():
+                    new_idx = tab_idx - 1 if tab_idx > idx else tab_idx
+                    new_deps = set()
+                    for dep_idx in deps:
+                        if dep_idx != idx:  # Skip the removed tab
+                            new_dep_idx = dep_idx - 1 if dep_idx > idx else dep_idx
+                            new_deps.add(new_dep_idx)
+                    updated_dependents[new_idx] = new_deps
+                
+                self._sheet_dependencies = updated_dependencies
+                self._sheet_dependents = updated_dependents
+                
+                # Update last active sheet index if needed
+                if self._last_active_sheet is not None:
+                    if self._last_active_sheet == idx:
+                        self._last_active_sheet = None
+                    elif self._last_active_sheet > idx:
+                        self._last_active_sheet -= 1
+                        
+                # Invalidate cross-sheet caches in all editors
+                self.invalidate_all_cross_sheet_caches()
 
     def rename_tab(self,idx):
         if idx>=0:
