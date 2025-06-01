@@ -2003,237 +2003,9 @@ class EditorTextSelectionMixin:
         text = cursor.selectedText()
         return text.replace('\u2029', '\n').replace('\u2028', '\n')
 
-class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformanceMonitoringMixin, EditorCrossSheetMixin, EditorTextSelectionMixin):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-        self.next_line_id = 1
-        self.default_font_size = 14
-        self.current_font_size = self.parent.settings.value('font_size', self.default_font_size, type=int)
-        
-        # Add highlight selection tracking
-        self.current_highlight = None  # Store current highlight selection
-        
-        # Add performance optimizations for highlighting
-        self._last_highlighted_line = -1  # Track which line was last highlighted
-        self._highlighted_sheets = set()  # Track which sheets have highlights to clear
-        self._cross_sheet_cache = {}  # Cache for cross-sheet lookups: sheet_name -> {line_id: line_number}
-        self._highlight_timer = QTimer(self)  # Debounce timer for highlighting
-        self._highlight_timer.setInterval(100)  # 100ms debounce for more aggressive debouncing
-        self._highlight_timer.setSingleShot(True)
-        self._highlight_timer.timeout.connect(self._do_highlight_current_line)
-        
-        # Add rapid navigation detection to avoid highlighting during fast movement
-        self._rapid_nav_timer = QTimer(self)
-        self._rapid_nav_timer.setInterval(150)  # 150ms to detect end of rapid navigation
-        self._rapid_nav_timer.setSingleShot(True)
-        self._rapid_nav_timer.timeout.connect(self._end_rapid_navigation)
-        self._is_rapid_navigation = False
-        self._nav_move_count = 0
-        self._last_nav_time = 0
-        
-        # Cache LN reference parsing to avoid regex on every move
-        self._line_ln_cache = {}  # line_number -> list of ln_matches
-        
-        # Add debugging tools for performance analysis
-        self._debug_enabled = True  # Set to False to disable debugging
-        self._perf_log = []  # Store performance measurements
-        self._last_perf_time = 0
-        self._call_stack = []  # Track what methods are being called
-        
-        # Add truncate function to the editor instance
-        self.truncate = truncate
-        
-        # Store lines that need separators
-        self.separator_lines = set()
-        
-        # Install key event filter to handle Ctrl key combinations properly
-        self.key_filter = KeyEventFilter(self)
-        self.installEventFilter(self.key_filter)
-        
-        # Setup autocompletion first
-        self.completion_prefix = ""
-        self.completion_list = AutoCompleteList(self)
-        self.completion_list.itemClicked.connect(self.complete_text)
-        self.completion_list.hide()
-        self.setup_autocompletion()
-
-        # Then setup the editor
-        self.setFont(QFont("Courier New", self.current_font_size, QFont.Bold))
-        self.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #2c2c2e; 
-                color: white;
-                border: none;
-                padding: 0px;
-                margin: 0px;
-                line-height: 1.2em;
-            }
-            QScrollBar:vertical {
-                background: #2c2c2e;
-                width: 8px;
-                border: none;
-            }
-            QScrollBar::handle:vertical {
-                background: #555555;
-                min-height: 20px;
-                border-radius: 2px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background: #666666;
-            }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
-                height: 0px;
-            }
-            QScrollBar:horizontal {
-                background: #2c2c2e;
-                height: 8px;
-                border: none;
-            }
-            QScrollBar::handle:horizontal {
-                background: #555555;
-                min-width: 20px;
-                border-radius: 2px;
-            }
-            QScrollBar::handle:horizontal:hover {
-                background: #666666;
-            }
-            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
-                width: 0px;
-            }
-        """)
-        self.highlighter = FormulaHighlighter(self.document())
-        self.lnr = LineNumberArea(self)
-        self.blockCountChanged.connect(self.updateLineNumberAreaWidth)
-        self.updateRequest.connect(self.updateLineNumberArea)
-        self.cursorPositionChanged.connect(self.on_cursor_position_changed)
-        self.updateLineNumberAreaWidth(0)
-        self.highlightCurrentLine()
-        self.setMouseTracking(True)
-        self.viewport().installEventFilter(self)
-        self.ln_value_map = {}
-        self.operator_results_map = {}  # Store operator results for tooltips
-        self.setLineWrapMode(QPlainTextEdit.NoWrap)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        
-        # Set document margins to match QTextEdit exactly
-        doc = self.document()
-        doc.setDocumentMargin(0)
-        
-        # Set text margins to zero
-        self.setViewportMargins(0, 0, 0, 0)
-        self.setContentsMargins(0, 0, 0, 0)
-
-    def get_calculator(self):
-        """Get the Calculator instance that owns all tabs"""
-        # Start with the immediate parent (Worksheet)
-        parent = self.parent
-        # Keep going up until we find the Calculator instance or run out of parents
-        while parent:
-            if isinstance(parent, Calculator):
-                return parent
-            # Get the next parent up the chain
-            parent = parent.parent()
-        return None
-
-    def update_separator_lines(self):
-        """Update the set of lines that need separators above them - DISABLED since we now have blue function highlighting"""
-        # self.separator_lines.clear()
-        # lines = self.toPlainText().split('\n')
-        
-        # # List of functions that operate on lines above
-        # line_functions = {'sum', 'mean', 'median', 'mode', 'min', 'max', 'range', 
-        #                  'count', 'product', 'variance', 'stdev', 'std', 'geomean', 
-        #                  'harmmean', 'sumsq', 'perc5', 'perc95'}
-        
-        # for i, line in enumerate(lines):
-        #     # Check for function calls that operate on lines above
-        #     match = re.match(r'(\w+)\s*\((.*?)\)', line.strip())
-        #     if match:
-        #         func_name = match.group(1).lower()
-        #         args = match.group(2).strip()
-                
-        #         if func_name in line_functions:
-        #             # If it's a line function, add a separator above this line
-        #             self.separator_lines.add(i)
-        
-        # # Force a viewport update to show the new separators
-        # self.viewport().update()
-        pass  # No longer needed with function highlighting
-
-    def truncate_func(self, value, decimals=2):
-        """Deprecated: Use global truncate function instead"""
-        return truncate(value, decimals)
-
-    def on_cursor_position_changed(self):
-        start_time = self._log_perf("on_cursor_position_changed")
-        
-        # Store current cursor and scroll position
-        cursor = self.textCursor()
-        scrollbar = self.verticalScrollBar()
-        current_scroll = scrollbar.value()
-        
-        # Always update the current line tracking
-        current_line = cursor.blockNumber()
-        self._last_line = current_line
-        self._current_block = cursor.block()
-        
-        # Detect rapid navigation
-        current_time = time.time() * 1000  # Convert to milliseconds
-        
-        if self._last_nav_time > 0:
-            time_diff = current_time - self._last_nav_time
-            if time_diff < 100:  # Less than 100ms between moves = rapid navigation
-                self._nav_move_count += 1
-                if self._nav_move_count >= 2:  # 2+ rapid moves = rapid navigation mode
-                    self._is_rapid_navigation = True
-                    if self._debug_enabled:
-                        print(f"RAPID NAV: Started (move #{self._nav_move_count}, {time_diff:.1f}ms gap)")
-            else:
-                self._nav_move_count = 0
-        
-        self._last_nav_time = current_time
-        
-        # Start rapid navigation timer to detect when user stops
-        if self._is_rapid_navigation:
-            self._rapid_nav_timer.start()
-        
-        # Only highlight if we've moved to a different line AND not in rapid navigation
-        if (self._last_highlighted_line != current_line and 
-            not self._is_rapid_navigation):
-            # Use debounced highlighting for normal navigation
-            self._highlight_timer.start()
-        elif self._last_highlighted_line != current_line and self._is_rapid_navigation:
-            # During rapid navigation, just do basic current line highlight without LN processing
-            basic_start = self._log_perf("_do_basic_highlight_only")
-            self._do_basic_highlight_only()
-            self._log_perf("_do_basic_highlight_only", basic_start)
-        
-        # Trigger scroll synchronization to keep results in sync
-        if hasattr(self.parent, '_sync_editor_to_results'):
-            sync_start = self._log_perf("_sync_editor_to_results")
-            self.parent._sync_editor_to_results(current_scroll)
-            self._log_perf("_sync_editor_to_results", sync_start)
-            
-            # Check for scroll sync issues
-            self._check_scroll_sync_issue()
-        
-        # Hide completion list if there's a selection
-        if cursor.hasSelection():
-            self.completion_list.hide()
-            
-        # Only restore cursor position if we don't have a user selection
-        # to avoid interfering with manual text selection
-        if not cursor.hasSelection():
-            self.setTextCursor(cursor)
-            
-        # Update line number areas to reflect current line highlighting
-        self.lnr.update()
-        if hasattr(self.parent, 'results_lnr'):
-            self.parent.results_lnr.update()
-            
-        self._log_perf("on_cursor_position_changed", start_time)
-
+class EditorLineManagementMixin:
+    """Handles all line management and highlighting functionality for the formula editor"""
+    
     def assign_stable_ids(self):
         doc = self.document()
         for i in range(doc.blockCount()):
@@ -2249,83 +2021,6 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
             blk = doc.findBlockByNumber(i)
             blk.setUserData(LineData(i + 1))  # IDs start from 1
         self.next_line_id = doc.blockCount() + 1
-
-    def lineNumberAreaWidth(self):
-        digits = len(str(max(1, self.blockCount())))
-        return 3 + self.fontMetrics().horizontalAdvance('9') * digits
-
-    def updateLineNumberAreaWidth(self, _):
-        self.setViewportMargins(self.lineNumberAreaWidth() + 6, 0, 0, 0)
-
-    def calculate_subexpression(self, expr):
-        """Calculate the result of a subexpression"""
-        try:
-            # Handle numbers with leading zeros
-            expr = re.sub(r'\b0+(\d+)\b', r'\1', expr)
-            
-            # Process LN references if present
-            if re.search(r"\bLN(\d+)\b", expr):
-                expr = self.process_ln_refs(expr)
-            
-            # Handle the expression evaluation using the global truncate function
-            result = eval(expr, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
-            
-            # Format the result nicely
-            if isinstance(result, float):
-                # Round to 6 decimal places to avoid floating point noise
-                result = round(result, 6)
-                # Convert to int if it's a whole number
-                if result.is_integer():
-                    result = int(result)
-            
-            return result
-            
-        except Exception as e:
-            return None
-
-    def find_operator_results(self, text, block_position):
-        """Find all operators and calculate their subexpression results"""
-        self.operator_results_map.clear()
-        
-        # First, find all parentheses pairs and build a map of their relationships
-        stack = []
-        paren_pairs = {}  # Maps opening paren position to closing paren position
-        paren_contents = {}  # Maps opening paren position to its contents
-        
-        # Find all matching parentheses first
-        for i, char in enumerate(text):
-            if char == '(':
-                stack.append(i)
-            elif char == ')' and stack:
-                start = stack.pop()
-                paren_pairs[start] = i
-                paren_contents[start] = text[start+1:i]
-        
-        # Now find operators and their associated expressions
-        operators = list(re.finditer(r'[-+*/^]', text))
-        
-        for op_match in operators:
-            op_pos = op_match.start()
-            op_end = op_match.end()
-            
-            # Skip whitespace after operator
-            next_pos = op_end
-            while next_pos < len(text) and text[next_pos].isspace():
-                next_pos += 1
-                
-            # If we find an opening parenthesis after the operator
-            if next_pos < len(text) and text[next_pos] == '(':
-                # Find the innermost expression for this operator
-                if next_pos in paren_pairs:
-                    subexpr = paren_contents[next_pos]
-                    try:
-                        result = self.calculate_subexpression(subexpr)
-                        if result is not None:
-                            # Store result with the operator's position
-                            abs_pos = block_position + op_pos
-                            self.operator_results_map[abs_pos] = result
-                    except Exception as e:
-                        pass
 
     def highlight_expression(self, block, start, end):
         """Highlight the expression with a light background color"""
@@ -2350,156 +2045,6 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         if self.current_highlight:
             self.current_highlight = None
             self.highlightCurrentLine()  # Refresh highlights without the operator highlight
-
-    def get_expression_at_operator(self, text, pos):
-        """Get the expression inside parentheses at the given operator position"""
-        # Find all matching parentheses pairs
-        stack = []
-        pairs = []
-        for i, char in enumerate(text):
-            if char == '(':
-                stack.append(i)
-            elif char == ')' and stack:
-                start = stack.pop()
-                pairs.append((start, i))
-        
-        # Sort pairs by size (inner to outer)
-        pairs.sort(key=lambda p: p[1] - p[0])
-        
-        # Find the innermost pair containing our position
-        for start, end in pairs:
-            if start < pos < end:
-                # Get the expression and handle leading zeros
-                expr = text[start+1:end]
-                # Replace numbers with leading zeros
-                expr = re.sub(r'\b0+(\d+)\b', r'\1', expr)
-                return expr, (start + 1, end)  # Return both expression and its position
-        return None, None
-
-    def eventFilter(self, obj, event):
-        if obj is self.completion_list:
-            if event.type() == QEvent.KeyPress:
-                if event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab, Qt.Key_Escape):
-                    self.keyPressEvent(event)
-                    return True
-        elif obj is self.viewport():
-            if event.type() == QEvent.MouseMove:
-                cursor = self.cursorForPosition(event.position().toPoint())
-                block = cursor.block()
-                text = block.text()
-                pos = cursor.positionInBlock()
-
-                # Check if we're over an operator
-                found_operator = False
-                for op_match in re.finditer(r'[-+*/^]', text):
-                    op_start = op_match.start()
-                    op_end = op_match.end()
-                    if op_start <= pos < op_end:
-                        found_operator = True
-                        # Get the expression inside the current parentheses
-                        expr, expr_pos = self.get_expression_at_operator(text, pos)
-                        if expr and expr_pos:
-                            try:
-                                result = self.calculate_subexpression(expr)
-                                if result is not None:
-                                    # Highlight the expression
-                                    self.highlight_expression(block, expr_pos[0], expr_pos[1])
-                                    QToolTip.showText(event.globalPosition().toPoint(), f"Result: {result}", self)
-                                    return True
-                            except Exception as e:
-                                pass
-                        break
-
-                # Handle LN reference tooltips (keep existing LN tooltip logic)
-                for match in re.finditer(r'\bLN(\d+)\b', text):
-                    start, end = match.span()
-                    if start <= pos <= end:
-                        found_operator = True
-                        ln_id = int(match.group(1))
-                        val = self.ln_value_map.get(ln_id)
-                        if val is not None:
-                            display = f"LN{ln_id} = {val}"
-                        else:
-                            display = f"LN{ln_id} not found"
-                        QToolTip.showText(event.globalPosition().toPoint(), display, self)
-                        # Don't return True here - let the mouse event continue for text selection
-                        break
-
-                # If we're not over an operator or LN reference, clear highlights
-                if not found_operator:
-                    self.clear_expression_highlight()
-                    QToolTip.hideText()
-
-            elif event.type() == QEvent.Leave:
-                # Clear highlight when mouse leaves the viewport
-                self.clear_expression_highlight()
-                QToolTip.hideText()
-
-        return super().eventFilter(obj, event)
-
-    @Slot(QRect, int)
-    def updateLineNumberArea(self, rect, dy):
-        if dy:
-            self.lnr.scroll(0, dy)
-        else:
-            self.lnr.update(0, rect.y(), self.lnr.width(), rect.height())
-        if rect.contains(self.viewport().rect()):
-            self.updateLineNumberAreaWidth(0)
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        cr = self.contentsRect()
-        self.lnr.setGeometry(cr.x(), cr.y(), self.lineNumberAreaWidth(), cr.height())
-
-    def lineNumberAreaPaintEvent(self, event):
-        painter = QPainter(self.lnr)
-        painter.fillRect(event.rect(), QColor("#1e1e1e"))
-        block = self.firstVisibleBlock()
-        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
-        bottom = top + self.blockBoundingRect(block).height()
-        
-        # Get the current line number for highlighting
-        current_block_number = self.textCursor().blockNumber()
-        
-        while block.isValid() and top <= event.rect().bottom():
-            if block.isVisible() and bottom >= event.rect().top():
-                txt = block.text().strip()
-                data = block.userData()
-                label = "C" if txt.startswith(":::") else str(data.id if data else block.blockNumber()+1)
-                color = "#7ED321" if txt.startswith(":::") else "#888"
-                
-                # Check if this is the current line - make it bold and white
-                is_current_line = block.blockNumber() == current_block_number
-                if is_current_line:
-                    color = "#FFFFFF"  # White for current line
-                    # Set bold font
-                    font = painter.font()
-                    font.setBold(True)
-                    painter.setFont(font)
-                else:
-                    # Ensure font is not bold for other lines
-                    font = painter.font()
-                    font.setBold(False)
-                    painter.setFont(font)
-                
-                painter.setPen(QColor(color))
-                painter.drawText(0, int(top), self.lnr.width()-2, self.fontMetrics().height(), Qt.AlignRight, label)
-            block = block.next()
-            top = bottom
-            bottom = top + self.blockBoundingRect(block).height()
-
-    def clear_cross_sheet_highlights(self):
-        """Clear all cross-sheet highlights from other sheets"""
-        calculator = self.get_calculator()
-        if not calculator:
-            return
-            
-        # Clear highlights from all other sheets
-        for i in range(calculator.tabs.count()):
-            other_sheet = calculator.tabs.widget(i)
-            if other_sheet != self.parent and hasattr(other_sheet, 'editor'):
-                # Clear all extra selections (cross-sheet highlights)
-                other_sheet.editor.setExtraSelections([])
 
     def highlightCurrentLine(self):
         """Highlight the current line and maintain any operator highlights"""
@@ -2687,494 +2232,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
             if other_sheet in cross_sheet_results_highlights and hasattr(other_sheet, 'results'):
                 other_sheet.results.setExtraSelections(cross_sheet_results_highlights[other_sheet])
 
-    def keyPressEvent(self, event):
-        # Handle completion list navigation first
-        if self.completion_list.isVisible():
-            key = event.key()
-            if key in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Enter, Qt.Key_Return, Qt.Key_Tab, Qt.Key_Escape):
-                if self.completion_list.handle_key_event(key):
-                    event.accept()
-                    return
-
-        # Handle original key bindings
-        ctrl = event.modifiers() & Qt.ControlModifier
-        alt = event.modifiers() & Qt.AltModifier
-        k = event.key()
-        
-        # Debug shortcut to print performance log
-        if k == Qt.Key_P and ctrl and alt:
-            self.print_perf_summary()
-            event.accept()
-            return
-        
-        # Handle tab navigation shortcuts (Shift+Ctrl+Left/Right)
-        shift = event.modifiers() & Qt.ShiftModifier
-        if shift and ctrl:
-            if k == Qt.Key_Left or k == Qt.Key_Right:
-                # Get the Calculator instance and delegate tab navigation to it
-                calculator = self.get_calculator()
-                if calculator:
-                    calculator.keyPressEvent(event)
-                    return
-        
-        # Track navigation keys for debugging
-        if self._debug_enabled and k in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right, Qt.Key_PageUp, Qt.Key_PageDown):
-            key_name = {Qt.Key_Up: "Up", Qt.Key_Down: "Down", Qt.Key_Left: "Left", Qt.Key_Right: "Right", 
-                       Qt.Key_PageUp: "PageUp", Qt.Key_PageDown: "PageDown"}.get(k, str(k))
-            current_line = self.textCursor().blockNumber()
-            print(f"KEY: {key_name} pressed at line {current_line}")
-        
-        # Store scroll position before key handling for arrow keys
-        old_scroll = self.verticalScrollBar().value()
-        
-        # Get the current text before modification
-        cursor = self.textCursor()
-        block = cursor.block()
-        text_before = block.text()
-
-        # Handle special keys and shortcuts
-        if k == Qt.Key_C and ctrl and not alt:
-            # Handle Ctrl+C to copy result or selection
-            cursor = self.textCursor()
-            if cursor.hasSelection():
-                # If there's a selection, copy it normally
-                text = cursor.selectedText().replace('\u2029', '\n').replace('\u2028', '\n')
-                QApplication.clipboard().setText(text)
-            else:
-                # If no selection, copy the result from the current line
-                line_number = cursor.blockNumber()
-                if hasattr(self.parent, 'results'):
-                    # First try to get the raw value
-                    if hasattr(self.parent, 'raw_values') and line_number in self.parent.raw_values:
-                        result_text = str(self.parent.raw_values[line_number])
-                    else:
-                        # Fall back to the displayed text
-                        doc = self.parent.results.document()
-                        if line_number < doc.blockCount():
-                            result_block = doc.findBlockByNumber(line_number)
-                            result_text = result_block.text()
-                    
-                    # Copy to clipboard
-                    QApplication.clipboard().setText(result_text)
-            return
-            
-        if k == Qt.Key_C and alt and not ctrl:
-            # Handle Alt+C to copy formula
-            cursor = self.textCursor()
-            if cursor.hasSelection():
-                # If there's a selection, copy it normally
-                text = cursor.selectedText().replace('\u2029', '\n').replace('\u2028', '\n')
-                QApplication.clipboard().setText(text)
-            else:
-                # If no selection, copy the formula from the current line
-                cursor.movePosition(QTextCursor.StartOfLine)
-                cursor.movePosition(QTextCursor.EndOfLine, QTextCursor.KeepAnchor)
-                text = cursor.selectedText()
-                QApplication.clipboard().setText(text)
-            return
-
-        # Handle Ctrl+Up/Down for selection
-        if ctrl:
-            if k == Qt.Key_Up:
-                self.expand_selection_with_parens()
-                event.accept()
-                return
-            elif k == Qt.Key_Down:
-                self.select_entire_line()
-                event.accept()
-                return
-            elif k == Qt.Key_Left:
-                self.select_number_token(forward=False)
-                event.accept()
-                return
-            elif k == Qt.Key_Right:
-                self.select_number_token(forward=True)
-                event.accept()
-                return
-
-        # Prevent Tab key from inserting tab characters
-        if k == Qt.Key_Tab:
-            event.accept()
-            return
-
-        # Call parent implementation
-        super().keyPressEvent(event)
-        
-        # Check if scroll position changed due to arrow keys or other navigation
-        new_scroll = self.verticalScrollBar().value()
-        if old_scroll != new_scroll and k in (Qt.Key_Up, Qt.Key_Down, Qt.Key_PageUp, Qt.Key_PageDown, Qt.Key_Home, Qt.Key_End):
-            # Force scroll synchronization for navigation keys
-            if hasattr(self.parent, '_sync_editor_to_results'):
-                self.parent._sync_editor_to_results(new_scroll)
-
-        # Get the current text after modification
-        cursor = self.textCursor()
-        block = cursor.block()
-        text_after = block.text()
-
-        # Handle auto-correction for cross-sheet references
-        if (k in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab) or 
-            (event.text() in '+-*/^().')):
-            text = block.text()
-            # Look for lowercase 's.' followed by any text and '.ln'
-            matches = list(re.finditer(r'\bs\.(.*?)\.ln', text, re.IGNORECASE))
-            if matches:
-                # Create a new cursor for replacement
-                replace_cursor = QTextCursor(block)
-                for match in matches:
-                    start_pos = match.start()
-                    # Select and replace just the 's.' part
-                    replace_cursor.setPosition(block.position() + start_pos)
-                    replace_cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, 2)
-                    replace_cursor.insertText('S.')
-                    # Also capitalize the '.ln' part
-                    ln_pos = start_pos + len(match.group(1)) + 3  # Skip 's.' and the sheet name and the dot
-                    replace_cursor.setPosition(block.position() + ln_pos)
-                    replace_cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor, 2)
-                    replace_cursor.insertText('LN')
-
-        # Handle other auto-corrections and completions
-        if event.text() and event.text().isprintable() and not event.text().isspace():
-            current_word = self.get_word_under_cursor()
-            if current_word:
-                # Show completions for function names or currency patterns
-                cursor = self.textCursor()
-                line_text = cursor.block().text()
-                cursor_pos = cursor.positionInBlock()
-                
-                # Check for currency conversion context
-                has_currency_context = (
-                    re.search(r'([\d.]+)\s+\w+\s+to\s+\w*$', line_text[:cursor_pos], re.IGNORECASE) or
-                    re.search(r'([\d.]+)\s+\w+$', line_text[:cursor_pos], re.IGNORECASE)
-                )
-                
-                # Check if we're inside function parentheses
-                text_before_cursor = line_text[:cursor_pos]
-                function_pattern = r'(\w+)\(\s*([^)]*?)$'
-                has_function_context = re.search(function_pattern, text_before_cursor)
-                
-                if (any(func.lower().startswith(current_word.lower()) for func in self.base_completions) or 
-                    has_currency_context or has_function_context):
-                    self.show_completion_popup()
-                else:
-                    self.completion_list.hide()
-            else:
-                # Check if we're inside function parentheses even without a current word
-                cursor = self.textCursor()
-                line_text = cursor.block().text()
-                cursor_pos = cursor.positionInBlock()
-                text_before_cursor = line_text[:cursor_pos]
-                function_pattern = r'(\w+)\(\s*([^)]*?)$'
-                has_function_context = re.search(function_pattern, text_before_cursor)
-                
-                if has_function_context:
-                    self.show_completion_popup()
-                else:
-                    self.completion_list.hide()
-        elif k in (Qt.Key_Backspace, Qt.Key_Delete):
-            # Only show popup if there's still text to complete after deletion
-            current_word = self.get_word_under_cursor()
-            cursor = self.textCursor()
-            line_text = cursor.block().text()
-            cursor_pos = cursor.positionInBlock()
-            
-            # Check for currency conversion context
-            has_currency_context = (
-                re.search(r'([\d.]+)\s+\w+\s+to\s+\w*$', line_text[:cursor_pos], re.IGNORECASE) or
-                re.search(r'([\d.]+)\s+\w+$', line_text[:cursor_pos], re.IGNORECASE)
-            )
-            
-            # Check if we're inside function parentheses
-            text_before_cursor = line_text[:cursor_pos]
-            function_pattern = r'(\w+)\(\s*([^)]*?)$'
-            has_function_context = re.search(function_pattern, text_before_cursor)
-            
-            if (current_word and 
-                (any(func.lower().startswith(current_word.lower()) for func in self.base_completions) or
-                 has_currency_context)) or has_function_context:
-                self.show_completion_popup()
-            else:
-                self.completion_list.hide()
-        elif k in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Left, Qt.Key_Right):
-            # Hide completions during navigation
-            self.completion_list.hide()
-
-        # Check if we're potentially typing an LN reference and force evaluation
-        # BUT exclude arrow keys to allow normal navigation through LN variables
-        if (re.search(r'\bln\d+\b', text_after, re.IGNORECASE) and 
-            k not in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down)):
-            # Store the original cursor position
-            original_cursor = self.textCursor()
-            original_position = original_cursor.positionInBlock()
-            
-            # First capitalize ln to LN
-            replace_cursor = QTextCursor(block)
-            pos = 0
-            position_offset = 0  # Track how much the cursor position should shift
-            
-            while True:
-                match = re.search(r'\bln(\d+)\b', text_after[pos:], re.IGNORECASE)
-                if not match:
-                    break
-                
-                start_pos = pos + match.start()
-                end_pos = pos + match.end()
-                
-                # Check if this replacement affects the cursor position
-                if start_pos <= original_position:
-                    # If the replacement is before or at the cursor, we need to adjust
-                    if end_pos <= original_position:
-                        # Replacement is completely before cursor - no change needed since LN is same length as ln
-                        pass
-                    else:
-                        # Replacement overlaps with cursor position - move cursor to end of replacement
-                        position_offset = (start_pos + 2 + len(match.group(1))) - original_position
-                
-                # Select and replace the text
-                replace_cursor.setPosition(block.position() + start_pos)
-                replace_cursor.setPosition(block.position() + end_pos, QTextCursor.KeepAnchor)
-                replace_cursor.insertText(f"LN{match.group(1)}")
-                
-                # Update position and text for next iteration
-                pos = start_pos + 2 + len(match.group(1))
-                text_after = block.text()
-            
-            # Restore the original cursor position (adjusted for any replacements)
-            if position_offset != 0:
-                new_position = original_position + position_offset
-            else:
-                new_position = original_position
-            
-            # Make sure the new position is within bounds
-            new_position = max(0, min(new_position, len(text_after)))
-            
-            # Set the cursor back to the original position
-            original_cursor.setPosition(block.position() + new_position)
-            self.setTextCursor(original_cursor)
-
-        # Check for events that should trigger LN capitalization
-        should_check_ln = (
-            k in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab) or
-            (event.text() in '+-*/^()')
-        )
-
-        if should_check_ln:
-            # Look for lowercase 'ln' followed by numbers
-            if re.search(r'\bln\d+\b', text_after, re.IGNORECASE):
-                # Store the original cursor position
-                original_cursor = self.textCursor()
-                original_position = original_cursor.positionInBlock()
-                
-                # Create a new cursor for replacement
-                replace_cursor = QTextCursor(block)
-                
-                # Replace all instances of 'ln' with 'LN' in this line
-                pos = 0
-                position_offset = 0  # Track how much the cursor position should shift
-                
-                while True:
-                    match = re.search(r'\bln(\d+)\b', text_after[pos:], re.IGNORECASE)
-                    if not match:
-                        break
-                    
-                    start_pos = pos + match.start()
-                    end_pos = pos + match.end()
-                    
-                    # Check if this replacement affects the cursor position
-                    if start_pos <= original_position:
-                        # If the replacement is before or at the cursor, we need to adjust
-                        if end_pos <= original_position:
-                            # Replacement is completely before cursor - no change needed since LN is same length as ln
-                            pass
-                        else:
-                            # Replacement overlaps with cursor position - move cursor to end of replacement
-                            position_offset = (start_pos + 2 + len(match.group(1))) - original_position
-                    
-                    # Select and replace the text
-                    replace_cursor.setPosition(block.position() + start_pos)
-                    replace_cursor.setPosition(block.position() + end_pos, QTextCursor.KeepAnchor)
-                    replace_cursor.insertText(f"LN{match.group(1)}")
-                    
-                    # Update position and text for next iteration
-                    pos = start_pos + 2 + len(match.group(1))
-                    text_after = block.text()
-                
-                # Restore the original cursor position (adjusted for any replacements)
-                if position_offset != 0:
-                    new_position = original_position + position_offset
-                else:
-                    new_position = original_position
-                
-                # Make sure the new position is within bounds
-                new_position = max(0, min(new_position, len(text_after)))
-                
-                # Set the cursor back to the original position
-                original_cursor.setPosition(block.position() + new_position)
-                self.setTextCursor(original_cursor)
-
-    def wheelEvent(self, event):
-        if event.modifiers() & Qt.ControlModifier:
-            delta = event.angleDelta().y()
-            if delta > 0:
-                self.change_font_size(1)
-            elif delta < 0:
-                self.change_font_size(-1)
-            event.accept()
-        else:
-            super().wheelEvent(event)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MiddleButton and event.modifiers() & Qt.ControlModifier:
-            self.reset_font_size()
-            event.accept()
-        else:
-            # Track when a potential selection operation starts
-            if event.button() == Qt.LeftButton:
-                self._selection_in_progress = True
-            super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        # Clear selection tracking when mouse is released
-        if event.button() == Qt.LeftButton:
-            self._selection_in_progress = False
-        super().mouseReleaseEvent(event)
-
-    def change_font_size(self, delta):
-        new_size = max(6, min(72, self.current_font_size + delta))
-        if new_size != self.current_font_size:
-            self.current_font_size = new_size
-            self.parent.settings.setValue('font_size', new_size)
-            self.update_fonts()
-
-    def reset_font_size(self):
-        self.current_font_size = self.default_font_size
-        self.parent.settings.setValue('font_size', self.default_font_size)
-        self.update_fonts()
-
-    def update_fonts(self):
-        # Update editor font
-        font = QFont("Courier New", self.current_font_size, QFont.Bold)
-        self.setFont(font)
-        # Update line number area
-        self.updateLineNumberAreaWidth(0)
-        # Update results panel font
-        self.parent.results.setFont(font)
-        # Update results line number area width
-        if hasattr(self.parent, 'updateResultsLineNumberAreaWidth'):
-            self.parent.updateResultsLineNumberAreaWidth(0)
-        # Force refresh
-        self.parent.evaluate()
-
-    def show_completion_popup(self):
-        text_cursor = self.textCursor()
-        current_word = self.get_word_under_cursor()
-        
-        # Check if we're inside function parentheses even if there's no current word
-        line_text = text_cursor.block().text()
-        cursor_pos = text_cursor.positionInBlock()
-        text_before_cursor = line_text[:cursor_pos]
-        
-        # Look for function pattern: function_name(
-        function_pattern = r'(\w+)\(\s*([^)]*?)$'
-        function_match = re.search(function_pattern, text_before_cursor)
-        
-        # If we're inside a function, allow empty current_word for parameter completion
-        inside_function = function_match is not None
-        
-        # Don't show completion for pure numbers (but allow empty strings inside functions)
-        if (not inside_function and not current_word) or (current_word and current_word.isdigit()):
-            self.completion_list.hide()
-            return
-
-        # Get completions - use empty string if no current_word but we're inside a function
-        search_prefix = current_word if current_word else ""
-        completions = self.get_completions(search_prefix)
-        if not completions:
-            self.completion_list.hide()
-            return
-
-        # Update completion list
-        self.completion_list.clear()
-        self.completion_list.addItems(completions)
-
-        # Calculate popup position
-        cursor_rect = self.cursorRect()
-        screen_pos = self.mapToGlobal(cursor_rect.bottomLeft())
-        
-        # Get the screen that contains the editor
-        window = self.window()
-        window_center = window.geometry().center()
-        screen = QApplication.screenAt(window_center)
-        if not screen:
-            screen = QApplication.primaryScreen()
-        
-        screen_geom = screen.geometry()
-
-        # Calculate size based on content
-        fm = self.completion_list.fontMetrics()
-        max_width = max(fm.horizontalAdvance(item) for item in completions) + 40  # Add padding
-        width = max(200, max_width)  # Ensure minimum width
-        
-        # Always size popup to show 5 items - simpler approach
-        item_height = 30
-        visible_items = 5
-        padding = 4
-        height = (visible_items * item_height) + padding  # Always 154px
-        
-        # Only show scrollbar if there are more than 5 items
-        if self.completion_list.count() > visible_items:
-            self.completion_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        else:
-            self.completion_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        
-        # Adjust position to be just below the text
-        screen_pos.setY(screen_pos.y() + 5)
-
-        # Ensure popup stays within screen bounds
-        if screen_pos.x() + width > screen_geom.right():
-            screen_pos.setX(screen_geom.right() - width)
-        if screen_pos.y() + height > screen_geom.bottom():
-            screen_pos.setY(cursor_rect.top() - height - 5)
-
-        # Set size and position
-        self.completion_list.setFixedSize(width, height)
-        self.completion_list.move(screen_pos)
-
-        # Show and select first item
-        self.completion_list.show()
-        self.completion_list.setCurrentRow(0)
-        self.completion_list.raise_()  # Ensure popup stays on top
-        
-        # Trigger description box for the first item
-        if completions:
-            self.completion_list.on_selection_changed(0)
-
-    def paintEvent(self, event):
-        # Draw the base text edit content
-        super().paintEvent(event)
-        
-        # Draw separator lines - DISABLED since we now have blue function highlighting
-        # if self.separator_lines:
-        #     painter = QPainter(self.viewport())
-        #     painter.setPen(QPen(QColor(80, 80, 80), 1, Qt.DashLine))  # Light grey, dashed line
-        #     
-        #     # Get the full width including the scrolled area
-        #     doc_width = max(self.document().size().width(), self.viewport().width())
-        #     doc_width += self.horizontalScrollBar().value()  # Add scrolled amount
-        #     
-        #     # Draw lines above and below function lines
-        #     for line_num in self.separator_lines:
-        #         block = self.document().findBlockByLineNumber(line_num)
-        #         if block.isValid():
-        #             # Get the geometry of the line
-        #             rect = self.blockBoundingGeometry(block).translated(self.contentOffset())
-        #             # Draw the line above
-        #             painter.drawLine(0, int(rect.top()) - 2, doc_width, int(rect.top()) - 2)
-        #             # Draw the line below
-        #             painter.drawLine(0, int(rect.bottom()) + 2, doc_width, int(rect.bottom()) + 2)
-        #             
-        #     painter.end()
-        pass  # No separator lines needed with function highlighting
+        self._log_perf("highlightCurrentLine", start_time)
 
     def _do_highlight_current_line(self):
         """Actual highlighting implementation - called by debounced timer"""
@@ -3182,18 +2240,6 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         self._last_highlighted_line = self._last_line
         self.highlightCurrentLine()
         self._log_perf("_do_highlight_current_line", start_time)
-
-    def _end_rapid_navigation(self):
-        """Mark end of rapid navigation period and trigger full highlighting"""
-        if self._debug_enabled:
-            print(f"RAPID NAV: Ended")
-        self._is_rapid_navigation = False
-        self._nav_move_count = 0
-        self._last_nav_time = 0
-        
-        # Trigger full highlighting now that rapid navigation has ended
-        if self._last_highlighted_line != self._last_line:
-            self._highlight_timer.start()
 
     def _do_basic_highlight_only(self):
         """Highlight the current line without processing LN references"""
@@ -3232,60 +2278,475 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         if hasattr(self.parent, 'results'):
             self.parent.results.setExtraSelections(results_selections)
 
-    def _log_perf(self, method_name, start_time=None):
-        """Log performance measurements"""
-        if not self._debug_enabled:
-            return
-            
-        current_time = time.time() * 1000
-        if start_time is None:
-            # Starting measurement
-            self._call_stack.append((method_name, current_time))
-            return current_time
-        else:
-            # Ending measurement
-            duration = current_time - start_time
-            if duration > 10:  # Only log operations taking more than 10ms
-                cursor_line = self.textCursor().blockNumber()
-                log_entry = f"[{current_time:.0f}] {method_name}: {duration:.1f}ms (line {cursor_line})"
-                self._perf_log.append(log_entry)
-                print(log_entry)  # Real-time console output
+class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformanceMonitoringMixin, EditorCrossSheetMixin, EditorTextSelectionMixin, EditorLineManagementMixin):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.next_line_id = 1
+        self.default_font_size = 14
+        self.current_font_size = self.parent.settings.value('font_size', self.default_font_size, type=int)
+        
+        # Add highlight selection tracking
+        self.current_highlight = None  # Store current highlight selection
+        
+        # Add performance optimizations for highlighting
+        self._last_highlighted_line = -1  # Track which line was last highlighted
+        self._highlighted_sheets = set()  # Track which sheets have highlights to clear
+        self._cross_sheet_cache = {}  # Cache for cross-sheet lookups: sheet_name -> {line_id: line_number}
+        self._highlight_timer = QTimer(self)  # Debounce timer for highlighting
+        self._highlight_timer.setInterval(100)  # 100ms debounce for more aggressive debouncing
+        self._highlight_timer.setSingleShot(True)
+        self._highlight_timer.timeout.connect(self._do_highlight_current_line)
+        
+        # Add rapid navigation detection to avoid highlighting during fast movement
+        self._rapid_nav_timer = QTimer(self)
+        self._rapid_nav_timer.setInterval(150)  # 150ms to detect end of rapid navigation
+        self._rapid_nav_timer.setSingleShot(True)
+        self._rapid_nav_timer.timeout.connect(self._end_rapid_navigation)
+        self._is_rapid_navigation = False
+        self._nav_move_count = 0
+        self._last_nav_time = 0
+        
+        # Cache LN reference parsing to avoid regex on every move
+        self._line_ln_cache = {}  # line_number -> list of ln_matches
+        
+        # Add debugging tools for performance analysis
+        self._debug_enabled = True  # Set to False to disable debugging
+        self._perf_log = []  # Store performance measurements
+        self._last_perf_time = 0
+        self._call_stack = []  # Track what methods are being called
+        
+        # Add truncate function to the editor instance
+        self.truncate = truncate
+        
+        # Store lines that need separators
+        self.separator_lines = set()
+        
+        # Install key event filter to handle Ctrl key combinations properly
+        self.key_filter = KeyEventFilter(self)
+        self.installEventFilter(self.key_filter)
+        
+        # Setup autocompletion first
+        self.completion_prefix = ""
+        self.completion_list = AutoCompleteList(self)
+        self.completion_list.itemClicked.connect(self.complete_text)
+        self.completion_list.hide()
+        self.setup_autocompletion()
+
+        # Then setup the editor
+        self.setFont(QFont("Courier New", self.current_font_size, QFont.Bold))
+        self.setStyleSheet("""
+            QPlainTextEdit {
+                background-color: #2c2c2e; 
+                color: white;
+                border: none;
+                padding: 0px;
+                margin: 0px;
+                line-height: 1.2em;
+            }
+            QScrollBar:vertical {
+                background: #2c2c2e;
+                width: 8px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background: #555555;
+                min-height: 20px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #666666;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar:horizontal {
+                background: #2c2c2e;
+                height: 8px;
+                border: none;
+            }
+            QScrollBar::handle:horizontal {
+                background: #555555;
+                min-width: 20px;
+                border-radius: 2px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: #666666;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0px;
+            }
+        """)
+        self.highlighter = FormulaHighlighter(self.document())
+        self.lnr = LineNumberArea(self)
+        self.blockCountChanged.connect(self.updateLineNumberAreaWidth)
+        self.updateRequest.connect(self.updateLineNumberArea)
+        self.cursorPositionChanged.connect(self.on_cursor_position_changed)
+        self.updateLineNumberAreaWidth(0)
+        self.highlightCurrentLine()
+        self.setMouseTracking(True)
+        self.viewport().installEventFilter(self)
+        self.ln_value_map = {}
+        self.operator_results_map = {}  # Store operator results for tooltips
+        self.setLineWrapMode(QPlainTextEdit.NoWrap)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        
+        # Set document margins to match QTextEdit exactly
+        doc = self.document()
+        doc.setDocumentMargin(0)
+        
+        # Set text margins to zero
+        self.setViewportMargins(0, 0, 0, 0)
+        self.setContentsMargins(0, 0, 0, 0)
+
+    def get_calculator(self):
+        """Get the Calculator instance that owns all tabs"""
+        # Start with the immediate parent (Worksheet)
+        parent = self.parent
+        # Keep going up until we find the Calculator instance or run out of parents
+        while parent:
+            if isinstance(parent, Calculator):
+                return parent
+            # Get the next parent up the chain
+            parent = parent.parent()
+        return None
+
+    def update_separator_lines(self):
+        """Update the set of lines that need separators above them - DISABLED since we now have blue function highlighting"""
+        # self.separator_lines.clear()
+        # lines = self.toPlainText().split('\n')
+        
+        # # List of functions that operate on lines above
+        # line_functions = {'sum', 'mean', 'median', 'mode', 'min', 'max', 'range', 
+        #                  'count', 'product', 'variance', 'stdev', 'std', 'geomean', 
+        #                  'harmmean', 'sumsq', 'perc5', 'perc95'}
+        
+        # for i, line in enumerate(lines):
+        #     # Check for function calls that operate on lines above
+        #     match = re.match(r'(\w+)\s*\((.*?)\)', line.strip())
+        #     if match:
+        #         func_name = match.group(1).lower()
+        #         args = match.group(2).strip()
                 
-                # Keep only last 50 entries
-                if len(self._perf_log) > 50:
-                    self._perf_log = self._perf_log[-50:]
-            
-            # Remove from call stack
-            if self._call_stack and self._call_stack[-1][0] == method_name:
-                self._call_stack.pop()
+        #         if func_name in line_functions:
+        #             # If it's a line function, add a separator above this line
+        #             self.separator_lines.add(i)
+        
+        # # Force a viewport update to show the new separators
+        # self.viewport().update()
+        pass  # No longer needed with function highlighting
 
-    def _check_scroll_sync_issue(self):
-        """Check if scroll positions are mismatched"""
-        if not self._debug_enabled or not hasattr(self.parent, 'results'):
+    def truncate_func(self, value, decimals=2):
+        """Deprecated: Use global truncate function instead"""
+        return truncate(value, decimals)
+
+    def lineNumberAreaWidth(self):
+        digits = len(str(max(1, self.blockCount())))
+        return 3 + self.fontMetrics().horizontalAdvance('9') * digits
+
+    def updateLineNumberAreaWidth(self, _):
+        self.setViewportMargins(self.lineNumberAreaWidth() + 6, 0, 0, 0)
+
+    def calculate_subexpression(self, expr):
+        """Calculate the result of a subexpression"""
+        try:
+            # Handle numbers with leading zeros
+            expr = re.sub(r'\b0+(\d+)\b', r'\1', expr)
+            
+            # Process LN references if present
+            if re.search(r"\bLN(\d+)\b", expr):
+                expr = self.process_ln_refs(expr)
+            
+            # Handle the expression evaluation using the global truncate function
+            result = eval(expr, {"truncate": truncate, "TR": truncate, **GLOBALS}, {})
+            
+            # Format the result nicely
+            if isinstance(result, float):
+                # Round to 6 decimal places to avoid floating point noise
+                result = round(result, 6)
+                # Convert to int if it's a whole number
+                if result.is_integer():
+                    result = int(result)
+            
+            return result
+            
+        except Exception as e:
+            return None
+
+    def get_expression_at_operator(self, text, pos):
+        """Get the expression inside parentheses at the given operator position"""
+        # Find all matching parentheses pairs
+        stack = []
+        pairs = []
+        for i, char in enumerate(text):
+            if char == '(':
+                stack.append(i)
+            elif char == ')' and stack:
+                start = stack.pop()
+                pairs.append((start, i))
+        
+        # Sort pairs by size (inner to outer)
+        pairs.sort(key=lambda p: p[1] - p[0])
+        
+        # Find the innermost pair containing our position
+        for start, end in pairs:
+            if start < pos < end:
+                # Get the expression and handle leading zeros
+                expr = text[start+1:end]
+                # Replace numbers with leading zeros
+                expr = re.sub(r'\b0+(\d+)\b', r'\1', expr)
+                return expr, (start + 1, end)  # Return both expression and its position
+        return None, None
+
+    def on_cursor_position_changed(self):
+        start_time = self._log_perf("on_cursor_position_changed")
+        
+        # Store current cursor and scroll position
+        cursor = self.textCursor()
+        scrollbar = self.verticalScrollBar()
+        current_scroll = scrollbar.value()
+        
+        # Always update the current line tracking
+        current_line = cursor.blockNumber()
+        self._last_line = current_line
+        self._current_block = cursor.block()
+        
+        # Detect rapid navigation
+        current_time = time.time() * 1000  # Convert to milliseconds
+        
+        if self._last_nav_time > 0:
+            time_diff = current_time - self._last_nav_time
+            if time_diff < 100:  # Less than 100ms between moves = rapid navigation
+                self._nav_move_count += 1
+                if self._nav_move_count >= 2:  # 2+ rapid moves = rapid navigation mode
+                    self._is_rapid_navigation = True
+                    if self._debug_enabled:
+                        print(f"RAPID NAV: Started (move #{self._nav_move_count}, {time_diff:.1f}ms gap)")
+            else:
+                self._nav_move_count = 0
+        
+        self._last_nav_time = current_time
+        
+        # Start rapid navigation timer to detect when user stops
+        if self._is_rapid_navigation:
+            self._rapid_nav_timer.start()
+        
+        # Only highlight if we've moved to a different line AND not in rapid navigation
+        if (self._last_highlighted_line != current_line and 
+            not self._is_rapid_navigation):
+            # Use debounced highlighting for normal navigation
+            self._highlight_timer.start()
+        elif self._last_highlighted_line != current_line and self._is_rapid_navigation:
+            # During rapid navigation, just do basic current line highlight without LN processing
+            basic_start = self._log_perf("_do_basic_highlight_only")
+            self._do_basic_highlight_only()
+            self._log_perf("_do_basic_highlight_only", basic_start)
+        
+        # Trigger scroll synchronization to keep results in sync
+        if hasattr(self.parent, '_sync_editor_to_results'):
+            sync_start = self._log_perf("_sync_editor_to_results")
+            self.parent._sync_editor_to_results(current_scroll)
+            self._log_perf("_sync_editor_to_results", sync_start)
+            
+            # Check for scroll sync issues
+            self._check_scroll_sync_issue()
+        
+        # Hide completion list if there's a selection
+        if cursor.hasSelection():
+            self.completion_list.hide()
+            
+        # Only restore cursor position if we don't have a user selection
+        # to avoid interfering with manual text selection
+        if not cursor.hasSelection():
+            self.setTextCursor(cursor)
+            
+        # Update line number areas to reflect current line highlighting
+        self.lnr.update()
+        if hasattr(self.parent, 'results_lnr'):
+            self.parent.results_lnr.update()
+            
+        self._log_perf("on_cursor_position_changed", start_time)
+
+    def find_operator_results(self, text, block_position):
+        """Find all operators and calculate their subexpression results"""
+        self.operator_results_map.clear()
+        
+        # First, find all parentheses pairs and build a map of their relationships
+        stack = []
+        paren_pairs = {}  # Maps opening paren position to closing paren position
+        paren_contents = {}  # Maps opening paren position to its contents
+        
+        # Find all matching parentheses first
+        for i, char in enumerate(text):
+            if char == '(':
+                stack.append(i)
+            elif char == ')' and stack:
+                start = stack.pop()
+                paren_pairs[start] = i
+                paren_contents[start] = text[start+1:i]
+        
+        # Now find operators and their associated expressions
+        operators = list(re.finditer(r'[-+*/^]', text))
+        
+        for op_match in operators:
+            op_pos = op_match.start()
+            op_end = op_match.end()
+            
+            # Skip whitespace after operator
+            next_pos = op_end
+            while next_pos < len(text) and text[next_pos].isspace():
+                next_pos += 1
+                
+            # If we find an opening parenthesis after the operator
+            if next_pos < len(text) and text[next_pos] == '(':
+                # Find the innermost expression for this operator
+                if next_pos in paren_pairs:
+                    subexpr = paren_contents[next_pos]
+                    try:
+                        result = self.calculate_subexpression(subexpr)
+                        if result is not None:
+                            # Store result with the operator's position
+                            abs_pos = block_position + op_pos
+                            self.operator_results_map[abs_pos] = result
+                    except Exception as e:
+                        pass
+
+    def eventFilter(self, obj, event):
+        if obj is self.completion_list:
+            if event.type() == QEvent.KeyPress:
+                if event.key() in (Qt.Key_Up, Qt.Key_Down, Qt.Key_Return, Qt.Key_Enter, Qt.Key_Tab, Qt.Key_Escape):
+                    self.keyPressEvent(event)
+                    return True
+        elif obj is self.viewport():
+            if event.type() == QEvent.MouseMove:
+                cursor = self.cursorForPosition(event.position().toPoint())
+                block = cursor.block()
+                text = block.text()
+                pos = cursor.positionInBlock()
+
+                # Check if we're over an operator
+                found_operator = False
+                for op_match in re.finditer(r'[-+*/^]', text):
+                    op_start = op_match.start()
+                    op_end = op_match.end()
+                    if op_start <= pos < op_end:
+                        found_operator = True
+                        # Get the expression inside the current parentheses
+                        expr, expr_pos = self.get_expression_at_operator(text, pos)
+                        if expr and expr_pos:
+                            try:
+                                result = self.calculate_subexpression(expr)
+                                if result is not None:
+                                    # Highlight the expression
+                                    self.highlight_expression(block, expr_pos[0], expr_pos[1])
+                                    QToolTip.showText(event.globalPosition().toPoint(), f"Result: {result}", self)
+                                    return True
+                            except Exception as e:
+                                pass
+                        break
+
+                # Handle LN reference tooltips (keep existing LN tooltip logic)
+                for match in re.finditer(r'\bLN(\d+)\b', text):
+                    start, end = match.span()
+                    if start <= pos <= end:
+                        found_operator = True
+                        ln_id = int(match.group(1))
+                        val = self.ln_value_map.get(ln_id)
+                        if val is not None:
+                            display = f"LN{ln_id} = {val}"
+                        else:
+                            display = f"LN{ln_id} not found"
+                        QToolTip.showText(event.globalPosition().toPoint(), display, self)
+                        # Don't return True here - let the mouse event continue for text selection
+                        break
+
+                # If we're not over an operator or LN reference, clear highlights
+                if not found_operator:
+                    self.clear_expression_highlight()
+                    QToolTip.hideText()
+
+            elif event.type() == QEvent.Leave:
+                # Clear highlight when mouse leaves the viewport
+                self.clear_expression_highlight()
+                QToolTip.hideText()
+
+        return super().eventFilter(obj, event)
+
+    @Slot(QRect, int)
+    def updateLineNumberArea(self, rect, dy):
+        if dy:
+            self.lnr.scroll(0, dy)
+        else:
+            self.lnr.update(0, rect.y(), self.lnr.width(), rect.height())
+        if rect.contains(self.viewport().rect()):
+            self.updateLineNumberAreaWidth(0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        cr = self.contentsRect()
+        self.lnr.setGeometry(cr.x(), cr.y(), self.lineNumberAreaWidth(), cr.height())
+
+    def lineNumberAreaPaintEvent(self, event):
+        painter = QPainter(self.lnr)
+        painter.fillRect(event.rect(), QColor("#1e1e1e"))
+        block = self.firstVisibleBlock()
+        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+        bottom = top + self.blockBoundingRect(block).height()
+        
+        # Get the current line number for highlighting
+        current_block_number = self.textCursor().blockNumber()
+        
+        while block.isValid() and top <= event.rect().bottom():
+            if block.isVisible() and bottom >= event.rect().top():
+                txt = block.text().strip()
+                data = block.userData()
+                label = "C" if txt.startswith(":::") else str(data.id if data else block.blockNumber()+1)
+                color = "#7ED321" if txt.startswith(":::") else "#888"
+                
+                # Check if this is the current line - make it bold and white
+                is_current_line = block.blockNumber() == current_block_number
+                if is_current_line:
+                    color = "#FFFFFF"  # White for current line
+                    # Set bold font
+                    font = painter.font()
+                    font.setBold(True)
+                    painter.setFont(font)
+                else:
+                    # Ensure font is not bold for other lines
+                    font = painter.font()
+                    font.setBold(False)
+                    painter.setFont(font)
+                
+                painter.setPen(QColor(color))
+                painter.drawText(0, int(top), self.lnr.width()-2, self.fontMetrics().height(), Qt.AlignRight, label)
+            block = block.next()
+            top = bottom
+            bottom = top + self.blockBoundingRect(block).height()
+
+    def clear_cross_sheet_highlights(self):
+        """Clear all cross-sheet highlights from other sheets"""
+        calculator = self.get_calculator()
+        if not calculator:
             return
             
-        editor_scroll = self.verticalScrollBar().value()
-        results_scroll = self.parent.results.verticalScrollBar().value()
-        
-        editor_max = self.verticalScrollBar().maximum()
-        results_max = self.parent.results.verticalScrollBar().maximum()
-        
-        if editor_max > 0 and results_max > 0:
-            editor_ratio = editor_scroll / editor_max
-            results_ratio = results_scroll / results_max
-            
-            if abs(editor_ratio - results_ratio) > 0.05:  # 5% difference
-                print(f"SCROLL SYNC ISSUE: Editor {editor_scroll}/{editor_max} ({editor_ratio:.2f}) vs Results {results_scroll}/{results_max} ({results_ratio:.2f})")
+        # Clear highlights from all other sheets
+        for i in range(calculator.tabs.count()):
+            other_sheet = calculator.tabs.widget(i)
+            if other_sheet != self.parent and hasattr(other_sheet, 'editor'):
+                # Clear all extra selections (cross-sheet highlights)
+                other_sheet.editor.setExtraSelections([])
 
-    def print_perf_summary(self):
-        """Print recent performance log to console"""
-        if not self._debug_enabled:
-            return
-            
-        print("\n=== PERFORMANCE LOG (Last 10 entries) ===")
-        for entry in self._perf_log[-10:]:
-            print(entry)
-        print("==========================================\n")
+    def _end_rapid_navigation(self):
+        """Mark end of rapid navigation period and trigger full highlighting"""
+        if self._debug_enabled:
+            print(f"RAPID NAV: Ended")
+        self._is_rapid_navigation = False
+        self._nav_move_count = 0
+        self._last_nav_time = 0
+        
+        # Trigger full highlighting now that rapid navigation has ended
+        if self._last_highlighted_line != self._last_line:
+            self._highlight_timer.start()
 
     def _handle_unit_conversion(self, expr):
         """Handle unit conversion expressions like '1 mile to km'"""
