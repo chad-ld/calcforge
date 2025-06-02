@@ -49,15 +49,187 @@ The current CalcForge application experiences 0.5-1 second delays when modifying
 - Use more efficient string replacement algorithms
 
 ### Stage 3: Selective Line Re-evaluation
+
+#### Overview:
 **Target**: Only re-evaluate changed lines and their dependents
 **Risk Level**: Medium
 **Expected Performance Gain**: 70-80%
+**Duration**: 2-3 sessions broken into 3 sub-stages
 
-**Changes:**
-- Build line-level dependency tracking within sheets
-- Implement selective evaluation that only processes changed lines
-- Create efficient line dependency graph for internal references
-- Maintain separate caches for different types of expressions
+#### Sub-Stage Breakdown:
+
+#### Stage 3.1: Line Dependency Graph Infrastructure
+**Focus**: Build the foundation for tracking line-to-line dependencies within sheets
+**Duration**: 1 session
+**Risk Level**: Low-Medium
+
+**Files to Modify:**
+- `calcforge.py` - Worksheet class (new dependency tracking methods)
+
+**Implementation Details:**
+1. **Create dependency graph data structures**
+   ```python
+   def __init__(self):
+       # Add to Worksheet.__init__()
+       self.line_dependencies = {}  # {line_num: set of lines that depend on it}
+       self.line_references = {}    # {line_num: set of lines it references}
+       self.dependency_graph_cache = {}  # Cache for expensive lookups
+   ```
+
+2. **Implement dependency analysis method**
+   ```python
+   def build_line_dependencies(self):
+       """Analyze all lines to build dependency graph"""
+       # Parse each line to find LN references
+       # Build bidirectional dependency mapping
+       # Track internal sheet references only (not cross-sheet)
+   ```
+
+3. **Add incremental dependency updates**
+   ```python
+   def update_line_dependencies(self, line_number, old_content, new_content):
+       """Update dependencies when a single line changes"""
+       # Remove old dependencies for this line
+       # Parse new content for LN references
+       # Update bidirectional mappings efficiently
+   ```
+
+4. **Create dependency lookup helpers**
+   ```python
+   def get_dependent_lines(self, line_number):
+       """Get all lines that depend on the given line"""
+       # Return cached result if available
+       # Traverse dependency graph efficiently
+   
+   def get_dependency_chain(self, changed_lines):
+       """Get complete chain of lines affected by changes"""
+       # Use breadth-first search to find all dependents
+       # Avoid infinite loops in circular dependencies
+   ```
+
+**Testing Requirements:**
+- Verify dependency graph builds correctly for various LN reference patterns
+- Test incremental updates when lines change
+- Confirm bidirectional mappings are consistent
+- Test performance with large sheets (100+ lines)
+
+#### Stage 3.2: Selective Evaluation Engine
+**Focus**: Implement the core selective evaluation logic
+**Duration**: 1 session
+**Risk Level**: Medium
+
+**Files to Modify:**
+- `calcforge.py` - Worksheet class evaluation methods
+
+**Implementation Details:**
+1. **Create selective evaluation method**
+   ```python
+   def evaluate_changed_lines_only(self, changed_lines):
+       """Only re-evaluate changed lines and their dependents"""
+       # Get complete dependency chain
+       # Preserve results for unchanged lines
+       # Evaluate in dependency order to avoid multiple passes
+       # Update only affected result displays
+   ```
+
+2. **Implement dependency-aware evaluation order**
+   ```python
+   def get_evaluation_order(self, lines_to_evaluate):
+       """Return lines in dependency-safe evaluation order"""
+       # Topological sort of dependency graph
+       # Handle circular dependencies gracefully
+       # Ensure prerequisites are evaluated first
+   ```
+
+3. **Add result preservation mechanism**
+   ```python
+   def preserve_unchanged_results(self, all_lines, lines_to_evaluate):
+       """Keep existing results for lines not being re-evaluated"""
+       # Copy existing results for unchanged lines
+       # Maintain line-to-result mappings
+       # Handle result formatting consistency
+   ```
+
+4. **Integrate with existing evaluation pipeline**
+   ```python
+   def evaluate(self):
+       """Enhanced evaluate method with selective option"""
+       # Detect if selective evaluation is beneficial
+       # Fall back to full evaluation for major changes
+       # Maintain compatibility with existing code
+   ```
+
+**Testing Requirements:**
+- Verify selective evaluation produces same results as full evaluation
+- Test dependency order calculations
+- Confirm unchanged lines preserve their results
+- Test integration with existing evaluation triggers
+
+#### Stage 3.3: Dependency-Aware Caching System
+**Focus**: Optimize caching and result propagation
+**Duration**: 1 session
+**Risk Level**: Low-Medium
+
+**Files to Modify:**
+- `calcforge.py` - Worksheet class caching methods
+
+**Implementation Details:**
+1. **Implement dependency-aware result caching**
+   ```python
+   def cache_line_result_with_dependencies(self, line_number, content, result, dependencies):
+       """Cache result with its dependency fingerprint"""
+       # Store result with dependency hash
+       # Track which lines this result depends on
+       # Enable efficient cache invalidation
+   ```
+
+2. **Create efficient update propagation**
+   ```python
+   def update_dependent_lines(self, changed_line, new_value):
+       """Efficiently propagate changes to dependent lines"""
+       # Update only lines that reference the changed line
+       # Use cached dependency mappings
+       # Minimize cascading recalculations
+       # Batch updates for multiple dependent lines
+   ```
+
+3. **Add smart cache invalidation**
+   ```python
+   def invalidate_dependency_cache(self, changed_lines):
+       """Invalidate only relevant cache entries"""
+       # Find all cache entries affected by changes
+       # Use dependency graph to minimize invalidation
+       # Preserve unaffected cached results
+   ```
+
+4. **Optimize memory usage and performance**
+   ```python
+   def cleanup_dependency_caches(self):
+       """Clean up unused cache entries and optimize memory"""
+       # Remove stale cache entries
+       # Compress dependency graph storage
+       # Balance memory usage vs. lookup speed
+   ```
+
+**Testing Requirements:**
+- Verify cache invalidation works correctly
+- Test result propagation accuracy
+- Confirm memory usage doesn't grow unbounded
+- Test performance with complex dependency chains
+
+#### Overall Stage 3 Testing Requirements:
+- Verify dependent lines update correctly across all sub-stages
+- Test complex dependency chains and circular references
+- Confirm no regression in calculation accuracy
+- Test performance improvement with large sheets
+- Verify integration with existing cross-sheet functionality
+- Test edge cases: empty lines, comments, malformed expressions
+
+#### Expected Performance Impact:
+- **Stage 3.1**: Infrastructure setup, minimal performance change
+- **Stage 3.2**: Major performance improvement (50-60% of target gain)
+- **Stage 3.3**: Additional optimization (remaining 10-20% of target gain)
+- **Combined**: 70-80% performance improvement for large sheets with dependencies
 
 ### Stage 4: Cross-Sheet Optimization Refinements
 **Target**: Optimize cross-sheet reference handling
@@ -244,10 +416,15 @@ The current CalcForge application experiences 0.5-1 second delays when modifying
 **Benefits**: Additional 40-50% improvement for reference-heavy operations
 
 ### Phase 3 (Stage 3):
-**Duration**: 2-3 sessions
+**Duration**: 2-3 sessions (broken into 3 sub-stages)
 **Focus**: Selective line evaluation
 **Risk**: Medium
 **Benefits**: 70-80% improvement for large sheets
+
+#### Sub-Stage Breakdown:
+- **Stage 3.1** (1 session): Line Dependency Graph Infrastructure - Low-Medium risk
+- **Stage 3.2** (1 session): Selective Evaluation Engine - Medium risk  
+- **Stage 3.3** (1 session): Dependency-Aware Caching System - Low-Medium risk
 
 ### Phase 4 (Stage 4):
 **Duration**: 1-2 sessions

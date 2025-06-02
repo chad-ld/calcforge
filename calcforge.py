@@ -2676,7 +2676,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                 # First check for cross-sheet references: s.SheetName.ln2 or S.SheetName.LN2
                 for match in re.finditer(r'\b(?:s|S)\.(.+?)\.(?:ln|LN)(\d+)\b', text):
                     start, end = match.span()
-                    if start <= pos <= end:
+                    if start <= pos < end:  # Use exclusive end to avoid boundary issues
                         found_operator = True
                         found_ln_tooltip = True
                         sheet_name = match.group(1)
@@ -2693,8 +2693,9 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                 if not found_ln_tooltip:
                     for match in re.finditer(r'\bLN(\d+)\b', text):
                         start, end = match.span()
-                        if start <= pos <= end:
+                        if start <= pos < end:  # Use exclusive end to avoid boundary issues
                             found_operator = True
+                            found_ln_tooltip = True
                             ln_id = int(match.group(1))
                             val = self.ln_value_map.get(ln_id)
                             if val is not None:
@@ -2702,7 +2703,6 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                             else:
                                 display = f"LN{ln_id} not found"
                             QToolTip.showText(event.globalPosition().toPoint(), display, self)
-                            # Don't return True here - let the mouse event continue for text selection
                             break
 
                 # If we're not over an operator or LN reference, clear highlights
@@ -3093,6 +3093,21 @@ class Worksheet(QWidget):
         self._last_change_time = 0
         self._change_type = 'unknown'  # 'simple_math', 'ln_reference', 'complex', 'whitespace'
         
+        # Stage 3.1 Performance Optimizations: Line Dependency Graph Infrastructure
+        # Track line-to-line dependencies within this sheet (internal references only)
+        self.line_dependencies = {}  # {line_num: set of lines that depend on it}
+        self.line_references = {}    # {line_num: set of lines it references}
+        self.dependency_graph_cache = {}  # Cache for expensive dependency lookups
+        
+        # Compiled regex for fast LN reference detection (internal only, not cross-sheet)
+        self._internal_ln_pattern = re.compile(r'\bLN(\d+)\b', re.IGNORECASE)
+        
+        # Cache for dependency chain calculations
+        self._dependency_chain_cache = {}  # frozenset(changed_lines) -> frozenset(affected_lines)
+        
+        # Flag to track if dependency graph needs rebuilding
+        self._dependency_graph_dirty = True
+        
         # Create results widget first - now using QPlainTextEdit for perfect alignment
         self.results = QPlainTextEdit()
         self.results.setReadOnly(True)
@@ -3332,6 +3347,17 @@ class Worksheet(QWidget):
         # Stage 1: Detect which lines changed for smarter evaluation
         old_text = getattr(self, '_last_text_content', '')
         changed_lines = self.detect_changed_lines(old_text, current_text)
+        
+        # Stage 3.1: Update line dependencies for changed lines
+        if changed_lines and not self._dependency_graph_dirty:
+            old_lines = old_text.split('\n') if old_text else []
+            new_lines = current_text.split('\n')
+            
+            for line_num in changed_lines:
+                if line_num <= len(new_lines):  # Ensure line exists
+                    old_content = old_lines[line_num - 1] if line_num <= len(old_lines) else ''
+                    new_content = new_lines[line_num - 1] if line_num <= len(new_lines) else ''
+                    self.update_line_dependencies(line_num, old_content, new_content)
         
         # Stage 1: Check if we should skip evaluation entirely
         if self.should_skip_evaluation(changed_lines):
@@ -4126,6 +4152,12 @@ class Worksheet(QWidget):
         text_content = '\n'.join(out)
         self.results.setPlainText(text_content)
         
+        # Stage 3.1: Build/update line dependency graph after evaluation
+        # Only build if dirty or if this is a major evaluation
+        if self._dependency_graph_dirty or not hasattr(self, '_last_dependency_build'):
+            self.build_line_dependencies()
+            self._last_dependency_build = time.time()
+        
         # Restore cursor and synchronized scroll position
         self.editor.setTextCursor(evaluation_context['cursor'])
         # Only set one scrollbar - the synchronization will handle the other
@@ -4618,6 +4650,173 @@ class Worksheet(QWidget):
                 self._syncing_scroll = False
                 if start_time and hasattr(self.editor, '_log_perf'):
                     self.editor._log_perf("_sync_editor_to_results", start_time)
+
+    # Stage 3.1: Line Dependency Graph Infrastructure
+    def build_line_dependencies(self):
+        """Analyze all lines to build dependency graph for internal LN references"""
+        start_time = None
+        if hasattr(self.editor, '_log_perf'):
+            start_time = self.editor._log_perf("build_line_dependencies")
+        
+        # Clear existing dependencies
+        self.line_dependencies.clear()
+        self.line_references.clear()
+        self.dependency_graph_cache.clear()
+        self._dependency_chain_cache.clear()
+        
+        lines = self.editor.toPlainText().split('\n')
+        
+        for line_idx, line_content in enumerate(lines):
+            line_number = line_idx + 1  # 1-based line numbers
+            
+            # Find all internal LN references in this line (exclude cross-sheet references)
+            internal_refs = self._find_internal_ln_references(line_content)
+            
+            if internal_refs:
+                # Store what this line references
+                self.line_references[line_number] = internal_refs
+                
+                # Update bidirectional mapping - for each referenced line, 
+                # note that current line depends on it
+                for ref_line in internal_refs:
+                    if ref_line not in self.line_dependencies:
+                        self.line_dependencies[ref_line] = set()
+                    self.line_dependencies[ref_line].add(line_number)
+        
+        self._dependency_graph_dirty = False
+        
+        if start_time and hasattr(self.editor, '_log_perf'):
+            self.editor._log_perf("build_line_dependencies", start_time)
+    
+    def _find_internal_ln_references(self, line_content):
+        """Find internal LN references in a line, excluding cross-sheet references"""
+        # Use pre-compiled regex for performance
+        matches = self._internal_ln_pattern.findall(line_content)
+        
+        # Filter out any that are part of cross-sheet references (S.Sheet.LN)
+        # by checking if LN is preceded by a sheet reference pattern
+        internal_refs = set()
+        
+        for match in matches:
+            ln_number = int(match)
+            # Check if this LN reference is part of a cross-sheet reference
+            ln_pos = line_content.find(f'LN{ln_number}')
+            if ln_pos > 0:
+                # Look backward to see if there's a sheet reference (S.SheetName.)
+                prefix = line_content[:ln_pos]
+                # Check if it ends with S.SheetName. pattern
+                if re.search(r'S\.[^.]+\.$', prefix):
+                    continue  # Skip cross-sheet references
+            
+            internal_refs.add(ln_number)
+        
+        return internal_refs
+    
+    def update_line_dependencies(self, line_number, old_content, new_content):
+        """Update dependencies when a single line changes"""
+        if self._dependency_graph_dirty:
+            # If graph is dirty, rebuild entirely
+            return self.build_line_dependencies()
+        
+        start_time = None
+        if hasattr(self.editor, '_log_perf'):
+            start_time = self.editor._log_perf("update_line_dependencies")
+        
+        # Remove old dependencies for this line
+        old_refs = self.line_references.get(line_number, set())
+        for old_ref in old_refs:
+            if old_ref in self.line_dependencies:
+                self.line_dependencies[old_ref].discard(line_number)
+                if not self.line_dependencies[old_ref]:
+                    del self.line_dependencies[old_ref]
+        
+        # Find new references
+        new_refs = self._find_internal_ln_references(new_content)
+        
+        # Update line_references
+        if new_refs:
+            self.line_references[line_number] = new_refs
+        else:
+            self.line_references.pop(line_number, None)
+        
+        # Add new dependencies
+        for new_ref in new_refs:
+            if new_ref not in self.line_dependencies:
+                self.line_dependencies[new_ref] = set()
+            self.line_dependencies[new_ref].add(line_number)
+        
+        # Clear caches that might be affected
+        self.dependency_graph_cache.clear()
+        self._dependency_chain_cache.clear()
+        
+        if start_time and hasattr(self.editor, '_log_perf'):
+            self.editor._log_perf("update_line_dependencies", start_time)
+    
+    def get_dependent_lines(self, line_number):
+        """Get all lines that depend on the given line (cached)"""
+        if line_number in self.dependency_graph_cache:
+            return self.dependency_graph_cache[line_number]
+        
+        # Get direct dependents
+        direct_dependents = self.line_dependencies.get(line_number, set()).copy()
+        
+        # Cache and return
+        self.dependency_graph_cache[line_number] = direct_dependents
+        return direct_dependents
+    
+    def get_dependency_chain(self, changed_lines):
+        """Get complete chain of lines affected by changes using breadth-first search"""
+        # Convert to frozenset for caching
+        changed_set = frozenset(changed_lines)
+        
+        # Check cache first
+        if changed_set in self._dependency_chain_cache:
+            return self._dependency_chain_cache[changed_set]
+        
+        start_time = None
+        if hasattr(self.editor, '_log_perf'):
+            start_time = self.editor._log_perf("get_dependency_chain")
+        
+        affected_lines = set(changed_lines)
+        to_process = list(changed_lines)
+        processed = set()
+        
+        # Avoid infinite loops with cycle detection
+        max_iterations = 1000  # Safety limit
+        iteration_count = 0
+        
+        while to_process and iteration_count < max_iterations:
+            current_line = to_process.pop(0)
+            
+            if current_line in processed:
+                continue
+            
+            processed.add(current_line)
+            
+            # Get lines that depend on current_line
+            dependents = self.get_dependent_lines(current_line)
+            
+            for dependent in dependents:
+                if dependent not in affected_lines:
+                    affected_lines.add(dependent)
+                    to_process.append(dependent)
+            
+            iteration_count += 1
+        
+        # Cache the result
+        result = frozenset(affected_lines)
+        self._dependency_chain_cache[changed_set] = result
+        
+        if start_time and hasattr(self.editor, '_log_perf'):
+            self.editor._log_perf("get_dependency_chain", start_time)
+        
+        return result
+    
+    def clear_dependency_caches(self):
+        """Clear dependency caches when major changes occur"""
+        self.dependency_graph_cache.clear()
+        self._dependency_chain_cache.clear()
+        self._dependency_graph_dirty = True
 
 class Calculator(QWidget):
     def __init__(self):
