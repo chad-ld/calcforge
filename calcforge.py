@@ -2945,9 +2945,15 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                 out.append('ERROR!')
 
     def keyPressEvent(self, event):
-        """Handle keyboard shortcuts for the formula editor"""
+        # Handle special key combinations first
         modifiers = event.modifiers()
         key = event.key()
+        
+        # Completion list navigation
+        if self.completion_list and self.completion_list.isVisible():
+            if self.completion_list.handle_key_event(key):
+                event.accept()
+                return
         
         # Ctrl+C: Copy answer if no selection, otherwise let KeyEventFilter handle it
         if modifiers & Qt.ControlModifier and key == Qt.Key_C:
@@ -3025,6 +3031,19 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
             event.accept()
             return
         
+        # For regular text input, show completion popup after processing
+        if key == Qt.Key_Space or (key >= Qt.Key_A and key <= Qt.Key_Z) or (key >= Qt.Key_0 and key <= Qt.Key_9) or key in (Qt.Key_Period, Qt.Key_Underscore, Qt.Key_Comma):
+            # Process the key normally first
+            super().keyPressEvent(event)
+            
+            # Check if the current line is a comment (starts with :::)
+            cursor = self.textCursor()
+            line_text = cursor.block().text().strip()
+            if not line_text.startswith(':::'):
+                # Only show completion popup if not in a comment line
+                QTimer.singleShot(10, self.show_completion_popup)
+            return
+            
         # For all other keys, call parent implementation
         super().keyPressEvent(event)
 
