@@ -3353,11 +3353,12 @@ class Worksheet(QWidget):
             old_lines = old_text.split('\n') if old_text else []
             new_lines = current_text.split('\n')
             
-            for line_num in changed_lines:
-                if line_num <= len(new_lines):  # Ensure line exists
-                    old_content = old_lines[line_num - 1] if line_num <= len(old_lines) else ''
-                    new_content = new_lines[line_num - 1] if line_num <= len(new_lines) else ''
-                    self.update_line_dependencies(line_num, old_content, new_content)
+            for line_idx in changed_lines:  # changed_lines contains 0-based indices
+                if line_idx < len(new_lines):  # Ensure line exists (0-based check)
+                    old_content = old_lines[line_idx] if line_idx < len(old_lines) else ''
+                    new_content = new_lines[line_idx] if line_idx < len(new_lines) else ''
+                    # update_line_dependencies expects 1-based line numbers, so convert
+                    self.update_line_dependencies(line_idx + 1, old_content, new_content)
         
         # Stage 1: Check if we should skip evaluation entirely
         if self.should_skip_evaluation(changed_lines):
