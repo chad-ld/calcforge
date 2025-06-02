@@ -3127,6 +3127,14 @@ class Worksheet(QWidget):
         # Flag to track if dependency graph needs rebuilding
         self._dependency_graph_dirty = True
         
+        # Stage 3.3 Performance Optimizations: Dependency-Aware Caching System
+        # Cache for storing line results with dependency fingerprints
+        self._line_result_cache = {}  # {line_num: {'result': value, 'dependencies': {line_num: hash}, 'hash': content_hash}}
+        # Keep track of lines that rely on each result for efficient invalidation
+        self._result_dependencies = {}  # {line_num: set(dependent_line_nums)}
+        # Store dependency fingerprints to efficiently check if dependencies have changed
+        self._dependency_fingerprints = {}  # {line_num: {dependency_line_num: content_hash}}
+        
         # Create results widget first - now using QPlainTextEdit for perfect alignment
         self.results = QPlainTextEdit()
         self.results.setReadOnly(True)
@@ -3366,6 +3374,9 @@ class Worksheet(QWidget):
         # Stage 1: Detect which lines changed for smarter evaluation
         old_text = getattr(self, '_last_text_content', '')
         changed_lines = self.detect_changed_lines(old_text, current_text)
+        
+        # Check for any lines that are now empty and clear their results immediately
+        self.clear_results_for_empty_lines(changed_lines)
         
         # Stage 3.1: Update line dependencies for changed lines
         if changed_lines and not self._dependency_graph_dirty:
@@ -4077,10 +4088,10 @@ class Worksheet(QWidget):
         return False  # Fall back to full evaluation
 
     def evaluate_changed_lines_only(self, changed_lines):
-        """Stage 3.2: Evaluate only changed lines and their dependents"""
+        """Stage 3.2/3.3: Evaluate only changed lines and their dependents with dependency-aware caching"""
         try:
-            # Get dependency chain for changed lines
-            lines_to_evaluate = self.get_dependency_chain(changed_lines)
+            # Stage 3.3: Invalidate dependency cache for changed lines first
+            lines_to_evaluate = self.invalidate_dependency_cache(changed_lines)
             
             # Get current content
             lines = self.editor.toPlainText().split('\n')
@@ -4102,10 +4113,16 @@ class Worksheet(QWidget):
             # Initialize evaluation context with existing LN values
             vals = {}
             
-            # First pass: populate vals with existing LN values from unchanged lines
+            # First pass: populate vals with existing LN values from cached results
             for i in range(len(lines)):
                 if i not in lines_to_evaluate:
-                    # Try to get existing value from cache or current results
+                    # If this line has a cached result, use it
+                    if i in self._line_result_cache:
+                        cached_entry = self._line_result_cache[i]
+                        vals[f'LN{i+1}'] = cached_entry['result']
+                        continue
+                        
+                    # Otherwise try older cache mechanism
                     cached_result = self.get_cached_result(lines[i].strip(), i+1)
                     if cached_result and cached_result['result'] is not None:
                         vals[f'LN{i+1}'] = cached_result['result']
@@ -4117,37 +4134,93 @@ class Worksheet(QWidget):
                     
                 line = lines[i].strip()
                 if not line or line.startswith('//'):
+                    # Empty line - explicitly clear any previous result or error message
                     out[i] = ''
+                    
+                    # Clear all caches for this line
+                    if i in self._line_result_cache:
+                        self._line_result_cache.pop(i, None)
+                    if i in self._dependency_fingerprints:
+                        self._dependency_fingerprints.pop(i, None)
+                    if i+1 in self.raw_values:  # i+1 because raw_values uses 1-based indexing
+                        self.raw_values.pop(i+1, None)
+                    
+                    # Mark this as a line that needs updating in the results display
+                    lines_to_evaluate.add(i)
+                    
                     continue
                 
                 try:
-                    # Check cache first
-                    cached_result = self.get_cached_result(line, i+1)
-                    if cached_result and i not in changed_lines:
-                        # Use cached result for dependent lines that haven't changed
-                        result = cached_result['result']
-                        out[i] = cached_result['formatted_result']
+                    # Stage 3.3: Track dependencies during evaluation
+                    dependencies = {}
+                    
+                    # Find all LN references in this line to track dependencies
+                    ln_matches = list(re.finditer(r'\bLN(\d+)\b', line, re.IGNORECASE))
+                    for match in ln_matches:
+                        ln_num = int(match.group(1)) - 1  # Convert to 0-based index
+                        if 0 <= ln_num < len(lines):
+                            dependencies[ln_num] = lines[ln_num]
+                    
+                    # Try the dependency-aware cache first
+                    if i in self._line_result_cache and i not in changed_lines:
+                        cache_entry = self._line_result_cache[i]
+                        result = cache_entry['result']
+                        out[i] = cache_entry['formatted_result']
                     else:
                         # Evaluate the line
                         processed_line = self.editor.process_ln_refs(line)
                         result = eval(processed_line, globals(), vals)
-                        formatted_result = self.format_number_for_display(result, i+1)
+                        
+                        # Format the result for display
+                        formatted_result = self._format_result(result)
                         out[i] = formatted_result
                         
-                        # Cache the result
-                        self.cache_evaluation_result(line, result, formatted_result, i+1)
+                        # Stage 3.3: Cache result with dependency information
+                        self.cache_line_result_with_dependencies(i, line, result, dependencies)
                     
                     # Store LN value for other lines to reference
                     vals[f'LN{i+1}'] = result
                     
                 except Exception as e:
-                    out[i] = f"Error: {str(e)}"
-                    vals[f'LN{i+1}'] = 0  # Default value to prevent cascade errors
+                    err_msg = str(e)
+                    if 'invalid syntax' in err_msg:
+                        err_msg = 'Syntax error'
+                    out[i] = f"Error: {err_msg}"
+                    vals[f'LN{i+1}'] = None  # Default value to prevent cascade errors
+                    
+                    # Clear any cached results for this line on error
+                    if i in self._line_result_cache:
+                        self._line_result_cache.pop(i, None)
             
             # Update results display
             cursor = QTextCursor(doc)
-            cursor.movePosition(QTextCursor.Start)
             cursor.beginEditBlock()
+            
+            # Ensure all changed lines that are now empty have their results cleared
+            # This handles both deleted lines and lines that were backspaced to empty
+            old_line_count = doc.blockCount()
+            new_line_count = len(lines)
+            
+            # First handle completely deleted lines
+            if old_line_count > new_line_count:
+                for i in range(new_line_count, old_line_count):
+                    # Add these to the lines_to_evaluate set to ensure they get cleared
+                    lines_to_evaluate.add(i)
+                    # Make sure there's a blank entry in the output list
+                    if i >= len(out):
+                        out.extend([''] * (i - len(out) + 1))
+                    out[i] = ''
+                    
+            # Also handle lines that were changed to become empty but still exist
+            for i in changed_lines:
+                if i < len(lines) and not lines[i].strip():
+                    # This line was changed and is now empty - ensure it's in lines_to_evaluate
+                    lines_to_evaluate.add(i)
+                    # Explicitly set output to empty
+                    out[i] = ''
+                    # Clear any cached values
+                    if i in self._line_result_cache:
+                        self._line_result_cache.pop(i, None)
             
             # Update only the affected lines to minimize UI disruption
             for i in lines_to_evaluate:
@@ -4180,6 +4253,121 @@ class Worksheet(QWidget):
             if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
                 print(f"Selective evaluation error: {e}")
             return False
+            
+    # Stage 3.3: Dependency-Aware Caching System methods
+    def cache_line_result_with_dependencies(self, line_number, content, result, dependencies):
+        """Cache result with its dependency fingerprint
+        
+        Args:
+            line_number: The line number being cached
+            content: The source content of the line
+            result: The evaluated result
+            dependencies: Dict of {line_num: content} for all lines this result depends on
+        """
+        # Create content hash for quick change detection
+        content_hash = hash(content)
+        
+        # Create dependency fingerprint by hashing each dependency's content
+        dependency_fingerprint = {}
+        for dep_line, dep_content in dependencies.items():
+            dependency_fingerprint[dep_line] = hash(dep_content)
+        
+        # Store the cache entry
+        self._line_result_cache[line_number] = {
+            'result': result,
+            'formatted_result': self._format_result(result),
+            'dependencies': dependency_fingerprint,
+            'hash': content_hash
+        }
+        
+        # Update result dependencies for efficient invalidation
+        for dep_line in dependencies.keys():
+            if dep_line not in self._result_dependencies:
+                self._result_dependencies[dep_line] = set()
+            self._result_dependencies[dep_line].add(line_number)
+        
+        # Store fingerprints separately for easy checking
+        self._dependency_fingerprints[line_number] = dependency_fingerprint
+    
+    def update_dependent_lines(self, changed_line, new_value):
+        """Efficiently propagate changes to dependent lines
+        
+        Args:
+            changed_line: The line that was changed
+            new_value: The new value of the changed line
+        """
+        # If no one depends on this line, exit early
+        if changed_line not in self._result_dependencies:
+            return set()
+        
+        # Get all lines that depend directly on this line's result
+        dependent_lines = self._result_dependencies[changed_line].copy()
+        
+        # For batch processing, collect all lines that need updating
+        lines_to_update = set()
+        
+        # For each dependent line, check if we can use the cached result
+        for dep_line in dependent_lines:
+            # If the line isn't in the cache, it will be recalculated
+            if dep_line not in self._line_result_cache:
+                lines_to_update.add(dep_line)
+                continue
+                
+            # Get the cached entry
+            cache_entry = self._line_result_cache[dep_line]
+            dependency_fingerprint = cache_entry['dependencies']
+            
+            # If the dependency fingerprint doesn't include this line,
+            # this means the dependency structure has changed - force recalculation
+            if changed_line not in dependency_fingerprint:
+                self._line_result_cache.pop(dep_line, None)
+                lines_to_update.add(dep_line)
+                continue
+                
+            # Mark this line for recalculation by removing from cache
+            self._line_result_cache.pop(dep_line, None)
+            lines_to_update.add(dep_line)
+        
+        return lines_to_update
+    
+    def invalidate_dependency_cache(self, changed_lines):
+        """Invalidate only relevant cache entries
+        
+        Args:
+            changed_lines: Set of line numbers that have changed
+            
+        Returns:
+            Set of line numbers that need to be re-evaluated
+        """
+        # For each changed line, find lines that depend on it and invalidate them
+        affected_lines = set()
+        
+        for line in changed_lines:
+            # First, directly invalidate the changed line itself
+            if line in self._line_result_cache:
+                self._line_result_cache.pop(line, None)
+            
+            # Then find and invalidate all dependent lines
+            if line in self._result_dependencies:
+                dependents = self._result_dependencies[line].copy()
+                affected_lines.update(dependents)
+                
+                # Recursively find all indirect dependents too
+                more_dependents = set(dependents)
+                while more_dependents:
+                    current = more_dependents.pop()
+                    # Get dependents of this line if any
+                    if current in self._result_dependencies:
+                        next_level = self._result_dependencies[current] - affected_lines
+                        more_dependents.update(next_level)
+                        affected_lines.update(next_level)
+        
+        # Invalidate all affected lines' cache entries
+        for line in affected_lines:
+            self._line_result_cache.pop(line, None)
+            
+        # Return full set of lines that need re-evaluation
+        return affected_lines.union(changed_lines)
 
     def _initialize_evaluation(self):
         """Initialize evaluation state and prepare data structures"""
@@ -4237,6 +4425,23 @@ class Worksheet(QWidget):
 
     def _finalize_evaluation(self, out, evaluation_context):
         """Finalize evaluation and update UI"""
+        # Ensure all empty lines have empty results
+        lines = self.editor.toPlainText().split('\n')
+        for i, line in enumerate(lines):
+            if not line.strip() and i < len(out):
+                out[i] = ''
+                # Also clear all caches for empty lines
+                if i in self._line_result_cache:
+                    self._line_result_cache.pop(i, None)
+                if i in self._dependency_fingerprints:
+                    self._dependency_fingerprints.pop(i, None)
+                if i+1 in self.raw_values:  # i+1 because raw_values uses 1-based indexing
+                    self.raw_values.pop(i+1, None)
+        
+        # Make sure output array is not longer than the current document
+        if len(out) > len(lines):
+            out = out[:len(lines)]
+        
         # Update results with plain text (no HTML needed since we're using QPlainTextEdit)
         text_content = '\n'.join(out)
         self.results.setPlainText(text_content)
@@ -4324,6 +4529,48 @@ class Worksheet(QWidget):
             # Update results widget size to fill container
             self.results.setGeometry(0, 0, container_size.width(), container_size.height())
             # The line number area will be repositioned by the resize event of the results widget
+            
+    def clear_results_for_empty_lines(self, changed_lines):
+        """Force clear results for lines that are now empty"""
+        if not changed_lines:
+            return
+            
+        # Get current lines
+        lines = self.editor.toPlainText().split('\n')
+        
+        # Check each changed line
+        for line_idx in changed_lines:
+            # Skip if beyond available lines
+            if line_idx >= len(lines):
+                continue
+                
+            # If the line is empty, clear its result
+            if not lines[line_idx].strip():
+                # Get the results document
+                doc = self.results.document()
+                
+                # Make sure the line exists in results
+                if line_idx < doc.blockCount():
+                    # Create a cursor to modify the specific line
+                    cursor = QTextCursor(doc)
+                    cursor.beginEditBlock()
+                    cursor.movePosition(QTextCursor.Start)
+                    cursor.movePosition(QTextCursor.Down, QTextCursor.MoveAnchor, line_idx)
+                    cursor.select(QTextCursor.LineUnderCursor)
+                    # We need to insert empty text rather than just removing, to ensure it updates
+                    cursor.insertText("")
+                    cursor.endEditBlock()
+                    
+                    # Force update
+                    self.results.setTextCursor(cursor)
+                
+                # Clear all caches for this line
+                if line_idx in self._line_result_cache:
+                    self._line_result_cache.pop(line_idx, None)
+                if line_idx in self._dependency_fingerprints:
+                    self._dependency_fingerprints.pop(line_idx, None)
+                if line_idx+1 in self.raw_values:  # raw_values uses 1-based indexing
+                    self.raw_values.pop(line_idx+1, None)
 
     def _evaluate_lines_loop(self, lines, vals, doc):
         """Main line-by-line evaluation logic with Stage 1 caching optimization"""
@@ -4331,6 +4578,18 @@ class Worksheet(QWidget):
         
         # Tab switching optimization - Stage 1: Detect cross-sheet references during evaluation
         detected_cross_sheet_refs = False
+        
+        # First, clear any existing results beyond the current line count
+        # This handles deleted lines
+        old_block_count = doc.blockCount()
+        if old_block_count > len(lines):
+            for i in range(len(lines), old_block_count):
+                if i < old_block_count:
+                    cursor = QTextCursor(doc)
+                    cursor.movePosition(QTextCursor.Start)
+                    cursor.movePosition(QTextCursor.Down, QTextCursor.MoveAnchor, i)
+                    cursor.select(QTextCursor.LineUnderCursor)
+                    cursor.insertText("")
         
         # Evaluate each line
         for idx, line in enumerate(lines):
@@ -4342,6 +4601,12 @@ class Worksheet(QWidget):
                 data = blk.userData()
                 if isinstance(data, LineData):
                     self.editor.ln_value_map[data.id] = vals[idx]
+                    
+                # Important: Make sure to clear any previous cached values    
+                if idx in self.raw_values:
+                    self.raw_values.pop(idx, None)
+                    
+                # Clear the result in this line    
                 out.append("")
                 continue
             
@@ -4854,41 +5119,33 @@ class Worksheet(QWidget):
         return direct_dependents
     
     def get_dependency_chain(self, changed_lines):
-        """Get complete chain of lines affected by changes using breadth-first search"""
-        # Convert to frozenset for caching
-        changed_set = frozenset(changed_lines)
+        """Get the complete chain of lines that need to be re-evaluated due to changes"""
+        # Quick path - if dependency graph is empty, we evaluate all lines
+        if not self.line_dependencies:
+            return set(range(0, self.editor.document().blockCount()))
+            
+        # Check if we have this result cached
+        cache_key = frozenset(changed_lines)
+        if cache_key in self._dependency_chain_cache:
+            return self._dependency_chain_cache[cache_key]
         
-        # Check cache first
-        if changed_set in self._dependency_chain_cache:
-            return self._dependency_chain_cache[changed_set]
-        
-        start_time = None
-        if hasattr(self.editor, '_log_perf'):
-            start_time = self.editor._log_perf("get_dependency_chain")
-        
+        # Start with the changed lines themselves
         affected_lines = set(changed_lines)
-        to_process = list(changed_lines)
-        processed = set()
         
-        # Avoid infinite loops with cycle detection
-        max_iterations = 1000  # Safety limit
-        iteration_count = 0
+        # Use breadth-first search to find all affected lines
+        queue = list(changed_lines)
+        visited = set(changed_lines)
         
-        while to_process and iteration_count < max_iterations:
-            current_line = to_process.pop(0)
-            
-            if current_line in processed:
-                continue
-            
-            processed.add(current_line)
-            
-            # Get lines that depend on current_line
-            dependents = self.get_dependent_lines(current_line)
-            
-            for dependent in dependents:
-                if dependent not in affected_lines:
-                    affected_lines.add(dependent)
-                    to_process.append(dependent)
+        while queue:
+            line = queue.pop(0)
+            # Get all lines that depend on this line
+            if line in self.line_dependencies:
+                dependents = self.line_dependencies[line]
+                for dep in dependents:
+                    if dep not in visited:
+                        visited.add(dep)
+                        queue.append(dep)
+                        affected_lines.add(dep)
             
             iteration_count += 1
         
