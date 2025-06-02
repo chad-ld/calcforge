@@ -3982,6 +3982,12 @@ class Worksheet(QWidget):
 
     def evaluate(self):
         """Evaluate formulas and update results"""
+        # Stage 3.2: Try selective evaluation first if beneficial
+        if self._should_use_selective_evaluation():
+            if self._try_selective_evaluation():
+                return  # Selective evaluation succeeded
+        
+        # Fall back to full evaluation
         # Initialize evaluation state and data structures
         evaluation_context = self._initialize_evaluation()
         
@@ -3991,107 +3997,170 @@ class Worksheet(QWidget):
         # Finalize evaluation and update UI
         self._finalize_evaluation(out, evaluation_context)
 
-    def evaluate_cross_sheet_lines_only(self):
-        """Stage 2 optimization: Only evaluate lines with cross-sheet references"""
-        if not hasattr(self, 'has_cross_sheet_refs') or not self.has_cross_sheet_refs:
-            return
+    def _should_use_selective_evaluation(self):
+        """Determine if selective evaluation is beneficial"""
+        # Get current text to analyze changes
+        current_text = self.editor.toPlainText()
         
-        # Pattern to detect cross-sheet references: S.SheetName.LN#
-        cross_sheet_pattern = r'\bS\.[^.]+\.LN\d+\b'
+        # Check if we have previous state to compare
+        if not hasattr(self, '_last_evaluation_text'):
+            self._last_evaluation_text = current_text
+            return False
         
-        # Get current content
-        lines = self.editor.toPlainText().split('\n')
-        doc = self.results.document()
+        # Detect changed lines
+        changed_lines = self.detect_changed_lines(self._last_evaluation_text, current_text)
+        if not changed_lines:
+            return False  # No changes
         
-        # Store current cursor and scroll positions to restore them
-        current_cursor = self.editor.textCursor()
-        current_cursor_position = current_cursor.position()
-        current_cursor_block = current_cursor.blockNumber()
-        editor_scroll = self.editor.verticalScrollBar().value()
-        results_scroll = self.results.verticalScrollBar().value()
+        total_lines = len(current_text.split('\n'))
         
-        # Process each line and update only those with cross-sheet references
-        out = [''] * len(lines)  # Initialize with empty strings to maintain line count
+        # Skip selective evaluation for small sheets (overhead not worth it)
+        if total_lines < 10:
+            return False
         
-        # First, preserve all existing results
-        for i in range(min(len(lines), doc.blockCount())):
-            block = doc.findBlockByNumber(i)
-            if block.isValid():
-                out[i] = block.text()
+        # Skip if too many lines changed (selective evaluation won't help much)
+        change_ratio = len(changed_lines) / max(1, total_lines)
+        if change_ratio > 0.3:  # More than 30% changed
+            return False
         
-        # Now evaluate only cross-sheet reference lines
-        vals = {}
-        cross_sheet_lines_updated = 0
+        # Check dependency impact - if dependents affect too much, fall back to full
+        try:
+            dependency_chain = self.get_dependency_chain(changed_lines)
+            dependency_ratio = len(dependency_chain) / max(1, total_lines)
+            if dependency_ratio > 0.5:  # More than 50% of lines affected
+                return False
+        except:
+            return False  # Safe fallback if dependency analysis fails
         
-        for i, line in enumerate(lines):
-            line = line.strip()
-            if not line:
-                out[i] = ''
-                continue
+        return True
+
+    def _try_selective_evaluation(self):
+        """Attempt selective evaluation with safe fallback"""
+        try:
+            current_text = self.editor.toPlainText()
+            changed_lines = self.detect_changed_lines(self._last_evaluation_text, current_text)
             
-            # Check if this line has cross-sheet references
-            if re.search(cross_sheet_pattern, line, re.IGNORECASE):
+            if not changed_lines:
+                return True  # No changes needed
+            
+            # Attempt selective evaluation
+            success = self.evaluate_changed_lines_only(changed_lines)
+            if success:
+                # Update last evaluation text on success
+                self._last_evaluation_text = current_text
+                return True
+            
+        except Exception as e:
+            # Log error but fall back gracefully
+            if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+                print(f"Selective evaluation failed: {e}")
+        
+        return False  # Fall back to full evaluation
+
+    def evaluate_changed_lines_only(self, changed_lines):
+        """Stage 3.2: Evaluate only changed lines and their dependents"""
+        try:
+            # Get dependency chain for changed lines
+            lines_to_evaluate = self.get_dependency_chain(changed_lines)
+            
+            # Get current content
+            lines = self.editor.toPlainText().split('\n')
+            doc = self.results.document()
+            
+            # Store current cursor and scroll positions
+            current_cursor = self.editor.textCursor()
+            current_cursor_position = current_cursor.position()
+            editor_scroll = self.editor.verticalScrollBar().value()
+            results_scroll = self.results.verticalScrollBar().value()
+            
+            # Preserve existing results for unchanged lines
+            out = [''] * len(lines)
+            for i in range(min(len(lines), doc.blockCount())):
+                block = doc.findBlockByNumber(i)
+                if block.isValid():
+                    out[i] = block.text()
+            
+            # Initialize evaluation context with existing LN values
+            vals = {}
+            
+            # First pass: populate vals with existing LN values from unchanged lines
+            for i in range(len(lines)):
+                if i not in lines_to_evaluate:
+                    # Try to get existing value from cache or current results
+                    cached_result = self.get_cached_result(lines[i].strip(), i+1)
+                    if cached_result and cached_result['result'] is not None:
+                        vals[f'LN{i+1}'] = cached_result['result']
+            
+            # Second pass: evaluate only the lines that need updating
+            for i in sorted(lines_to_evaluate):
+                if i >= len(lines):
+                    continue
+                    
+                line = lines[i].strip()
+                if not line or line.startswith('//'):
+                    out[i] = ''
+                    continue
+                
                 try:
-                    # Process cross-sheet references
-                    processed_line = self.editor.process_ln_refs(line)
+                    # Check cache first
+                    cached_result = self.get_cached_result(line, i+1)
+                    if cached_result and i not in changed_lines:
+                        # Use cached result for dependent lines that haven't changed
+                        result = cached_result['result']
+                        out[i] = cached_result['formatted_result']
+                    else:
+                        # Evaluate the line
+                        processed_line = self.editor.process_ln_refs(line)
+                        result = eval(processed_line, globals(), vals)
+                        formatted_result = self.format_number_for_display(result, i+1)
+                        out[i] = formatted_result
+                        
+                        # Cache the result
+                        self.cache_evaluation_result(line, result, formatted_result, i+1)
                     
-                    # Evaluate the processed line
-                    result = eval(processed_line, globals(), vals)
-                    
-                    # Store for later lines that might reference this one
+                    # Store LN value for other lines to reference
                     vals[f'LN{i+1}'] = result
-                    
-                    # Format the result
-                    formatted_result = self.format_number_for_display(result, i+1)
-                    out[i] = formatted_result
-                    cross_sheet_lines_updated += 1
                     
                 except Exception as e:
                     out[i] = f"Error: {str(e)}"
-            # For non-cross-sheet lines, preserve the LN values for reference
-            elif line and not line.startswith('//'):
-                try:
-                    # Still need to evaluate to maintain LN values, but don't change output
-                    result = eval(line, globals(), vals)
-                    vals[f'LN{i+1}'] = result
-                except:
-                    pass  # Keep existing result
-        
-        # Update results display while maintaining line alignment
-        cursor = QTextCursor(doc)
-        cursor.movePosition(QTextCursor.Start)
-        cursor.beginEditBlock()
-        
-        # Clear and rebuild the entire results to ensure proper line alignment
-        cursor.select(QTextCursor.Document)
-        cursor.removeSelectedText()
-        
-        # Insert all results line by line
-        for i, result_text in enumerate(out):
-            if i > 0:
-                cursor.insertText('\n')
-            cursor.insertText(result_text)
-        
-        cursor.endEditBlock()
-        
-        # Restore cursor position properly
-        restored_cursor = QTextCursor(self.editor.document())
-        restored_cursor.setPosition(current_cursor_position)
-        self.editor.setTextCursor(restored_cursor)
-        
-        # Restore scroll positions using the sync mechanism
-        self._syncing_scroll = True  # Temporarily disable sync to avoid double-setting
-        self.editor.verticalScrollBar().setValue(editor_scroll)
-        self.results.verticalScrollBar().setValue(results_scroll)
-        self._syncing_scroll = False
-        
-        # Force highlighting update to ensure cursor line is properly highlighted
-        self.editor.highlightCurrentLine()
-        
-        # Force a delayed sync to ensure perfect alignment
-        QTimer.singleShot(10, lambda: self._force_sync_from_editor())
-        
-        # print(f"⚡ Cross-sheet selective evaluation: {cross_sheet_lines_updated} lines updated")  # Comment out for normal usage
+                    vals[f'LN{i+1}'] = 0  # Default value to prevent cascade errors
+            
+            # Update results display
+            cursor = QTextCursor(doc)
+            cursor.movePosition(QTextCursor.Start)
+            cursor.beginEditBlock()
+            
+            # Update only the affected lines to minimize UI disruption
+            for i in lines_to_evaluate:
+                if i < len(out):
+                    # Move to the specific line
+                    cursor.movePosition(QTextCursor.Start)
+                    cursor.movePosition(QTextCursor.Down, QTextCursor.MoveAnchor, i)
+                    cursor.select(QTextCursor.LineUnderCursor)
+                    cursor.insertText(out[i])
+            
+            cursor.endEditBlock()
+            
+            # Restore cursor and scroll positions
+            restored_cursor = QTextCursor(self.editor.document())
+            restored_cursor.setPosition(current_cursor_position)
+            self.editor.setTextCursor(restored_cursor)
+            
+            self._syncing_scroll = True
+            self.editor.verticalScrollBar().setValue(editor_scroll)
+            self.results.verticalScrollBar().setValue(results_scroll)
+            self._syncing_scroll = False
+            
+            # Force highlighting update
+            self.editor.highlightCurrentLine()
+            QTimer.singleShot(10, lambda: self._force_sync_from_editor())
+            
+            return True
+            
+        except Exception as e:
+            if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+                print(f"Selective evaluation error: {e}")
+            return False
 
     def _initialize_evaluation(self):
         """Initialize evaluation state and prepare data structures"""
@@ -4818,6 +4887,162 @@ class Worksheet(QWidget):
         self.dependency_graph_cache.clear()
         self._dependency_chain_cache.clear()
         self._dependency_graph_dirty = True
+
+    def evaluate_cross_sheet_lines_only(self):
+        """Stage 2 optimization: Only evaluate lines with cross-sheet references"""
+        if not hasattr(self, 'has_cross_sheet_refs') or not self.has_cross_sheet_refs:
+            return
+        
+        # Pattern to detect cross-sheet references: S.SheetName.LN#
+        cross_sheet_pattern = r'\bS\.[^.]+\.LN\d+\b'
+        
+        # Get current content
+        lines = self.editor.toPlainText().split('\n')
+        doc = self.results.document()
+        
+        # Store current cursor and scroll positions to restore them
+        current_cursor = self.editor.textCursor()
+        current_cursor_position = current_cursor.position()
+        current_cursor_block = current_cursor.blockNumber()
+        editor_scroll = self.editor.verticalScrollBar().value()
+        results_scroll = self.results.verticalScrollBar().value()
+        
+        # Process each line and update only those with cross-sheet references
+        out = [''] * len(lines)  # Initialize with empty strings to maintain line count
+        
+        # First, preserve all existing results
+        for i in range(min(len(lines), doc.blockCount())):
+            block = doc.findBlockByNumber(i)
+            if block.isValid():
+                out[i] = block.text()
+        
+        # Now evaluate only cross-sheet reference lines
+        vals = {}
+        cross_sheet_lines_updated = 0
+        
+        for i, line in enumerate(lines):
+            line = line.strip()
+            if not line:
+                out[i] = ''
+                continue
+            
+            # Check if this line has cross-sheet references
+            if re.search(cross_sheet_pattern, line, re.IGNORECASE):
+                try:
+                    # Process cross-sheet references
+                    processed_line = self.editor.process_ln_refs(line)
+                    
+                    # Evaluate the processed line
+                    result = eval(processed_line, globals(), vals)
+                    
+                    # Store for later lines that might reference this one
+                    vals[f'LN{i+1}'] = result
+                    
+                    # Format the result
+                    formatted_result = self.format_number_for_display(result, i+1)
+                    out[i] = formatted_result
+                    cross_sheet_lines_updated += 1
+                    
+                except Exception as e:
+                    out[i] = f"Error: {str(e)}"
+            # For non-cross-sheet lines, preserve the LN values for reference
+            elif line and not line.startswith('//'):
+                try:
+                    # Still need to evaluate to maintain LN values, but don't change output
+                    result = eval(line, globals(), vals)
+                    vals[f'LN{i+1}'] = result
+                except:
+                    pass  # Keep existing result
+        
+        # Update results display while maintaining line alignment
+        cursor = QTextCursor(doc)
+        cursor.movePosition(QTextCursor.Start)
+        cursor.beginEditBlock()
+        
+        # Clear and rebuild the entire results to ensure proper line alignment
+        cursor.select(QTextCursor.Document)
+        cursor.removeSelectedText()
+        
+        # Insert all results line by line
+        for i, result_text in enumerate(out):
+            if i > 0:
+                cursor.insertText('\n')
+            cursor.insertText(result_text)
+        
+        cursor.endEditBlock()
+        
+        # Restore cursor position properly
+        restored_cursor = QTextCursor(self.editor.document())
+        restored_cursor.setPosition(current_cursor_position)
+        self.editor.setTextCursor(restored_cursor)
+        
+        # Restore scroll positions using the sync mechanism
+        self._syncing_scroll = True  # Temporarily disable sync to avoid double-setting
+        self.editor.verticalScrollBar().setValue(editor_scroll)
+        self.results.verticalScrollBar().setValue(results_scroll)
+        self._syncing_scroll = False
+        
+        # Force highlighting update to ensure cursor line is properly highlighted
+        self.editor.highlightCurrentLine()
+        
+        # Force a delayed sync to ensure perfect alignment
+        QTimer.singleShot(10, lambda: self._force_sync_from_editor())
+        
+        # print(f"⚡ Cross-sheet selective evaluation: {cross_sheet_lines_updated} lines updated")  # Comment out for normal usage
+
+    def _initialize_evaluation(self):
+        """Initialize evaluation state and prepare data structures"""
+        evaluation_context = {}
+        
+        # Debug and performance logging setup
+        if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
+            start_time = self.editor._log_perf("evaluate")
+            print(f"EVALUATION TRIGGERED at line {self.editor.textCursor().blockNumber()}")
+            
+            # Add stack trace to see what's calling evaluation
+            stack = traceback.extract_stack()
+            print("EVAL CALL STACK:")
+            for frame in stack[-5:-1]:  # Show last 4 frames before this one
+                print(f"  {frame.filename}:{frame.lineno} in {frame.name}()")
+        
+        # Store current cursor and scroll positions
+        evaluation_context['cursor'] = self.editor.textCursor()
+        evaluation_context['editor_scroll'] = self.editor.verticalScrollBar().value()
+        evaluation_context['results_scroll'] = self.results.verticalScrollBar().value()
+        
+        # Check if this is a cursor-triggered evaluation
+        evaluation_context['is_cursor_triggered'] = hasattr(self.editor, '_cursor_triggered_eval')
+        if evaluation_context['is_cursor_triggered']:
+            delattr(self.editor, '_cursor_triggered_eval')
+        
+        # Ensure line IDs are properly assigned
+        self.editor.reassign_line_ids()
+        
+        # Initialize data structures
+        evaluation_context['lines'] = self.editor.toPlainText().split("\n")
+        evaluation_context['vals'] = [None] * len(evaluation_context['lines'])
+        self.editor.ln_value_map = {}
+        
+        # Stage 2 Optimization: Clear LN reference cache when values change
+        self.editor.clear_ln_reference_cache()
+        
+        id_map = {}
+        evaluation_context['doc'] = self.editor.document()
+        
+        # Update separator lines
+        self.editor.update_separator_lines()
+        
+        # Build id_map and initialize ln_value_map
+        for i in range(evaluation_context['doc'].blockCount()):
+            blk = evaluation_context['doc'].findBlockByNumber(i)
+            d = blk.userData()
+            if isinstance(d, LineData):
+                id_map[d.id] = i
+                # Initialize with None to ensure the ID exists in the map
+                self.editor.ln_value_map[d.id] = None
+        
+        evaluation_context['id_map'] = id_map
+        return evaluation_context
 
 class Calculator(QWidget):
     def __init__(self):
@@ -5821,7 +6046,7 @@ def verify_icon_file(icon_path):
         with Image.open(icon_path) as img:
             if not img.is_animated:
                 return False
-                
+        
             # Check each size in the icon
             sizes_found = []
             for frame in range(img.n_frames):
@@ -5836,7 +6061,7 @@ def verify_icon_file(icon_path):
                 return False
             else:
                 return True
-                
+
     except ImportError:
         return None
     except Exception as e:
@@ -5895,7 +6120,7 @@ if __name__=="__main__":
         
         # Additional method to ensure focus
         ctypes.windll.user32.SetActiveWindow(hwnd)
-        
+            
     except Exception as e:
         pass
     
@@ -5918,4 +6143,5 @@ if __name__=="__main__":
     QTimer.singleShot(100, delayed_focus)  # 100ms delay
     
     app.exec()
+        
         
