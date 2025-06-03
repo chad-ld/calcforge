@@ -4,7 +4,7 @@ APP = ['calcforge.py']
 DATA_FILES = []
 OPTIONS = {
     'argv_emulation': True,
-    'iconfile': 'calcforge.ico',  # Use your icon if available, else remove this line
+    'iconfile': 'calcforge.icns',  # Use the new valid macOS icon
     'packages': ['PySide6', 'pint', 'requests', 'Pillow'],
 }
 
