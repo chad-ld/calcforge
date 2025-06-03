@@ -5,7 +5,8 @@ DATA_FILES = []
 OPTIONS = {
     'argv_emulation': True,
     'iconfile': 'calcforge.icns',  # Use the new valid macOS icon
-    'packages': ['PySide6', 'pint', 'requests', 'Pillow'],
+    'packages': ['PySide6', 'pint', 'requests', 'PIL'],
+    'includes': ['PIL', 'PIL.*'],
 }
 
 setup(
