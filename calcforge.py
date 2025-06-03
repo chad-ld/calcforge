@@ -5733,7 +5733,7 @@ class Calculator(QWidget):
         # Dark mode color scheme
         text = (
             "<div style='max-width: 100%; margin: 0 auto; background-color: #1e1e1e; color: #e0e0e0;'>"
-            f"<h1 style='text-align: center; color: #4da6ff; margin-bottom: 20px;'>{icon_html}calcforge v3.1 - Complete Reference Guide</h1>"
+            f"<h1 style='text-align: center; color: #4da6ff; margin-bottom: 20px;'>{icon_html}calcforge v3.2 - Complete Reference Guide</h1>"
             
             "<table width='100%' cellpadding='12' cellspacing='0' style='border-collapse: collapse;'>"
             
@@ -5759,6 +5759,8 @@ class Calculator(QWidget):
             "• Auto-capitalization: <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>s.sheet.ln2 → S.Sheet.LN2</code><br>"
             "• Mix with regular refs: <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>LN1 + S.Data.LN3</code><br>"
             "• Cross-sheet highlighting<br>"
+            "• Optimized dependency tracking<br>"
+            "• Smart selective cache invalidation<br>"
             "</td>"
             
             "<td width='33%' valign='top' style='border-right: 1px solid #444; padding: 0 15px;'>"
@@ -5774,7 +5776,9 @@ class Calculator(QWidget):
             "<h3 style='color: #6fcf97;'>🔧 Number Formatting</h3>"
             "• <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>truncate(value, decimals)</code> or <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>TR(value, decimals)</code><br>"
             "• Works with all result types<br>"
-            "• Example: <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>truncate(pi, 3) → 3.142</code><br><br>"
+            "• Example: <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>truncate(pi, 3) → 3.142</code><br>"
+            "• Large numbers display with commas up to trillions<br>"
+            "• Scientific notation only for values > 1e12<br><br>"
             
             "<h3 style='color: #6fcf97;'>🔄 Unit Conversions</h3>"
             "• Format: <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>value unit to target_unit</code><br>"
@@ -5795,7 +5799,7 @@ class Calculator(QWidget):
             "</td>"
             
             "<td width='33%' valign='top' style='padding-left: 15px;'>"
-            "<h3 style='color: #6fcf97; margin-top: 0;'>📈 Statistical Functions</h3>"
+            "<h3 style='color: #6fcf97;'>📈 Statistical Functions</h3>"
             "• <strong style='color: #ff9999;'>Basic Statistics:</strong><br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(above), sum(below), sum(start range - end range), sum(line1,line2,line3)</code><br>"
             "  <code style='background-color: #333; color: #ffd700; padding: 2px 4px; border-radius: 3px;'>sum(cg-above), sum(cg-below)</code><br><br>"
@@ -5867,8 +5871,9 @@ class Calculator(QWidget):
             "• Drag to reorder sheets<br>"
             "• Double-click to rename sheets<br>"
             "• Real-time syntax highlighting<br>"
-            "• Auto-completion for functions<br>"
+            "• Context-aware auto-completion for functions<br>"
             "• Live result updates<br>"
+            "• Perfect scrollbar synchronization<br>"
             "• Stay on top option<br><br>"
             
             "<h3 style='color: #81c784;'>📝 Comments & Organization</h3>"
