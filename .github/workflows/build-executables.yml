@@ -52,11 +52,24 @@ jobs:
       if: matrix.platform == 'macos'
       run: python setup.py py2app
 
-    - name: Ad-hoc sign the .app bundle
+    - name: Better sign the .app bundle with hardened runtime and entitlements
       if: matrix.platform == 'macos'
-      run: codesign --force --deep --sign - dist/CalcForge.app
+      run: |
+        # First, remove any existing signature
+        codesign --remove-signature dist/CalcForge.app || true
+        # Sign with hardened runtime and entitlements
+        codesign --force --deep --options runtime --entitlements entitlements.plist --sign - dist/CalcForge.app
+        # Verify the signature
+        codesign --verify --verbose dist/CalcForge.app
 
-    - name: Zip .app bundle
+    - name: Create a disk image (DMG) for easier installation
+      if: matrix.platform == 'macos'
+      run: |
+        mkdir -p dist/dmg
+        cp -R dist/CalcForge.app dist/dmg/
+        hdiutil create -volname CalcForge -srcfolder dist/dmg -ov -format UDZO dist/CalcForge-macOS.dmg
+
+    - name: Zip .app bundle as fallback
       if: matrix.platform == 'macos'
       run: cd dist && zip -r CalcForge-macOS.zip CalcForge.app
 
@@ -65,13 +78,26 @@ jobs:
       run: |
         pyinstaller --onefile --name=CalcForge calcforge.py
 
+    - name: Upload macOS DMG artifact
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v3
+      with:
+        name: CalcForge-macOS-DMG
+        path: dist/CalcForge-macOS.dmg
+
+    - name: Upload macOS ZIP artifact (fallback)
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v3
+      with:
+        name: CalcForge-macOS-ZIP
+        path: dist/CalcForge-macOS.zip
+
     - name: Upload artifacts
+      if: matrix.platform != 'macos'
       uses: actions/upload-artifact@v4
       with:
         name: CalcForge-${{ matrix.platform }}
-        path: |
-          dist/CalcForge${{ matrix.extension }}
-          dist/CalcForge.app/
+        path: dist/CalcForge${{ matrix.extension }}
         if-no-files-found: ignore
 
   release:
