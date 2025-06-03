@@ -109,13 +109,10 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
       
-    - name: Create macOS archive
+    - name: Check macOS artifacts
       run: |
-        cd CalcForge-macos
-        if [ -d "CalcForge.app" ]; then
-          zip -r CalcForge-macos.zip CalcForge.app
-        fi
-        cd ..
+        # List all downloaded artifacts
+        find . -type f | sort
     
     - name: Rename files for release
       run: |
@@ -123,15 +120,30 @@ jobs:
         mkdir -p releases
         
         # Copy and rename files with platform labels
-        cp CalcForge-windows/CalcForge.exe releases/CalcForge-Windows.exe
-        cp CalcForge-macos/CalcForge-macos.zip releases/CalcForge-macOS.zip
-        cp CalcForge-linux/CalcForge releases/CalcForge-Linux
+        if [ -f "CalcForge-windows/CalcForge.exe" ]; then
+          cp CalcForge-windows/CalcForge.exe releases/CalcForge-Windows.exe
+        fi
+        
+        # Use our DMG file as the primary macOS release
+        if [ -f "CalcForge-macOS-DMG/CalcForge-macOS.dmg" ]; then
+          cp CalcForge-macOS-DMG/CalcForge-macOS.dmg releases/CalcForge-macOS.dmg
+        fi
+        
+        # Use the ZIP as fallback
+        if [ -f "CalcForge-macOS-ZIP/CalcForge-macOS.zip" ]; then
+          cp CalcForge-macOS-ZIP/CalcForge-macOS.zip releases/CalcForge-macOS.zip
+        fi
+        
+        if [ -f "CalcForge-linux/CalcForge" ]; then
+          cp CalcForge-linux/CalcForge releases/CalcForge-Linux
+        fi
       
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           releases/CalcForge-Windows.exe
+          releases/CalcForge-macOS.dmg
           releases/CalcForge-macOS.zip
           releases/CalcForge-Linux
         draft: false
