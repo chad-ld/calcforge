@@ -3380,32 +3380,40 @@ class Worksheet(QWidget):
         editor_line_count = len(current_text.split('\n'))
         results_doc = self.results.document()
         
-        # Use a more direct approach to synchronize the line count
-        # Always rebuild the results document to match the editor's line count exactly
-        while results_doc.blockCount() > editor_line_count:
-            # Remove the last line from the results document
+        # Use a bulk approach to synchronize the line count when many lines are deleted
+        if results_doc.blockCount() > editor_line_count:
+            # Store line numbers that need cache clearing
+            lines_to_clear = list(range(editor_line_count, results_doc.blockCount()))
+            
+            # Use a single edit block for bulk deletion
             cursor = QTextCursor(results_doc)
             cursor.beginEditBlock()
-            cursor.movePosition(QTextCursor.End)
-            cursor.movePosition(QTextCursor.StartOfLine)
-            cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
-            if cursor.atStart():
-                # If we're at the start of the document, select the whole line
-                cursor.movePosition(QTextCursor.Down, QTextCursor.KeepAnchor)
+            
+            # If editor is empty, clear everything
+            if editor_line_count == 0:
+                cursor.select(QTextCursor.Document)
+                cursor.removeSelectedText()
             else:
-                # Otherwise, we need to include the newline character before the line
-                cursor.movePosition(QTextCursor.Left, QTextCursor.KeepAnchor)
-            cursor.removeSelectedText()
+                # Otherwise, move to the end of the last valid line and delete to the end
+                cursor.setPosition(0)
+                # Move to the start of the line after the last valid line
+                for _ in range(editor_line_count):
+                    cursor.movePosition(QTextCursor.NextBlock)
+                # Select from that position to the end of document
+                cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+                # Remove the selected text
+                cursor.removeSelectedText()
+            
             cursor.endEditBlock()
             
-            # Clear cached values for this line
-            line_idx = results_doc.blockCount()
-            if line_idx in self._line_result_cache:
-                self._line_result_cache.pop(line_idx, None)
-            if line_idx in self._dependency_fingerprints:
-                self._dependency_fingerprints.pop(line_idx, None)
-            if line_idx+1 in self.raw_values:  # raw_values uses 1-based indexing
-                self.raw_values.pop(line_idx+1, None)
+            # Bulk clear cached values for deleted lines
+            for line_idx in lines_to_clear:
+                if line_idx in self._line_result_cache:
+                    self._line_result_cache.pop(line_idx, None)
+                if line_idx in self._dependency_fingerprints:
+                    self._dependency_fingerprints.pop(line_idx, None)
+                if line_idx+1 in self.raw_values:  # raw_values uses 1-based indexing
+                    self.raw_values.pop(line_idx+1, None)
         
         # Check for any lines that are now empty and clear their results immediately
         self.clear_results_for_empty_lines(changed_lines)
