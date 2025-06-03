@@ -3505,8 +3505,8 @@ class Worksheet(QWidget):
                 else:
                     # Format float with commas, showing at least 8 decimal places for normal numbers
                     abs_val = abs(value)
-                    if abs_val >= 1e6:
-                        # Very large numbers - use scientific notation or limited precision
+                    if abs_val >= 1e12:
+                        # Very large numbers (> trillion) - use scientific notation
                         return f'{value:,.8g}'
                     elif abs_val < 1e-12 and abs_val > 0:
                         # Very small numbers - use scientific notation
