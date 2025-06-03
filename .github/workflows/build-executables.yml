@@ -41,17 +41,17 @@ jobs:
     - name: Build executable (Windows)
       if: matrix.platform == 'windows'
       run: |
-        pyinstaller --onefile --windowed --icon=calcforge.ico --name=CalcForge CalcForge.3.0.py
+        pyinstaller --onefile --windowed --icon=calcforge.ico --name=CalcForge calcforge.py
 
     - name: Build executable (macOS)
       if: matrix.platform == 'macos'
       run: |
-        pyinstaller --onedir --windowed --icon=calcforge.ico --name=CalcForge CalcForge.3.0.py
+        pyinstaller --onedir --windowed --icon=calcforge.ico --name=CalcForge calcforge.py
 
     - name: Build executable (Linux)
       if: matrix.platform == 'linux'
       run: |
-        pyinstaller --onefile --name=CalcForge CalcForge.3.0.py
+        pyinstaller --onefile --name=CalcForge calcforge.py
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
