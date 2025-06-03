@@ -80,14 +80,14 @@ jobs:
 
     - name: Upload macOS DMG artifact
       if: matrix.platform == 'macos'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: CalcForge-macOS-DMG
         path: dist/CalcForge-macOS.dmg
 
     - name: Upload macOS ZIP artifact (fallback)
       if: matrix.platform == 'macos'
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: CalcForge-macOS-ZIP
         path: dist/CalcForge-macOS.zip
