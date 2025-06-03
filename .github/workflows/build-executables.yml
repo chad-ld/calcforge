@@ -43,10 +43,21 @@ jobs:
       run: |
         pyinstaller --onefile --windowed --icon=calcforge.ico --name=CalcForge calcforge.py
 
-    - name: Build executable (macOS)
+    - name: Install py2app
       if: matrix.platform == 'macos'
-      run: |
-        pyinstaller --onedir --windowed --icon=calcforge.ico --name=CalcForge calcforge.py
+      run: pip install py2app
+
+    - name: Build macOS .app with py2app
+      if: matrix.platform == 'macos'
+      run: python setup.py py2app
+
+    - name: Ad-hoc sign the .app bundle
+      if: matrix.platform == 'macos'
+      run: codesign --force --deep --sign - dist/CalcForge.app
+
+    - name: Zip .app bundle
+      if: matrix.platform == 'macos'
+      run: cd dist && zip -r CalcForge-macOS.zip CalcForge.app
 
     - name: Build executable (Linux)
       if: matrix.platform == 'linux'
