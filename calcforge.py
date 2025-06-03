@@ -3375,6 +3375,38 @@ class Worksheet(QWidget):
         old_text = getattr(self, '_last_text_content', '')
         changed_lines = self.detect_changed_lines(old_text, current_text)
         
+        # IMPORTANT: Force synchronization of line counts between editor and results
+        # This ensures when lines are deleted from the editor, they're removed from the results too
+        editor_line_count = len(current_text.split('\n'))
+        results_doc = self.results.document()
+        
+        # Use a more direct approach to synchronize the line count
+        # Always rebuild the results document to match the editor's line count exactly
+        while results_doc.blockCount() > editor_line_count:
+            # Remove the last line from the results document
+            cursor = QTextCursor(results_doc)
+            cursor.beginEditBlock()
+            cursor.movePosition(QTextCursor.End)
+            cursor.movePosition(QTextCursor.StartOfLine)
+            cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
+            if cursor.atStart():
+                # If we're at the start of the document, select the whole line
+                cursor.movePosition(QTextCursor.Down, QTextCursor.KeepAnchor)
+            else:
+                # Otherwise, we need to include the newline character before the line
+                cursor.movePosition(QTextCursor.Left, QTextCursor.KeepAnchor)
+            cursor.removeSelectedText()
+            cursor.endEditBlock()
+            
+            # Clear cached values for this line
+            line_idx = results_doc.blockCount()
+            if line_idx in self._line_result_cache:
+                self._line_result_cache.pop(line_idx, None)
+            if line_idx in self._dependency_fingerprints:
+                self._dependency_fingerprints.pop(line_idx, None)
+            if line_idx+1 in self.raw_values:  # raw_values uses 1-based indexing
+                self.raw_values.pop(line_idx+1, None)
+        
         # Check for any lines that are now empty and clear their results immediately
         self.clear_results_for_empty_lines(changed_lines)
         
@@ -4531,12 +4563,34 @@ class Worksheet(QWidget):
             # The line number area will be repositioned by the resize event of the results widget
             
     def clear_results_for_empty_lines(self, changed_lines):
-        """Force clear results for lines that are now empty"""
+        """Force clear results for lines that are now empty or removed"""
         if not changed_lines:
             return
             
         # Get current lines
         lines = self.editor.toPlainText().split('\n')
+        doc = self.results.document()
+        
+        # Special case: Handle deleted lines, especially at the end of the document
+        # This ensures the results panel stays in sync with the editor when lines are deleted
+        if doc.blockCount() > len(lines):
+            # Results document has more lines than editor - need to clear extra lines
+            for i in range(len(lines), doc.blockCount()):
+                cursor = QTextCursor(doc)
+                cursor.beginEditBlock()
+                cursor.movePosition(QTextCursor.Start)
+                cursor.movePosition(QTextCursor.Down, QTextCursor.MoveAnchor, i)
+                cursor.select(QTextCursor.LineUnderCursor)
+                cursor.removeSelectedText()
+                cursor.endEditBlock()
+                
+                # Also clear any corresponding cached values
+                if i in self._line_result_cache:
+                    self._line_result_cache.pop(i, None)
+                if i in self._dependency_fingerprints:
+                    self._dependency_fingerprints.pop(i, None)
+                if i+1 in self.raw_values:  # raw_values uses 1-based indexing
+                    self.raw_values.pop(i+1, None)
         
         # Check each changed line
         for line_idx in changed_lines:
@@ -4547,7 +4601,6 @@ class Worksheet(QWidget):
             # If the line is empty, clear its result
             if not lines[line_idx].strip():
                 # Get the results document
-                doc = self.results.document()
                 
                 # Make sure the line exists in results
                 if line_idx < doc.blockCount():
