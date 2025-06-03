@@ -43,9 +43,10 @@ jobs:
       run: |
         pyinstaller --onefile --windowed --icon=calcforge.ico --name=CalcForge calcforge.py
 
-    - name: Install py2app
+    - name: Install py2app and dependencies (macOS)
       if: matrix.platform == 'macos'
-      run: pip install py2app
+      run: |
+        pip install py2app PySide6 pint requests Pillow
 
     - name: Build macOS .app with py2app
       if: matrix.platform == 'macos'
