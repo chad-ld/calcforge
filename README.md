@@ -1,4 +1,4 @@
-# CalcForge v3.1
+# CalcForge v3.2
 
 **A powerful, intelligent calculator application with advanced mathematical capabilities, date arithmetic, timecode operations, currency conversion, aspect ratio calculations, and multi-sheet support.**
 
@@ -6,7 +6,7 @@ Or, as I like to say, if a spreadsheet and scientific calculator had a baby.... 
 
 Long and short of this app is this: I use my calculator on my windows pc all the time, but the default calc is limited in terms of history and more advanced functionality. I also do conversions a lot and work with timecode/frames in the film/video/gaming/animation world. There are various "supercalcs" out there, but none of them really worked the way I wanted a calculator to work, or they were incredibly buggy. So, I decided to make this a fun project to brush off my dormant comp sci chops and give cursor/claude combo a try to see if I could make my own app that functioned exactly like I wanted it. Hence, CalcForge was born! Below is a list of features, feel free to download it and give it a whirl, suggest improvements, all that jazz. On the windows side, i bind a keyboard shortcut to launch the app via power toys and it works like a champ. 
 
-![CalcForge](https://img.shields.io/badge/version-3.1-blue.svg)
+![CalcForge](https://img.shields.io/badge/version-3.2-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
@@ -21,6 +21,7 @@ Long and short of this app is this: I use my calculator on my windows pc all the
 - **Syntax highlighting**: Color-coded formulas with intelligent highlighting
 - **Auto-completion**: Smart suggestions for functions, commands, and currency conversions
 - **Real-time evaluation**: See results instantly as you type
+- **Perfect scrollbar synchronization**: Editor and results panel stay perfectly aligned, even when deleting lines
 
 ### 🧮 **Mathematical Operations**
 
@@ -38,6 +39,7 @@ Long and short of this app is this: I use my calculator on my windows pc all the
 - **Number theory**: `factorial()`, `gcd()`, `lcm()`
 - **Constants**: `pi`, `e`
 - **Angle conversion**: `degrees()`, `radians()`
+- **Improved number formatting**: Large numbers displayed with commas up to trillions before switching to scientific notation
 
 ### 📈 **Statistical Analysis**
 
@@ -86,7 +88,7 @@ Long and short of this app is this: I use my calculator on my windows pc all the
 - **Volume**: gallons, liters, quarts, pints, cups, milliliters
 - **Simple syntax**: `1 mile to km`, `5 pounds to kg`
 
-### 💱 **Currency Conversions** *(NEW in v3.1)*
+### 💱 **Currency Conversions**
 - **Real-time exchange rates**: Live currency data with fallback rates
 - **25+ major currencies**: USD, EUR, GBP, JPY, CAD, AUD, CHF, CNY, INR, KRW, MXN, BRL, RUB, and more
 - **Smart auto-completion**: Context-aware currency suggestions (only after numbers)
@@ -94,7 +96,7 @@ Long and short of this app is this: I use my calculator on my windows pc all the
 - **Full currency names**: Supports both abbreviations (USD) and full names (US Dollars)
 - **Works with truncate**: `truncate(1000 usd to eur, 2)`
 
-### 📐 **Aspect Ratio Calculator** *(NEW in v3.1)*
+### 📐 **Aspect Ratio Calculator**
 - **Solve missing dimensions**: Maintain aspect ratios when scaling
 - **Smart syntax**: `AR(1920x1080, ?x2000)` - solve for width
 - **Flexible solving**: `AR(1920x1080, 1280x?)` - solve for height
@@ -112,6 +114,7 @@ Long and short of this app is this: I use my calculator on my windows pc all the
 - **Number navigation**: Ctrl+Left/Right to jump between numbers
 - **Font scaling**: Ctrl+Mouse wheel to zoom
 - **Auto-correction**: Automatic capitalization of references
+- **Perfect scrollbar sync**: Automatic synchronization between editor and results panel, even when deleting the last line
 
 #### Visual Feedback
 - **Live highlighting**: Referenced lines are highlighted in real-time
@@ -131,6 +134,13 @@ Long and short of this app is this: I use my calculator on my windows pc all the
 - **Persistent storage**: Worksheets automatically saved and restored
 - **Multiple tabs**: Organize work across different sheets
 
+### ⚡ **Performance Optimizations**
+- **Cross-sheet dependency tracking**: Smart tracking of sheet references for efficient updates
+- **Selective cache invalidation**: Only recalculates affected formulas when data changes
+- **Intelligent reference counting**: Maintains optimal performance with complex sheet relationships
+- **Enhanced number formatting**: Large numbers displayed with commas up to trillions before switching to scientific notation
+- **Perfect scrollbar synchronization**: Immediate UI updates when editing or deleting lines
+
 ## 🛠 Installation
 
 ### Prerequisites
@@ -145,7 +155,7 @@ pip install PySide6 pint
 
 ### Run CalcForge
 ```bash
-python CalcForge.3.0.py
+python calcforge.py
 ```
 
 ## 📖 **Usage Examples**
@@ -172,13 +182,13 @@ log10(1000)          # Result: 3.0
 5 miles to km        # Result: 8.047 kilometers
 10 pounds to kg      # Result: 4.536 kilograms
 
-::: Currency conversions (NEW in v3.1)
+::: Currency conversions
 100 dollars to euros        # Real-time conversion
 50.25 gbp to usd           # British pounds to US dollars
 1000 yen to canadian dollars # Multiple currency names
 truncate(100 usd to eur, 2) # With precision control
 
-::: Aspect ratio calculations (NEW in v3.1)
+::: Aspect ratio calculations
 AR(1920x1080, ?x2000)      # Solve for width: 3556x2000
 AR(1920x1080, 1280x?)      # Solve for height: 1280x720
 AR(4096x2160, ?x1080)      # 4K to HD scaling: 1920x1080
