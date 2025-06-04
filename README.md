@@ -1,12 +1,14 @@
-# CalcForge v3.2
+# CalcForge v4.0
 
 **A powerful, intelligent calculator application with advanced mathematical capabilities, date arithmetic, timecode operations, currency conversion, aspect ratio calculations, and multi-sheet support.**
+
+**Latest in v4.0**: Fixed unit conversion clipboard copying and sum function calculations with line references.
 
 Or, as I like to say, if a spreadsheet and scientific calculator had a baby.... then the baby mutated an extra arm.
 
 Long and short of this app is this: I use my calculator on my windows pc all the time, but the default calc is limited in terms of history and more advanced functionality. I also do conversions a lot and work with timecode/frames in the film/video/gaming/animation world. There are various "supercalcs" out there, but none of them really worked the way I wanted a calculator to work, or they were incredibly buggy. So, I decided to make this a fun project to brush off my dormant comp sci chops and give cursor/claude combo a try to see if I could make my own app that functioned exactly like I wanted it. Hence, CalcForge was born! Below is a list of features, feel free to download it and give it a whirl, suggest improvements, all that jazz. On the windows side, i bind a keyboard shortcut to launch the app via power toys and it works like a champ. 
 
-![CalcForge](https://img.shields.io/badge/version-3.2-blue.svg)
+![CalcForge](https://img.shields.io/badge/version-4.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![License](https://img.shields.io/badge/license-GPL--3.0-red.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
@@ -253,7 +255,7 @@ CalcForge is open source software licensed under GPL 3.0. Contributions are welc
 ### Development Setup
 1. Clone the repository
 2. Install dependencies: `pip install PySide6 pint`
-3. Run the application: `python CalcForge.3.0.py`
+3. Run the application: `python calcforge.py`
 
 ### License
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
@@ -270,4 +272,4 @@ CalcForge combines the power of a scientific calculator with the flexibility of 
 
 ---
 
-**CalcForge v3.1** - Where calculation meets innovation. 🚀
+**CalcForge v4.0** - Where calculation meets innovation. 🚀

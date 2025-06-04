@@ -5710,7 +5710,7 @@ class Calculator(QWidget):
         if self.settings.contains('geometry'):
             self.restoreGeometry(self.settings.value('geometry'))
         self.splitter_state = self.settings.value('splitterState')
-        self.setWindowTitle("calcforge v3.1")
+        self.setWindowTitle("CalcForge v4.0")
         self.setMinimumSize(800,400)
         
         # Remove stay on top flag after initial setup
@@ -5999,7 +5999,7 @@ class Calculator(QWidget):
         # Create a custom dialog with 16:9 aspect ratio
         
         dialog = QDialog(self)
-        dialog.setWindowTitle("calcforge Help")
+        dialog.setWindowTitle("CalcForge v4.0 Help")
         dialog.setWindowFlags(dialog.windowFlags() | Qt.WindowMaximizeButtonHint)
         
         # Set the icon for the dialog
@@ -6044,7 +6044,7 @@ class Calculator(QWidget):
         # Dark mode color scheme
         text = (
             "<div style='max-width: 100%; margin: 0 auto; background-color: #1e1e1e; color: #e0e0e0;'>"
-            f"<h1 style='text-align: center; color: #4da6ff; margin-bottom: 20px;'>{icon_html}calcforge v3.2 - Complete Reference Guide</h1>"
+            f"<h1 style='text-align: center; color: #4da6ff; margin-bottom: 20px;'>{icon_html}CalcForge v4.0 - Complete Reference Guide</h1>"
             
             "<table width='100%' cellpadding='12' cellspacing='0' style='border-collapse: collapse;'>"
             
@@ -6741,7 +6741,7 @@ if __name__=="__main__":
         # Force the icon to be set for Windows
         try:
             import ctypes
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("calcforge.2.0")
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("calcforge.4.0")
             # Set the icon for the taskbar
             import win32gui
             import win32con

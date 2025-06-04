@@ -243,5 +243,5 @@ SUPPORTED_EXTENSIONS = ['.cf', '.calcforge']
 
 # Application metadata
 APP_NAME = "CalcForge"
-APP_VERSION = "1.0.0"
+APP_VERSION = "4.0.0"
 APP_DESCRIPTION = "Advanced Calculator with Spreadsheet-like Features" 
