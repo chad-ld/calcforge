@@ -820,11 +820,12 @@ class FormulaHighlighter(BaseHighlighter):
 
 class ResultsHighlighter(BaseHighlighter):
     """Simple syntax highlighter for results panel, highlighting errors and important information"""
-    
+
     def __init__(self, document):
         super().__init__(document)
-        self.error_format = self._fmt("#FF5C5C", bold=True)
-        
+        # Use GitHub dark theme error color
+        self.error_format = self._fmt(COLORS['error'], bold=True)
+
     def highlightBlock(self, text):
         # Highlight error text
         if "ERROR" in text or "TC ERROR" in text:
@@ -3210,47 +3211,61 @@ class Worksheet(QWidget):
         font_size = self.settings.value('font_size', 14, type=int)
         self.results.setFont(QFont("Courier New", font_size, QFont.Bold))
         
-        # Use the exact same stylesheet as the editor for consistent scrollbar appearance
+        # Apply GitHub dark theme styling to results panel
         self.results.setStyleSheet("""
             QPlainTextEdit {
-                background-color: #2c2c2e; 
-                color: white;
+                background-color: #161B22;
+                color: #e0e0e0;
                 border: none;
                 padding: 0px;
                 margin: 0px;
                 line-height: 1.2em;
+                font-family: 'Roboto Mono', 'Courier New', monospace;
+                font-size: 14px;
             }
             QScrollBar:vertical {
-                background: #2c2c2e;
-                width: 8px;
-                border: none;
+                background-color: #21262D;
+                width: 12px;
+                border-radius: 6px;
             }
             QScrollBar::handle:vertical {
-                background: #555555;
+                background-color: #30363D;
+                border-radius: 6px;
+                border: 3px solid #21262D;
                 min-height: 20px;
-                border-radius: 2px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #666666;
+                background-color: #4A5568;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
-            }
-            QScrollBar:horizontal {
-                background: #2c2c2e;
-                height: 8px;
+                background: none;
                 border: none;
             }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
+            QScrollBar:horizontal {
+                background-color: #21262D;
+                height: 12px;
+                border-radius: 6px;
+            }
             QScrollBar::handle:horizontal {
-                background: #555555;
+                background-color: #30363D;
+                border-radius: 6px;
+                border: 3px solid #21262D;
                 min-width: 20px;
-                border-radius: 2px;
             }
             QScrollBar::handle:horizontal:hover {
-                background: #666666;
+                background-color: #4A5568;
             }
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
                 width: 0px;
+                background: none;
+                border: none;
+            }
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+                background: none;
             }
         """)
         
@@ -3289,7 +3304,13 @@ class Worksheet(QWidget):
         
         # Create a container widget for the results with line numbers FIRST
         self.results_container = QWidget()
-        self.results_container.setStyleSheet("background-color: #2c2c2e;")
+        self.results_container.setStyleSheet("""
+            QWidget {
+                background-color: #161B22;
+                border: 1px solid #30363D;
+                border-radius: 6px;
+            }
+        """)
         
         # Setup the results layout immediately
         self.setupResultsLayout()
@@ -3317,11 +3338,37 @@ class Worksheet(QWidget):
         self.editor.verticalScrollBar().valueChanged.connect(self._sync_editor_to_results)
         self.results.verticalScrollBar().valueChanged.connect(self._sync_results_to_editor)
         
+        # Apply GitHub dark theme styling to splitter
+        self.splitter.setStyleSheet("""
+            QSplitter {
+                background-color: #0D1117;
+                border: none;
+            }
+            QSplitter::handle {
+                background-color: #30363D;
+                width: 4px;
+                height: 4px;
+                border-radius: 2px;
+                margin: 2px;
+            }
+            QSplitter::handle:hover {
+                background-color: #4A5568;
+            }
+        """)
+
         # Add widgets to splitter
         self.splitter.addWidget(self.editor)
         self.splitter.addWidget(self.results_container)
         self.splitter.setSizes([600, 200])
         layout.addWidget(self.splitter)
+
+        # Apply main layout styling
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #0D1117;
+                color: #e0e0e0;
+            }
+        """)
         
         # Stage 1: Smart evaluation timer - starts with intelligent timing
         self.timer = QTimer(self)

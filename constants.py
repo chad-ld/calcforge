@@ -189,17 +189,19 @@ MATH_FUNCS = {
 # UI CONSTANTS
 # =============================================================================
 
-# Theme colors
+# GitHub Dark Theme Colors for Syntax Highlighting
 COLORS = {
-    'background': '#1e1e1e',
-    'current_line': '#ffffff',
-    'comment': '#7ED321', 
-    'number': '#ffffff',
-    'operator': '#4DA6FF',
-    'function': '#4DA6FF',
-    'paren': '#6FCF97',
-    'unmatched': '#FF5C5C',
-    'ln_highlight': '#888',
+    'background': '#0D1117',      # Main background
+    'current_line': '#FFFFFF',    # Current line text (white)
+    'comment': '#8B949E',         # Gray comments
+    'number': '#79C0FF',          # Light blue numbers
+    'operator': '#FF7B72',        # Light red operators
+    'function': '#D2A8FF',        # Light purple functions
+    'paren': '#FFA657',           # Orange parentheses
+    'unmatched': '#F85149',       # Red for unmatched parentheses
+    'ln_highlight': '#A5D6FF',    # Cyan for LN references
+    'sheet_ref': '#4DA6FF',       # Blue for sheet references
+    'error': '#F85149',           # Red for errors
 }
 
 # LN variable colors for syntax highlighting
