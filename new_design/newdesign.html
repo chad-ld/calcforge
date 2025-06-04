@@ -1,0 +1,345 @@
+<html><head>
+<meta charset="utf-8"/>
+<link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+<link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Roboto+Mono%3Awght%40400&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900" onload="this.rel='stylesheet'" rel="stylesheet"/>
+<title>CalcForge v4.0</title>
+<link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+    .syntax-highlight .header {
+      color: #6EE7B7;}
+    .syntax-highlight .function {
+      color: #60A5FA;}
+    .syntax-highlight .value {
+      color: #FFFFFF;}
+    .syntax-highlight .operator {
+        color: #9CA3AF;}
+    .syntax-highlight .comment {
+        color: #6B7280;}
+    .syntax-highlight .keyword {
+        color: #F472B6;}.force-scrollbar::-webkit-scrollbar {
+        width: 12px;height: 12px;}
+    .force-scrollbar::-webkit-scrollbar-track {
+        background: #21262D;border-radius: 6px;
+    }
+    .force-scrollbar::-webkit-scrollbar-thumb {
+        background-color: #30363D;border-radius: 6px;
+        border: 3px solid #21262D;}
+    .force-scrollbar::-webkit-scrollbar-thumb:hover {
+        background-color: #4A5568;}
+    .force-scrollbar {
+        scrollbar-width: thin;scrollbar-color: #30363D #21262D;
+        overflow: auto !important;
+    }
+    .panel-content {
+        height: calc(100vh - 200px);
+        overflow: auto !important;
+    }
+  </style>
+</head>
+<body class="bg-[#0D1117] text-gray-300" style='font-family: Inter, "Noto Sans", sans-serif;'>
+<div class="flex flex-col min-h-screen">
+<header class="bg-[#161B22] text-white flex items-center justify-between px-4 py-2 border-b border-[#30363D]">
+<div class="flex items-center gap-2">
+<h1 class="text-sm font-semibold">CalcForge v4.0</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex cursor-pointer items-center justify-center rounded-md h-7 bg-[#21262D] text-white gap-1 text-xs font-medium min-w-0 px-2.5 hover:bg-[#30363D] focus:outline-none focus:ring-2 focus:ring-[#0c7ff2]" title="New Tab">
+<svg class="w-4 h-4 text-[#0c7ff2]" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4ZM11 7V11H7V13H11V17H13V13H17V11H13V7H11Z" fill-rule="evenodd"></path></svg>
+</button>
+<button class="flex cursor-pointer items-center justify-center rounded-md h-7 bg-[#21262D] text-white gap-1 text-xs font-medium min-w-0 px-2.5 hover:bg-[#30363D] focus:outline-none focus:ring-2 focus:ring-[#0c7ff2]" title="Help">
+<span class="text-sm font-bold">?</span>
+</button>
+</div>
+</header>
+<nav class="bg-[#161B22] px-4 py-2 border-b border-[#30363D] flex items-center space-x-2 overflow-x-auto">
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] flex items-center gap-2">
+<span>misc</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] ring-2 ring-[#0c7ff2] flex items-center gap-2">
+<span>intro</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] flex items-center gap-2">
+<span>data</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] flex items-center gap-2">
+<span>budget</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] flex items-center gap-2">
+<span>finance</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] flex items-center gap-2">
+<span>stats</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] flex items-center gap-2">
+<span>geometry</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+<button class="px-3 py-1 text-xs font-medium text-gray-300 bg-[#21262D] hover:bg-[#30363D] rounded-md focus:outline-none focus:ring-2 focus:ring-[#0c7ff2] focus:bg-[#30363D] flex items-center gap-2">
+<span>physics</span>
+<span class="text-gray-500 hover:text-gray-300 cursor-pointer">×</span>
+</button>
+</nav>
+<main class="flex-1 flex p-4 gap-4 overflow-hidden">
+<div class="w-1/2 bg-[#161B22] rounded-lg syntax-highlight force-scrollbar flex panel-content" style="font-family: 'Roboto Mono', monospace; font-size: 0.875rem; line-height: 1.5;">
+<div class="bg-[#0D1117] text-gray-500 text-right pr-3 py-4 select-none border-r border-[#30363D]" style="min-width: 3rem;">
+<div>1</div>
+<div>2</div>
+<div>3</div>
+<div>4</div>
+<div>5</div>
+<div>6</div>
+<div>7</div>
+<div>8</div>
+<div>9</div>
+<div>10</div>
+<div>11</div>
+<div>12</div>
+<div>13</div>
+<div>14</div>
+<div>15</div>
+<div>16</div>
+<div>17</div>
+<div>18</div>
+<div>19</div>
+<div>20</div>
+<div>21</div>
+<div>22</div>
+<div>23</div>
+<div>24</div>
+<div>25</div>
+<div>26</div>
+<div>27</div>
+<div>28</div>
+<div>29</div>
+<div>30</div>
+<div>31</div>
+<div>32</div>
+<div>33</div>
+<div>34</div>
+<div>35</div>
+<div>36</div>
+<div>37</div>
+<div>38</div>
+<div>39</div>
+<div>40</div>
+<div>41</div>
+<div>42</div>
+<div>43</div>
+<div>44</div>
+<div>45</div>
+<div>46</div>
+<div>47</div>
+<div>48</div>
+<div>49</div>
+<div>50</div>
+<div>51</div>
+<div>52</div>
+<div>53</div>
+<div>54</div>
+<div>55</div>
+<div>56</div>
+<div>57</div>
+<div>58</div>
+<div>59</div>
+<div>60</div>
+</div>
+<div class="flex-1 p-4 overflow-auto force-scrollbar">
+<div class="whitespace-nowrap">
+<div class="mb-4">
+<p><span class="header">## Finance</span></p>
+<p><span class="function">interest_rate</span> <span class="operator">=</span> <span class="value">0.05</span></p>
+<p><span class="function">principal</span> <span class="operator">=</span> <span class="value">10000</span></p>
+<p><span class="function">time_period</span> <span class="operator">=</span> <span class="value">5</span></p>
+<p><span class="function">future_value</span> <span class="operator">=</span> <span class="function">principal</span> <span class="operator">*</span> <span class="value">(1</span> <span class="operator">+</span> <span class="function">interest_rate</span><span class="value">)</span> <span class="operator">^</span> <span class="function">time_period</span></p>
+<p><span class="comment"># This is an example of a very long line of code to demonstrate horizontal scrolling. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Stats</span></p>
+<p><span class="function">data_set</span> <span class="operator">=</span> <span class="value">[2, 4, 4, 4, 5, 5, 7, 9, 10, 12, 15, 18, 20, 22, 25, 28, 30, 33, 35, 38, 40, 42, 45, 48, 50]</span></p>
+<p><span class="function">mean</span> <span class="operator">=</span> <span class="function">average</span><span class="value">(</span><span class="function">data_set</span><span class="value">)</span></p>
+<p><span class="function">median</span> <span class="operator">=</span> <span class="function">median</span><span class="value">(</span><span class="function">data_set</span><span class="value">)</span></p>
+<p><span class="function">mode</span> <span class="operator">=</span> <span class="function">mode</span><span class="value">(</span><span class="function">data_set</span><span class="value">)</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Geometry</span></p>
+<p><span class="function">radius</span> <span class="operator">=</span> <span class="value">5</span></p>
+<p><span class="function">area</span> <span class="operator">=</span> <span class="function">pi</span> <span class="operator">*</span> <span class="function">radius</span> <span class="operator">^</span> <span class="value">2</span></p>
+<p><span class="function">circumference</span> <span class="operator">=</span> <span class="value">2</span> <span class="operator">*</span> <span class="function">pi</span> <span class="operator">*</span> <span class="function">radius</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Physics</span></p>
+<p><span class="function">mass</span> <span class="operator">=</span> <span class="value">10</span></p>
+<p><span class="function">acceleration</span> <span class="operator">=</span> <span class="value">9.8</span></p>
+<p><span class="function">force</span> <span class="operator">=</span> <span class="function">mass</span> <span class="operator">*</span> <span class="function">acceleration</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Chemistry</span></p>
+<p><span class="function">moles</span> <span class="operator">=</span> <span class="value">2</span></p>
+<p><span class="function">volume</span> <span class="operator">=</span> <span class="value">22.4</span></p>
+<p><span class="function">pressure</span> <span class="operator">=</span> <span class="value">1</span></p>
+<p><span class="function">temperature</span> <span class="operator">=</span> <span class="value">273</span></p>
+<p><span class="function">gas_constant</span> <span class="operator">=</span> <span class="value">0.0821</span></p>
+<p><span class="function">ideal_gas_law</span> <span class="operator">=</span> <span class="value">(</span><span class="function">pressure</span> <span class="operator">*</span> <span class="function">volume</span><span class="value">)</span> <span class="operator">/</span> <span class="value">(</span><span class="function">moles</span> <span class="operator">*</span> <span class="function">gas_constant</span> <span class="operator">*</span> <span class="function">temperature</span><span class="value">)</span></p>
+</div>
+<div>
+<p><span class="header">## More Data</span></p>
+<p><span class="value">1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Additional Calculations</span></p>
+<p><span class="function">x</span> <span class="operator">=</span> <span class="value">15</span></p>
+<p><span class="function">y</span> <span class="operator">=</span> <span class="value">25</span></p>
+<p><span class="function">z</span> <span class="operator">=</span> <span class="function">sqrt</span><span class="value">(</span><span class="function">x</span><span class="operator">^</span><span class="value">2</span> <span class="operator">+</span> <span class="function">y</span><span class="operator">^</span><span class="value">2</span><span class="value">)</span></p>
+<p><span class="function">angle</span> <span class="operator">=</span> <span class="function">atan2</span><span class="value">(</span><span class="function">y</span><span class="value">,</span> <span class="function">x</span><span class="value">)</span></p>
+<p><span class="function">sin_angle</span> <span class="operator">=</span> <span class="function">sin</span><span class="value">(</span><span class="function">angle</span><span class="value">)</span></p>
+<p><span class="function">cos_angle</span> <span class="operator">=</span> <span class="function">cos</span><span class="value">(</span><span class="function">angle</span><span class="value">)</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Matrix Operations</span></p>
+<p><span class="function">matrix_a</span> <span class="operator">=</span> <span class="value">[[1, 2], [3, 4]]</span></p>
+<p><span class="function">matrix_b</span> <span class="operator">=</span> <span class="value">[[5, 6], [7, 8]]</span></p>
+<p><span class="function">matrix_sum</span> <span class="operator">=</span> <span class="function">matrix_a</span> <span class="operator">+</span> <span class="function">matrix_b</span></p>
+<p><span class="function">matrix_product</span> <span class="operator">=</span> <span class="function">matrix_a</span> <span class="operator">*</span> <span class="function">matrix_b</span></p>
+<p><span class="function">determinant_a</span> <span class="operator">=</span> <span class="function">det</span><span class="value">(</span><span class="function">matrix_a</span><span class="value">)</span></p>
+<p><span class="function">inverse_a</span> <span class="operator">=</span> <span class="function">inv</span><span class="value">(</span><span class="function">matrix_a</span><span class="value">)</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Calculus</span></p>
+<p><span class="function">f</span><span class="value">(</span><span class="function">x</span><span class="value">)</span> <span class="operator">=</span> <span class="function">x</span><span class="operator">^</span><span class="value">3</span> <span class="operator">+</span> <span class="value">2</span><span class="operator">*</span><span class="function">x</span><span class="operator">^</span><span class="value">2</span> <span class="operator">-</span> <span class="function">x</span> <span class="operator">+</span> <span class="value">1</span></p>
+<p><span class="function">derivative</span> <span class="operator">=</span> <span class="function">diff</span><span class="value">(</span><span class="function">f</span><span class="value">(</span><span class="function">x</span><span class="value">),</span> <span class="function">x</span><span class="value">)</span></p>
+<p><span class="function">integral</span> <span class="operator">=</span> <span class="function">integrate</span><span class="value">(</span><span class="function">f</span><span class="value">(</span><span class="function">x</span><span class="value">),</span> <span class="function">x</span><span class="value">)</span></p>
+<p><span class="function">definite_integral</span> <span class="operator">=</span> <span class="function">integrate</span><span class="value">(</span><span class="function">f</span><span class="value">(</span><span class="function">x</span><span class="value">),</span> <span class="function">x</span><span class="value">,</span> <span class="value">0</span><span class="value">,</span> <span class="value">5</span><span class="value">)</span></p>
+</div>
+<div class="mb-4">
+<p><span class="header">## Probability</span></p>
+<p><span class="function">trials</span> <span class="operator">=</span> <span class="value">100</span></p>
+<p><span class="function">success_prob</span> <span class="operator">=</span> <span class="value">0.3</span></p>
+<p><span class="function">binomial_mean</span> <span class="operator">=</span> <span class="function">trials</span> <span class="operator">*</span> <span class="function">success_prob</span></p>
+<p><span class="function">binomial_variance</span> <span class="operator">=</span> <span class="function">trials</span> <span class="operator">*</span> <span class="function">success_prob</span> <span class="operator">*</span> <span class="value">(1</span> <span class="operator">-</span> <span class="function">success_prob</span><span class="value">)</span></p>
+<p><span class="function">normal_dist</span> <span class="operator">=</span> <span class="function">normal</span><span class="value">(</span><span class="value">0</span><span class="value">,</span> <span class="value">1</span><span class="value">)</span></p>
+</div>
+</div>
+</div>
+</div>
+<div class="w-1/2 bg-[#161B22] rounded-lg text-white force-scrollbar flex panel-content" style="font-family: 'Roboto Mono', monospace; font-size: 0.875rem; line-height: 1.5;">
+<div class="bg-[#0D1117] text-gray-500 text-right pr-3 py-4 select-none border-r border-[#30363D]" style="min-width: 3rem;">
+<div>1</div>
+<div>2</div>
+<div>3</div>
+<div>4</div>
+<div>5</div>
+<div>6</div>
+<div>7</div>
+<div>8</div>
+<div>9</div>
+<div>10</div>
+<div>11</div>
+<div>12</div>
+<div>13</div>
+<div>14</div>
+<div>15</div>
+<div>16</div>
+<div>17</div>
+<div>18</div>
+<div>19</div>
+<div>20</div>
+<div>21</div>
+<div>22</div>
+<div>23</div>
+<div>24</div>
+<div>25</div>
+<div>26</div>
+<div>27</div>
+<div>28</div>
+<div>29</div>
+<div>30</div>
+<div>31</div>
+<div>32</div>
+<div>33</div>
+<div>34</div>
+<div>35</div>
+<div>36</div>
+<div>37</div>
+<div>38</div>
+<div>39</div>
+<div>40</div>
+<div>41</div>
+<div>42</div>
+<div>43</div>
+<div>44</div>
+<div>45</div>
+<div>46</div>
+<div>47</div>
+<div>48</div>
+<div>49</div>
+<div>50</div>
+</div>
+<div class="flex-1 p-4 overflow-auto force-scrollbar">
+<pre class="whitespace-nowrap"><code>future_value = 12762.82
+mean = 22.5
+median = 23.5
+mode = 4
+area = 78.54
+circumference = 31.42
+force = 98
+ideal_gas_law = 0.500
+x = 15
+y = 25
+z = 29.15
+angle = 1.03
+sin_angle = 0.857
+cos_angle = 0.515
+matrix_sum = [[6, 8], [10, 12]]
+matrix_product = [[19, 22], [43, 50]]
+determinant_a = -2
+inverse_a = [[-2, 1], [1.5, -0.5]]
+f(x) = x^3 + 2*x^2 - x + 1
+derivative = 3*x^2 + 4*x - 1
+integral = x^4/4 + 2*x^3/3 - x^2/2 + x + C
+definite_integral = 156.25
+trials = 100
+success_prob = 0.3
+binomial_mean = 30
+binomial_variance = 21
+normal_dist = N(0,1)
+result_a = 100
+result_b = 200
+result_c = 300
+result_d = 400
+result_e = 500
+result_f = 600
+result_g = 700
+result_h = 800
+result_i = 900
+result_j = 1000
+result_k = 1100
+result_l = 1200
+result_m = 1300
+result_n = 1400
+result_o = 1500
+result_p = 1600
+result_q = 1700
+result_r = 1800
+result_s = 1900
+result_t = 2000
+additional_result_1 = 2100
+additional_result_2 = 2200
+additional_result_3 = 2300
+This is a very long line of text output to demonstrate horizontal scrolling in the right pane. This text should extend far beyond the typical width of the container, forcing a horizontal scrollbar to appear if the styles are correctly applied. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+</code></pre>
+</div>
+</div>
+</main>
+<footer class="bg-[#161B22] text-xs text-gray-400 px-4 py-1 border-t border-[#30363D] flex justify-between items-center">
+<div>Ready</div>
+<div>Ln 35, Col 80</div>
+</footer>
+</div>
+</body></html>
