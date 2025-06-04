@@ -5722,54 +5722,207 @@ class Calculator(QWidget):
         self.show()  # Need to show again after changing flags
         
         main=QVBoxLayout(self)
-        top=QHBoxLayout()
-        
-        # Add buttons
-        add_btn=QPushButton("+")
-        add_btn.setFixedWidth(30)
-        add_btn.clicked.connect(self.add_tab)
-        
-        help_btn=QPushButton("?")
-        help_btn.setFixedWidth(30)
-        help_btn.clicked.connect(self.show_help)
-        
-        # Add stay on top checkbox
-        self.stay_on_top = QCheckBox("Stay on Top")
-        self.stay_on_top.setChecked(True)  # Set to checked by default
-        self.stay_on_top.stateChanged.connect(self.toggle_stay_on_top)
-        # Add stylesheet to make checkbox more visible
-        self.stay_on_top.setStyleSheet("""
-            QCheckBox {
-                color: #ffffff;
-                padding: 2px;
-                border: 1px solid #4477ff;
-                border-radius: 4px;
-                background-color: #3a3a3d;
-            }
-            QCheckBox::indicator {
-                width: 13px;
-                height: 13px;
-                border: 1px solid #4477ff;
-                border-radius: 2px;
-                background-color: #2c2c2e;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #4477ff;
+
+        # Create GitHub-inspired header
+        header = QWidget()
+        header.setStyleSheet("""
+            QWidget {
+                background-color: #161B22;
+                border-bottom: 1px solid #30363D;
+                padding: 8px 16px;
             }
         """)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(16, 8, 16, 8)
+        header_layout.setSpacing(12)
+
+        # Left side: CalcForge title
+        title_label = QLabel("CalcForge v4.0")
+        title_label.setStyleSheet("""
+            QLabel {
+                color: #e0e0e0;
+                font-size: 14px;
+                font-weight: 600;
+                background: transparent;
+                border: none;
+                padding: 0;
+            }
+        """)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+
+        # Right side: Button container
+        button_container = QWidget()
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(8)
+
+        # New Tab button with plus icon
+        add_btn = QPushButton()
+        add_btn.setFixedSize(32, 28)
+        add_btn.clicked.connect(self.add_tab)
+        add_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #21262D;
+                border: 1px solid #30363D;
+                border-radius: 6px;
+                color: #0c7ff2;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #30363D;
+            }
+            QPushButton:pressed {
+                background-color: #4A5568;
+            }
+        """)
+        add_btn.setText("⊕")  # Plus in circle symbol
+        add_btn.setToolTip("New Tab")
+
+        # Help button
+        help_btn = QPushButton("?")
+        help_btn.setFixedSize(32, 28)
+        help_btn.clicked.connect(self.show_help)
+        help_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #21262D;
+                border: 1px solid #30363D;
+                border-radius: 6px;
+                color: #e0e0e0;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #30363D;
+            }
+            QPushButton:pressed {
+                background-color: #4A5568;
+            }
+        """)
+        help_btn.setToolTip("Help")
+
+        # Add stay on top checkbox (moved to right side)
+        self.stay_on_top = QCheckBox("Stay on Top")
+        self.stay_on_top.setChecked(True)
+        self.stay_on_top.stateChanged.connect(self.toggle_stay_on_top)
+        self.stay_on_top.setStyleSheet("""
+            QCheckBox {
+                color: #e0e0e0;
+                padding: 4px 8px;
+                border: 1px solid #30363D;
+                border-radius: 6px;
+                background-color: #21262D;
+                font-size: 12px;
+            }
+            QCheckBox:hover {
+                background-color: #30363D;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #0c7ff2;
+                border-radius: 3px;
+                background-color: #161B22;
+                margin-right: 6px;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #0c7ff2;
+                border-color: #0c7ff2;
+            }
+            QCheckBox::indicator:checked:hover {
+                background-color: #4DA6FF;
+            }
+        """)
+
+        button_layout.addWidget(add_btn)
+        button_layout.addWidget(help_btn)
+        button_layout.addWidget(self.stay_on_top)
+        header_layout.addWidget(button_container)
+
+        main.addWidget(header)
         
-        top.addWidget(add_btn)
-        top.addWidget(help_btn)
-        top.addWidget(self.stay_on_top)
-        top.addStretch()
-        main.addLayout(top)
-        
-        self.tabs=QTabWidget()
+        # Create GitHub-style tab widget
+        self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
-        self.tabs.setMovable(True)  # Make tabs reorderable
+        self.tabs.setMovable(True)
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.tabBarDoubleClicked.connect(self.rename_tab)
-        self.tabs.currentChanged.connect(self.on_tab_changed)  # Connect tab change signal
+        self.tabs.currentChanged.connect(self.on_tab_changed)
+
+        # Apply GitHub-inspired tab styling
+        self.tabs.setStyleSheet("""
+            QTabWidget {
+                background-color: #0D1117;
+                border: none;
+            }
+            QTabWidget::pane {
+                background-color: #0D1117;
+                border: none;
+                border-top: 1px solid #30363D;
+            }
+            QTabBar {
+                background-color: #161B22;
+                border: none;
+                border-bottom: 1px solid #30363D;
+            }
+            QTabBar::tab {
+                background-color: #21262D;
+                color: #8b949e;
+                border: 1px solid #30363D;
+                border-bottom: none;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                padding: 8px 16px 8px 12px;
+                margin-right: 2px;
+                margin-top: 2px;
+                font-size: 12px;
+                min-width: 80px;
+            }
+            QTabBar::tab:hover {
+                background-color: #30363D;
+                color: #e0e0e0;
+            }
+            QTabBar::tab:selected {
+                background-color: #0D1117;
+                color: #e0e0e0;
+                border: 2px solid #0c7ff2;
+                border-bottom: none;
+                margin-top: 0px;
+            }
+            QTabBar::close-button {
+                image: none;
+                background-color: transparent;
+                border: none;
+                border-radius: 3px;
+                width: 16px;
+                height: 16px;
+                margin: 2px;
+                padding: 0px;
+            }
+            QTabBar::close-button:hover {
+                background-color: #30363D;
+            }
+            QTabBar::close-button:pressed {
+                background-color: #4A5568;
+            }
+        """)
+
+        # Override the close button to show custom × symbol
+        self.tabs.tabBar().setStyleSheet(self.tabs.tabBar().styleSheet() + """
+            QTabBar::close-button {
+                qproperty-text: "×";
+                color: #8b949e;
+                font-size: 14px;
+                font-weight: bold;
+                text-align: center;
+            }
+            QTabBar::close-button:hover {
+                color: #e0e0e0;
+                background-color: #30363D;
+            }
+        """)
+
         main.addWidget(self.tabs)
         
         # Load saved worksheets or create new one
