@@ -3269,6 +3269,9 @@ class Worksheet(QWidget):
         
         # Connect text changes to evaluation
         self.editor.textChanged.connect(self.on_text_potentially_changed)
+
+        # Connect block count changes to ensure line synchronization
+        self.editor.blockCountChanged.connect(self.on_editor_block_count_changed)
         
         # Store initial text content for change detection
         self._last_text_content = self.editor.toPlainText()
@@ -3362,58 +3365,79 @@ class Worksheet(QWidget):
         # This was causing cross-sheet updates to fail because flags were cleared
         # immediately after text changes before tab switching could detect them
 
+    def on_editor_block_count_changed(self, new_block_count):
+        """Called when the number of lines in the editor changes - handles line synchronization"""
+        # Synchronize the results panel to match the editor's line count
+        results_doc = self.results.document()
+        current_results_count = results_doc.blockCount()
+
+        if current_results_count != new_block_count:
+            cursor = QTextCursor(results_doc)
+            cursor.beginEditBlock()
+
+            if current_results_count < new_block_count:
+                # Need to add lines to results
+                cursor.movePosition(QTextCursor.End)
+                lines_to_add = new_block_count - current_results_count
+                for i in range(lines_to_add):
+                    if current_results_count > 0 or i > 0:
+                        cursor.insertText('\n')
+                    # Insert empty content for the new line
+
+            elif current_results_count > new_block_count:
+                # Need to remove lines from results
+                if new_block_count == 0:
+                    # Clear everything
+                    cursor.select(QTextCursor.Document)
+                    cursor.removeSelectedText()
+                else:
+                    # Remove lines from the end, one by one
+                    lines_to_remove = current_results_count - new_block_count
+                    for i in range(lines_to_remove):
+                        # Move to the last block
+                        cursor.movePosition(QTextCursor.End)
+                        cursor.movePosition(QTextCursor.StartOfBlock)
+                        # Select the entire last block including the newline before it (if it exists)
+                        if cursor.blockNumber() > 0:
+                            # If not the first block, include the newline before it
+                            cursor.movePosition(QTextCursor.PreviousCharacter, QTextCursor.KeepAnchor)
+                        cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+                        cursor.removeSelectedText()
+
+                # Clear cached values for deleted lines
+                for line_idx in range(new_block_count, current_results_count):
+                    if line_idx in self._line_result_cache:
+                        self._line_result_cache.pop(line_idx, None)
+                    if line_idx in self._dependency_fingerprints:
+                        self._dependency_fingerprints.pop(line_idx, None)
+                    if line_idx+1 in self.raw_values:  # raw_values uses 1-based indexing
+                        self.raw_values.pop(line_idx+1, None)
+
+            cursor.endEditBlock()
+
+            # After modifying the results document, ensure scroll positions stay synchronized
+            # This is especially important when adding lines at the bottom while scrolled down
+            # Use a timer to delay the sync slightly to allow the editor's auto-scroll to complete
+            QTimer.singleShot(10, self._sync_scroll_after_line_change)
+
+    def _sync_scroll_after_line_change(self):
+        """Helper method to sync scroll positions after line changes"""
+        if hasattr(self, '_sync_editor_to_results'):
+            editor_scroll_value = self.editor.verticalScrollBar().value()
+            self._sync_editor_to_results(editor_scroll_value)
+
     def on_text_potentially_changed(self):
         """Called when text might have changed - Stage 1 optimized with smart change detection"""
         # Get current text content
         current_text = self.editor.toPlainText()
-        
+
         # Check if text actually changed
         if hasattr(self, '_last_text_content') and current_text == self._last_text_content:
             return  # No actual change
-        
+
         # Stage 1: Detect which lines changed for smarter evaluation
         old_text = getattr(self, '_last_text_content', '')
         changed_lines = self.detect_changed_lines(old_text, current_text)
-        
-        # IMPORTANT: Force synchronization of line counts between editor and results
-        # This ensures when lines are deleted from the editor, they're removed from the results too
-        editor_line_count = len(current_text.split('\n'))
-        results_doc = self.results.document()
-        
-        # Use a bulk approach to synchronize the line count when many lines are deleted
-        if results_doc.blockCount() > editor_line_count:
-            # Store line numbers that need cache clearing
-            lines_to_clear = list(range(editor_line_count, results_doc.blockCount()))
-            
-            # Use a single edit block for bulk deletion
-            cursor = QTextCursor(results_doc)
-            cursor.beginEditBlock()
-            
-            # If editor is empty, clear everything
-            if editor_line_count == 0:
-                cursor.select(QTextCursor.Document)
-                cursor.removeSelectedText()
-            else:
-                # Otherwise, move to the end of the last valid line and delete to the end
-                cursor.setPosition(0)
-                # Move to the start of the line after the last valid line
-                for _ in range(editor_line_count):
-                    cursor.movePosition(QTextCursor.NextBlock)
-                # Select from that position to the end of document
-                cursor.movePosition(QTextCursor.End, QTextCursor.KeepAnchor)
-                # Remove the selected text
-                cursor.removeSelectedText()
-            
-            cursor.endEditBlock()
-            
-            # Bulk clear cached values for deleted lines
-            for line_idx in lines_to_clear:
-                if line_idx in self._line_result_cache:
-                    self._line_result_cache.pop(line_idx, None)
-                if line_idx in self._dependency_fingerprints:
-                    self._dependency_fingerprints.pop(line_idx, None)
-                if line_idx+1 in self.raw_values:  # raw_values uses 1-based indexing
-                    self.raw_values.pop(line_idx+1, None)
         
         # Check for any lines that are now empty and clear their results immediately
         self.clear_results_for_empty_lines(changed_lines)
@@ -4574,31 +4598,13 @@ class Worksheet(QWidget):
         """Force clear results for lines that are now empty or removed"""
         if not changed_lines:
             return
-            
+
         # Get current lines
         lines = self.editor.toPlainText().split('\n')
         doc = self.results.document()
-        
-        # Special case: Handle deleted lines, especially at the end of the document
-        # This ensures the results panel stays in sync with the editor when lines are deleted
-        if doc.blockCount() > len(lines):
-            # Results document has more lines than editor - need to clear extra lines
-            for i in range(len(lines), doc.blockCount()):
-                cursor = QTextCursor(doc)
-                cursor.beginEditBlock()
-                cursor.movePosition(QTextCursor.Start)
-                cursor.movePosition(QTextCursor.Down, QTextCursor.MoveAnchor, i)
-                cursor.select(QTextCursor.LineUnderCursor)
-                cursor.removeSelectedText()
-                cursor.endEditBlock()
-                
-                # Also clear any corresponding cached values
-                if i in self._line_result_cache:
-                    self._line_result_cache.pop(i, None)
-                if i in self._dependency_fingerprints:
-                    self._dependency_fingerprints.pop(i, None)
-                if i+1 in self.raw_values:  # raw_values uses 1-based indexing
-                    self.raw_values.pop(i+1, None)
+
+        # NOTE: Line count synchronization is now handled by on_editor_block_count_changed()
+        # This method now only handles clearing results for empty lines, not line count sync
         
         # Check each changed line
         for line_idx in changed_lines:
