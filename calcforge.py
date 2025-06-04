@@ -2865,7 +2865,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                         vals[idx] = date_result
                         if current_id:
                             self.editor.ln_value_map[current_id] = vals[idx]
-                        out.append(self.format_number_for_display(date_result, idx))
+                        out.append(self.format_number_for_display(date_result, idx + 1))
                         continue
 
                 # Check for unit conversion
@@ -2874,7 +2874,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                     vals[idx] = unit_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(unit_result, idx))
+                    out.append(self.format_number_for_display(unit_result, idx + 1))
                     continue
 
                 # Check for currency conversion
@@ -2883,7 +2883,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                     vals[idx] = currency_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(currency_result, idx))
+                    out.append(self.format_number_for_display(currency_result, idx + 1))
                     continue
 
                 # Check for truncate function call (both truncate and TR)
@@ -2910,7 +2910,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                     vals[idx] = v
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(v, idx))
+                    out.append(self.format_number_for_display(v, idx + 1))
                     continue
 
                 # Try special commands
@@ -2919,7 +2919,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                     vals[idx] = cmd_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(cmd_result, idx))
+                    out.append(self.format_number_for_display(cmd_result, idx + 1))
                     continue
 
                 # Process LN references if present
@@ -2935,7 +2935,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
                     # print(f"Stored value {v} for line ID {current_id}")  # Debug print - commented for performance
                 
                 # Format the output
-                out.append(self.format_number_for_display(v, idx))
+                out.append(self.format_number_for_display(v, idx + 1))
             except TimecodeError as e:
                 # Handle TimecodeError specifically to show the actual error message
                 # print(f"Timecode error on line {idx + 1}: {str(e)}")  # Debug print - commented for performance
@@ -2986,9 +2986,17 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         if modifiers & Qt.ControlModifier and key == Qt.Key_C:
             cursor = self.textCursor()
             if not cursor.hasSelection():
-                # No selection - copy the result from current line
+                # No selection - copy the raw numeric value from current line (without units)
                 block_number = cursor.blockNumber()
-                if hasattr(self.parent, 'results'):
+                line_number = block_number + 1  # raw_values uses 1-based indexing
+
+                # First try to get the raw numeric value
+                if hasattr(self.parent, 'raw_values') and line_number in self.parent.raw_values:
+                    raw_value = self.parent.raw_values[line_number]
+                    clipboard = QApplication.clipboard()
+                    clipboard.setText(str(raw_value))
+                elif hasattr(self.parent, 'results'):
+                    # Fallback to formatted result if no raw value available
                     results_doc = self.parent.results.document()
                     results_block = results_doc.findBlockByNumber(block_number)
                     if results_block.isValid():
@@ -4037,8 +4045,10 @@ class Worksheet(QWidget):
                     # All lines above current
                     for i in range(idx):
                         if i < len(vals) and vals[i] is not None:
-                            if isinstance(vals[i], (int, float)):
-                                numbers.append(float(vals[i]))
+                            # Extract numeric value from unit conversion results or regular numbers
+                            numeric_val = self.editor.get_numeric_value(vals[i])
+                            if isinstance(numeric_val, (int, float)):
+                                numbers.append(float(numeric_val))
                             elif is_timecode(vals[i]):
                                 return "ERROR: Timecode values not supported for this function"
                 elif start_end.lower() == 'below':
@@ -4046,8 +4056,10 @@ class Worksheet(QWidget):
                     for i in range(idx + 1, len(lines)):
                         value = evaluate_line_if_needed(i)
                         if value is not None:
-                            if isinstance(value, (int, float)):
-                                numbers.append(float(value))
+                            # Extract numeric value from unit conversion results or regular numbers
+                            numeric_val = self.editor.get_numeric_value(value)
+                            if isinstance(numeric_val, (int, float)):
+                                numbers.append(float(numeric_val))
                             elif is_timecode(value):
                                 return "ERROR: Timecode values not supported for this function"
                 elif start_end.lower() == 'cg-above':
@@ -4056,8 +4068,10 @@ class Worksheet(QWidget):
                     start_line = comment_idx + 1 if comment_idx >= 0 else 0
                     for i in range(start_line, idx):
                         if i < len(vals) and vals[i] is not None:
-                            if isinstance(vals[i], (int, float)):
-                                numbers.append(float(vals[i]))
+                            # Extract numeric value from unit conversion results or regular numbers
+                            numeric_val = self.editor.get_numeric_value(vals[i])
+                            if isinstance(numeric_val, (int, float)):
+                                numbers.append(float(numeric_val))
                             elif is_timecode(vals[i]):
                                 return "ERROR: Timecode values not supported for this function"
                 elif start_end.lower() == 'cg-below':
@@ -4066,8 +4080,10 @@ class Worksheet(QWidget):
                     for i in range(idx + 1, comment_idx):
                         value = evaluate_line_if_needed(i)
                         if value is not None:
-                            if isinstance(value, (int, float)):
-                                numbers.append(float(value))
+                            # Extract numeric value from unit conversion results or regular numbers
+                            numeric_val = self.editor.get_numeric_value(value)
+                            if isinstance(numeric_val, (int, float)):
+                                numbers.append(float(numeric_val))
                             elif is_timecode(value):
                                 return "ERROR: Timecode values not supported for this function"
                 elif '-' in start_end and ',' not in start_end:
@@ -4075,8 +4091,10 @@ class Worksheet(QWidget):
                     start, end = map(int, start_end.split('-'))
                     for i in range(start-1, end):
                         if i < len(vals) and vals[i] is not None:
-                            if isinstance(vals[i], (int, float)):
-                                numbers.append(float(vals[i]))
+                            # Extract numeric value from unit conversion results or regular numbers
+                            numeric_val = self.editor.get_numeric_value(vals[i])
+                            if isinstance(numeric_val, (int, float)):
+                                numbers.append(float(numeric_val))
                             elif is_timecode(vals[i]):
                                 return "ERROR: Timecode values not supported for this function"
                 else:
@@ -4084,16 +4102,20 @@ class Worksheet(QWidget):
                     for arg in start_end.split(','):
                         line_num = int(arg.strip()) - 1
                         if line_num < len(vals) and vals[line_num] is not None:
-                            if isinstance(vals[line_num], (int, float)):
-                                numbers.append(float(vals[line_num]))
+                            # Extract numeric value from unit conversion results or regular numbers
+                            numeric_val = self.editor.get_numeric_value(vals[line_num])
+                            if isinstance(numeric_val, (int, float)):
+                                numbers.append(float(numeric_val))
                             elif is_timecode(vals[line_num]):
                                 return "ERROR: Timecode values not supported for this function"
                         elif line_num >= len(vals) or vals[line_num] is None:
                             # Try to evaluate if not yet processed
                             value = evaluate_line_if_needed(line_num)
                             if value is not None:
-                                if isinstance(value, (int, float)):
-                                    numbers.append(float(value))
+                                # Extract numeric value from unit conversion results or regular numbers
+                                numeric_val = self.editor.get_numeric_value(value)
+                                if isinstance(numeric_val, (int, float)):
+                                    numbers.append(float(numeric_val))
                                 elif is_timecode(value):
                                     return "ERROR: Timecode values not supported for this function"
             except:
@@ -4105,8 +4127,10 @@ class Worksheet(QWidget):
             numbers = []
             for i in range(idx):
                 if vals[i] is not None:
-                    if isinstance(vals[i], (int, float)):
-                        numbers.append(float(vals[i]))
+                    # Extract numeric value from unit conversion results or regular numbers
+                    numeric_val = self.editor.get_numeric_value(vals[i])
+                    if isinstance(numeric_val, (int, float)):
+                        numbers.append(float(numeric_val))
                     elif is_timecode(vals[i]) and cmd_type not in ('min', 'max', 'mean', 'meanfps'):
                         return f"ERROR: Timecode values not supported for {cmd_type.upper()} function"
         else:
@@ -5011,7 +5035,7 @@ class Worksheet(QWidget):
                         vals[idx] = date_result
                         if current_id:
                             self.editor.ln_value_map[current_id] = vals[idx]
-                        formatted_result = self.format_number_for_display(date_result, idx)
+                        formatted_result = self.format_number_for_display(date_result, idx + 1)
                         out.append(formatted_result)
                         # Stage 1: Cache the result (if no references)
                         if not has_references:
@@ -5024,7 +5048,7 @@ class Worksheet(QWidget):
                     vals[idx] = unit_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    formatted_result = self.format_number_for_display(unit_result, idx)
+                    formatted_result = self.format_number_for_display(unit_result, idx + 1)
                     out.append(formatted_result)
                     # Stage 1: Cache the result (if no references)
                     if not has_references:
@@ -5037,7 +5061,7 @@ class Worksheet(QWidget):
                     vals[idx] = currency_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    formatted_result = self.format_number_for_display(currency_result, idx)
+                    formatted_result = self.format_number_for_display(currency_result, idx + 1)
                     out.append(formatted_result)
                     # Stage 1: Cache the result (if no references)
                     if not has_references:
@@ -5068,7 +5092,7 @@ class Worksheet(QWidget):
                     vals[idx] = v
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(v, idx))
+                    out.append(self.format_number_for_display(v, idx + 1))
                     continue
 
                 # Try special commands
@@ -5077,7 +5101,7 @@ class Worksheet(QWidget):
                     vals[idx] = cmd_result
                     if current_id:
                         self.editor.ln_value_map[current_id] = vals[idx]
-                    out.append(self.format_number_for_display(cmd_result, idx))
+                    out.append(self.format_number_for_display(cmd_result, idx + 1))
                     continue
 
                 # Process LN references if present
@@ -5093,7 +5117,7 @@ class Worksheet(QWidget):
                     # print(f"Stored value {v} for line ID {current_id}")  # Debug print - commented for performance
                 
                 # Format the output
-                formatted_result = self.format_number_for_display(v, idx)
+                formatted_result = self.format_number_for_display(v, idx + 1)
                 out.append(formatted_result)
                 
                 # Stage 1: Cache the result (if no references)
