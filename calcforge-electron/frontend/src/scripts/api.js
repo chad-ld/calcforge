@@ -32,8 +32,10 @@ class CalcForgeAPI {
                 throw new Error(`HTTP ${response.status}`);
             }
             
-            // Initialize WebSocket connection
-            this.connectWebSocket();
+            // Skip WebSocket connection for now (using REST API only)
+            // this.connectWebSocket();
+            this.isConnected = true;
+            this.updateConnectionStatus('connected', 'Connected');
             
             return true;
         } catch (error) {

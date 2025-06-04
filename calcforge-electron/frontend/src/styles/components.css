@@ -1,40 +1,45 @@
 /* CalcForge UI Components */
 
-/* Tab Component */
+/* Tab Component - GitHub-style rounded buttons */
 .tab {
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-primary);
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-    padding: var(--spacing-xs) var(--spacing-sm);
+    background: #21262D;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 12px;
     cursor: pointer;
-    transition: all var(--transition-fast);
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
-    min-width: 120px;
+    gap: 8px;
     max-width: 200px;
     height: 28px;
     font-size: 12px;
-    color: var(--text-secondary);
+    font-weight: 500;
+    color: #C9D1D9;
     user-select: none;
     position: relative;
-    margin-bottom: -1px;
+    outline: none;
 }
 
 .tab:hover {
-    background: var(--bg-overlay);
-    color: var(--text-primary);
+    background: #30363D;
+    color: #C9D1D9;
 }
 
 .tab.active {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    border-bottom-color: var(--bg-primary);
+    background: #21262D;
+    color: #C9D1D9;
+    border: 2px solid #0c7ff2;
     z-index: 1;
 }
 
+.tab:focus {
+    outline: none;
+    border: 2px solid #0c7ff2;
+}
+
 .tab-name {
-    flex: 1;
+    flex: 0 1 auto;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -43,13 +48,13 @@
 .tab-close {
     background: transparent;
     border: none;
-    color: var(--text-muted);
+    color: #7D8590;
     cursor: pointer;
-    padding: 2px;
+    padding: 8px;
     border-radius: 2px;
     font-size: 14px;
     line-height: 1;
-    transition: all var(--transition-fast);
+    transition: all 0.2s ease;
     width: 16px;
     height: 16px;
     display: flex;
@@ -58,8 +63,8 @@
 }
 
 .tab-close:hover {
-    background: var(--border-primary);
-    color: var(--text-primary);
+    background: #30363D;
+    color: #C9D1D9;
 }
 
 /* Editor Container */

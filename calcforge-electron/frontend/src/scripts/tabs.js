@@ -26,20 +26,20 @@ class TabManager {
     init() {
         this.tabBar = document.getElementById('tab-bar');
         this.newTabButton = document.getElementById('new-tab-button');
-        
+
         if (!this.tabBar) {
             console.error('Tab bar element not found');
             return false;
         }
-        
+
         // Set up event listeners
         if (this.newTabButton) {
             this.newTabButton.addEventListener('click', this.onNewTab);
         }
-        
+
         // Create initial tab
         this.createTab('Sheet 1');
-        
+
         return true;
     }
     
@@ -48,11 +48,11 @@ class TabManager {
      */
     createTab(name = null, content = '') {
         const tabId = this.nextTabId++;
-        
+
         if (!name) {
             name = `Sheet ${tabId}`;
         }
-        
+
         // Create tab data
         const tabData = {
             id: tabId,
@@ -62,15 +62,15 @@ class TabManager {
             created: new Date(),
             lastModified: new Date()
         };
-        
+
         this.tabs.set(tabId, tabData);
-        
+
         // Create tab element
         this.createTabElement(tabData);
-        
+
         // Switch to new tab
         this.switchToTab(tabId);
-        
+
         return tabId;
     }
     
@@ -82,10 +82,7 @@ class TabManager {
         tabElement.className = 'tab';
         tabElement.dataset.tabId = tabData.id;
         
-        tabElement.innerHTML = `
-            <span class="tab-name">${this.escapeHtml(tabData.name)}</span>
-            <button class="tab-close" title="Close tab">×</button>
-        `;
+        tabElement.innerHTML = `<span class="tab-name">${this.escapeHtml(tabData.name)}</span><button class="tab-close" title="Close tab">×</button>`;
         
         // Add event listeners
         tabElement.addEventListener('click', this.onTabClick);
@@ -267,15 +264,15 @@ class TabManager {
     async updateWorksheets() {
         try {
             const worksheets = {};
-            
+
             for (const [tabId, tab] of this.tabs) {
                 worksheets[tabId] = {
-                    id: tabId,
+                    sheet_id: tabId,
                     name: tab.name,
                     content: tab.content
                 };
             }
-            
+
             await this.api.updateWorksheets(worksheets);
         } catch (error) {
             console.error('Failed to update worksheets:', error);

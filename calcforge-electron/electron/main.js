@@ -59,24 +59,36 @@ function createMainWindow() {
     mainWindowState.manage(mainWindow);
     
     // Load the frontend
-    const frontendPath = isDev 
+    const frontendPath = isDev
         ? path.join(__dirname, '..', 'frontend', 'src', 'index.html')
         : path.join(__dirname, '..', 'frontend', 'src', 'index.html');
-    
+
+    console.log('Loading frontend from:', frontendPath);
+    console.log('File exists:', fs.existsSync(frontendPath));
+
     mainWindow.loadFile(frontendPath);
-    
+
     // Show window when ready
     mainWindow.once('ready-to-show', () => {
         mainWindow.show();
-        
-        // Focus window
+
+        // Always open DevTools in development for debugging
         if (isDev) {
             mainWindow.webContents.openDevTools();
         }
-        
+
         // Set stay on top if enabled
         const stayOnTop = store.get('stayOnTop', true);
         mainWindow.setAlwaysOnTop(stayOnTop);
+    });
+
+    // Add error handling for page load
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        console.error('Failed to load page:', errorCode, errorDescription, validatedURL);
+    });
+
+    mainWindow.webContents.on('dom-ready', () => {
+        console.log('DOM is ready');
     });
     
     // Handle window closed
@@ -275,185 +287,36 @@ function setupIpcHandlers() {
 }
 
 /**
- * Create application menu
+ * Create application menu (hidden for CalcForge)
  */
 function createMenu() {
-    const template = [
-        {
-            label: 'File',
-            submenu: [
-                {
-                    label: 'New Tab',
-                    accelerator: 'CmdOrCtrl+T',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-new-tab');
-                        }
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Open...',
-                    accelerator: 'CmdOrCtrl+O',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-open-file');
-                        }
-                    }
-                },
-                {
-                    label: 'Save',
-                    accelerator: 'CmdOrCtrl+S',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-save-file');
-                        }
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Exit',
-                    accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
-                    click: () => {
-                        isQuitting = true;
-                        app.quit();
-                    }
-                }
-            ]
-        },
-        {
-            label: 'Edit',
-            submenu: [
-                {
-                    label: 'Undo',
-                    accelerator: 'CmdOrCtrl+Z',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-undo');
-                        }
-                    }
-                },
-                {
-                    label: 'Redo',
-                    accelerator: 'CmdOrCtrl+Shift+Z',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-redo');
-                        }
-                    }
-                },
-                { type: 'separator' },
-                { role: 'cut' },
-                { role: 'copy' },
-                { role: 'paste' },
-                { role: 'selectall' },
-                { type: 'separator' },
-                {
-                    label: 'Clear All',
-                    accelerator: 'CmdOrCtrl+Shift+Delete',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-clear-all');
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            label: 'View',
-            submenu: [
-                { role: 'reload' },
-                { role: 'forceReload' },
-                { role: 'toggleDevTools' },
-                { type: 'separator' },
-                { role: 'resetZoom' },
-                { role: 'zoomIn' },
-                { role: 'zoomOut' },
-                { type: 'separator' },
-                { role: 'togglefullscreen' },
-                { type: 'separator' },
-                {
-                    label: 'Stay on Top',
-                    type: 'checkbox',
-                    checked: store.get('stayOnTop', true),
-                    click: (menuItem) => {
-                        const enabled = menuItem.checked;
-                        if (mainWindow) {
-                            mainWindow.setAlwaysOnTop(enabled);
-                            store.set('stayOnTop', enabled);
-                            mainWindow.webContents.send('menu-stay-on-top', enabled);
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            label: 'Window',
-            submenu: [
-                { role: 'minimize' },
-                { role: 'close' }
-            ]
-        },
-        {
-            label: 'Help',
-            submenu: [
-                {
-                    label: 'About CalcForge',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-about');
-                        }
-                    }
-                },
-                {
-                    label: 'Help',
-                    accelerator: 'F1',
-                    click: () => {
-                        if (mainWindow) {
-                            mainWindow.webContents.send('menu-help');
-                        }
-                    }
-                },
-                { type: 'separator' },
-                {
-                    label: 'Check for Updates',
-                    click: () => {
-                        autoUpdater.checkForUpdatesAndNotify();
-                    }
-                }
-            ]
+    // Hide the menu bar completely for a cleaner calculator interface
+    if (process.platform !== 'darwin') {
+        // On Windows/Linux, hide the menu bar entirely
+        Menu.setApplicationMenu(null);
+        if (mainWindow) {
+            mainWindow.setMenuBarVisibility(false);
         }
-    ];
-    
-    // macOS specific menu adjustments
-    if (process.platform === 'darwin') {
-        template.unshift({
-            label: app.getName(),
-            submenu: [
-                { role: 'about' },
-                { type: 'separator' },
-                { role: 'services' },
-                { type: 'separator' },
-                { role: 'hide' },
-                { role: 'hideOthers' },
-                { role: 'unhide' },
-                { type: 'separator' },
-                { role: 'quit' }
-            ]
-        });
-        
-        // Window menu
-        template[4].submenu = [
-            { role: 'close' },
-            { role: 'minimize' },
-            { role: 'zoom' },
-            { type: 'separator' },
-            { role: 'front' }
+    } else {
+        // On macOS, we need a minimal menu for proper app behavior
+        const template = [
+            {
+                label: app.getName(),
+                submenu: [
+                    { role: 'about' },
+                    { type: 'separator' },
+                    { role: 'hide' },
+                    { role: 'hideothers' },
+                    { role: 'unhide' },
+                    { type: 'separator' },
+                    { role: 'quit' }
+                ]
+            }
         ];
+
+        const menu = Menu.buildFromTemplate(template);
+        Menu.setApplicationMenu(menu);
     }
-    
-    const menu = Menu.buildFromTemplate(template);
-    Menu.setApplicationMenu(menu);
 }
 
 /**

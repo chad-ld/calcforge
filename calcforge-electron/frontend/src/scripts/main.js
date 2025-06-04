@@ -14,7 +14,6 @@ class CalcForgeApp {
         this.isInitialized = false;
 
         // Bind methods
-        this.onDOMContentLoaded = this.onDOMContentLoaded.bind(this);
         this.onBeforeUnload = this.onBeforeUnload.bind(this);
         this.onResize = this.onResize.bind(this);
         this.setupEventListeners = this.setupEventListeners.bind(this);
@@ -92,21 +91,16 @@ class CalcForgeApp {
         window.addEventListener('resize', this.onResize);
         
         // Header controls
-        const newTabBtn = document.getElementById('new-tab-btn');
-        if (newTabBtn) {
-            newTabBtn.addEventListener('click', () => this.tabs.createTab());
-        }
-        
         const saveBtn = document.getElementById('save-btn');
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.saveFile());
         }
-        
+
         const loadBtn = document.getElementById('load-btn');
         if (loadBtn) {
             loadBtn.addEventListener('click', () => this.loadFile());
         }
-        
+
         const helpBtn = document.getElementById('help-btn');
         if (helpBtn) {
             helpBtn.addEventListener('click', () => this.showHelp());
@@ -135,15 +129,7 @@ class CalcForgeApp {
             redoBtn.addEventListener('click', () => this.editor.redo());
         }
         
-        const copyResultsBtn = document.getElementById('copy-results-btn');
-        if (copyResultsBtn) {
-            copyResultsBtn.addEventListener('click', () => this.copyResults());
-        }
-        
-        const exportBtn = document.getElementById('export-btn');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => this.exportResults());
-        }
+        // Results panel controls (removed buttons)
         
         // Error toast close
         const toastClose = document.getElementById('toast-close');
@@ -195,7 +181,7 @@ class CalcForgeApp {
                         break;
                 }
             }
-            
+
             if (e.key === 'F1') {
                 e.preventDefault();
                 this.showHelp();
