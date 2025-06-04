@@ -1099,15 +1099,21 @@ class KeyEventFilter(QObject):
             ctrl = event.modifiers() & Qt.ControlModifier
             alt = event.modifiers() & Qt.AltModifier
             k = event.key()
-            
+
+            # Debug: Log all key events to see what's being filtered
+            if k in (Qt.Key_Delete, Qt.Key_Backspace) or (ctrl and k == Qt.Key_A):
+                cursor = self.editor.textCursor()
+                has_selection = cursor.hasSelection()
+                print(f"DEBUG: KeyEventFilter - Key: {k}, Modifiers: {event.modifiers()}, Has selection: {has_selection}")
+
             # Check if we have a selection when Ctrl key events come in
             cursor = self.editor.textCursor()
             has_selection = cursor.hasSelection()
-            
+
             # Preserve selection for Ctrl key
             if has_selection and k == 16777249:  # This is the Ctrl key
                 return True
-            
+
             # Handle Ctrl+C with selection directly here to prevent Qt from clearing selection
             if has_selection and ctrl and k == Qt.Key_C:
                 selected_text = cursor.selectedText()
@@ -1117,12 +1123,12 @@ class KeyEventFilter(QObject):
                     clipboard = QApplication.clipboard()
                     clipboard.setText(text)
                     return True  # Event handled, don't pass to Qt
-                        
+
             # For Ctrl+arrow keys with an existing selection, preserve selection
             # EXCEPT for Ctrl+Up and Ctrl+Down which have special functions in keyPressEvent
             elif has_selection and ctrl and k in (Qt.Key_Left, Qt.Key_Right):
                 return True  # Block these arrow keys to preserve selection
-        
+
         # For all other events, let keyPressEvent handle them
         return False
 
@@ -2948,7 +2954,28 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         # Handle special key combinations first
         modifiers = event.modifiers()
         key = event.key()
-        
+
+        # Handle Ctrl+Shift+Delete as emergency clear for mass delete issues
+        if key == Qt.Key_Delete and modifiers == (Qt.ControlModifier | Qt.ShiftModifier):
+            print("DEBUG: Emergency clear triggered - clearing both editor and results")
+            self.setPlainText("")
+            # Find the worksheet parent
+            worksheet = self.parent()
+            while worksheet and not hasattr(worksheet, 'results'):
+                worksheet = worksheet.parent()
+            if worksheet and hasattr(worksheet, 'results'):
+                worksheet.results.setPlainText("")
+            event.accept()
+            return
+
+        # Handle Delete/Backspace with selection explicitly
+        if key in (Qt.Key_Delete, Qt.Key_Backspace):
+            cursor = self.textCursor()
+            if cursor.hasSelection():
+                cursor.removeSelectedText()
+                event.accept()
+                return
+
         # Completion list navigation
         if self.completion_list and self.completion_list.isVisible():
             if self.completion_list.handle_key_event(key):
@@ -3135,8 +3162,42 @@ class Worksheet(QWidget):
         # Store dependency fingerprints to efficiently check if dependencies have changed
         self._dependency_fingerprints = {}  # {line_num: {dependency_line_num: content_hash}}
         
-        # Create results widget first - now using QPlainTextEdit for perfect alignment
-        self.results = QPlainTextEdit()
+        # Create results widget with custom setPlainText override for mass delete protection
+        class ProtectedResultsWidget(QPlainTextEdit):
+            def __init__(self, worksheet):
+                super().__init__()
+                self.worksheet = worksheet
+
+            def setPlainText(self, text):
+                # Debug: Log every attempt to set results
+                current_editor_text = self.worksheet.editor.toPlainText().strip()
+                lines = self.worksheet.editor.toPlainText().split('\n')
+                text_lines = text.split('\n') if text else ['']
+
+                print(f"DEBUG: setPlainText called - Editor lines: {len(lines)}, Editor empty: {len(current_editor_text) == 0}, Result lines: {len(text_lines)}")
+                if len(text_lines) > 10:
+                    print(f"DEBUG: Large result set - first few lines: {text_lines[:3]}")
+
+                # Apply mass delete protection at the widget level - catches ALL attempts to set results
+                # Case 1: Single empty line
+                if len(lines) == 1 and len(current_editor_text) == 0:
+                    print(f"DEBUG: Widget-level protection - Single empty line detected, clearing results")
+                    text = ""
+                # Case 2: Empty editor but many results (condensed results from other tabs)
+                elif len(current_editor_text) == 0 and len(text_lines) > 5:
+                    print(f"DEBUG: Widget-level protection - Empty editor with {len(text_lines)} results detected, clearing condensed results")
+                    text = ""
+                # Case 3: Aggressive protection - Block large result sets that don't match editor line count
+                elif len(text_lines) > len(lines) + 10:  # Much more results than editor lines
+                    print(f"DEBUG: Widget-level protection - Blocking mismatched large result set: {len(text_lines)} results for {len(lines)} editor lines")
+                    text = '\n'.join([''] * len(lines))  # Set empty results matching editor line count
+
+                super().setPlainText(text)
+
+                # Post-evaluation check: Schedule a check after all evaluations are complete
+                QTimer.singleShot(100, self.worksheet.check_and_fix_results)
+
+        self.results = ProtectedResultsWidget(self)
         self.results.setReadOnly(True)
         font_size = self.settings.value('font_size', 14, type=int)
         self.results.setFont(QFont("Courier New", font_size, QFont.Bold))
@@ -3259,6 +3320,11 @@ class Worksheet(QWidget):
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.evaluate_and_highlight)
         # Dynamic interval set by start_smart_evaluation_timer()
+
+        # Efficient brute force fix - runs continuously with balanced interval
+        self.fix_timer = QTimer(self)
+        self.fix_timer.timeout.connect(self.efficient_brute_force_fix)
+        self.fix_timer.start(300)  # Check every 300ms - good balance of speed vs efficiency
         
         # Add performance flags to prevent excessive evaluation during navigation
         self._is_navigating = False
@@ -3428,6 +3494,22 @@ class Worksheet(QWidget):
 
     def on_text_potentially_changed(self):
         """Called when text might have changed - Stage 1 optimized with smart change detection"""
+        # Skip text change processing during mass delete operations for other tabs
+        calculator = self.editor.get_calculator()
+        if calculator and hasattr(calculator, '_mass_delete_in_progress') and calculator._mass_delete_in_progress:
+            # Check if this is the tab that had the mass delete
+            mass_delete_tab_index = getattr(calculator, '_mass_delete_tab_index', -1)
+            this_tab_index = -1
+            for i in range(calculator.tabs.count()):
+                if calculator.tabs.widget(i) == self:
+                    this_tab_index = i
+                    break
+
+            # Only block text change processing for tabs OTHER than the one that had the mass delete
+            if this_tab_index != mass_delete_tab_index and this_tab_index != -1:
+                print(f"DEBUG: on_text_potentially_changed SKIPPED for tab {this_tab_index} (mass delete was on tab {mass_delete_tab_index}) due to mass delete flag")
+                return
+
         # Get current text content
         current_text = self.editor.toPlainText()
 
@@ -4076,6 +4158,27 @@ class Worksheet(QWidget):
 
     def evaluate(self):
         """Evaluate formulas and update results"""
+        # Skip evaluation during mass delete operations for other tabs
+        calculator = None
+        parent = self.parent()
+        while parent and not hasattr(parent, 'tabs'):
+            parent = parent.parent()
+        if parent and hasattr(parent, 'tabs'):
+            calculator = parent
+            if hasattr(calculator, '_mass_delete_in_progress') and calculator._mass_delete_in_progress:
+                # Check if this is the tab that had the mass delete
+                mass_delete_tab_index = getattr(calculator, '_mass_delete_tab_index', -1)
+                this_tab_index = -1
+                for i in range(calculator.tabs.count()):
+                    if calculator.tabs.widget(i) == self:
+                        this_tab_index = i
+                        break
+
+                # Only block evaluations for tabs OTHER than the one that had the mass delete
+                if this_tab_index != mass_delete_tab_index and this_tab_index != -1:
+                    print(f"DEBUG: evaluate() SKIPPED for tab {this_tab_index} (mass delete was on tab {mass_delete_tab_index}) due to mass delete flag")
+                    return
+
         # Stage 3.2: Try selective evaluation first if beneficial
         if self._should_use_selective_evaluation():
             if self._try_selective_evaluation():
@@ -4160,6 +4263,20 @@ class Worksheet(QWidget):
             # Get current content
             lines = self.editor.toPlainText().split('\n')
             doc = self.results.document()
+
+            # Check if all content has been deleted (all lines are empty)
+            all_empty = all(not line.strip() for line in lines)
+            if all_empty:
+                # Clear all caches when all content is deleted to prevent stale values
+                self._expression_cache.clear()
+                self.raw_values.clear()
+                self._line_result_cache.clear()
+                self._dependency_fingerprints.clear()
+                if hasattr(self.editor, 'ln_value_map'):
+                    self.editor.ln_value_map.clear()
+                # Set results to empty and return early
+                self.results.setPlainText('')
+                return True
             
             # Store current cursor and scroll positions
             current_cursor = self.editor.textCursor()
@@ -4286,6 +4403,18 @@ class Worksheet(QWidget):
                     if i in self._line_result_cache:
                         self._line_result_cache.pop(i, None)
             
+            # Enhanced fix: Apply the same protection here as in the main evaluation
+            current_editor_text = self.editor.toPlainText().strip()
+
+            # Case 1: Single empty line
+            if len(lines) == 1 and len(current_editor_text) == 0:
+                print(f"DEBUG: Single empty line detected in selective evaluation - clearing results")
+                out = ['']
+            # Case 2: Empty editor but many results (condensed results from other tabs)
+            elif len(current_editor_text) == 0 and len(out) > 5:
+                print(f"DEBUG: Empty editor with {len(out)} results detected in selective evaluation - clearing condensed results")
+                out = [''] * len(lines)
+
             # Update only the affected lines to minimize UI disruption
             for i in lines_to_evaluate:
                 if i < len(out):
@@ -4491,6 +4620,20 @@ class Worksheet(QWidget):
         """Finalize evaluation and update UI"""
         # Ensure all empty lines have empty results
         lines = self.editor.toPlainText().split('\n')
+
+        # Check if all content has been deleted (all lines are empty)
+        all_empty = all(not line.strip() for line in lines)
+        if all_empty:
+            # Clear all caches when all content is deleted to prevent stale values
+            self._expression_cache.clear()
+            self.raw_values.clear()
+            self._line_result_cache.clear()
+            self._dependency_fingerprints.clear()
+            if hasattr(self.editor, 'ln_value_map'):
+                self.editor.ln_value_map.clear()
+            # Also ensure the out array only contains empty strings for all empty lines
+            out = [''] * len(lines)
+
         for i, line in enumerate(lines):
             if not line.strip() and i < len(out):
                 out[i] = ''
@@ -4506,10 +4649,40 @@ class Worksheet(QWidget):
         if len(out) > len(lines):
             out = out[:len(lines)]
         
-        # Update results with plain text (no HTML needed since we're using QPlainTextEdit)
-        text_content = '\n'.join(out)
+        # Enhanced fix: If the current tab is empty but we're trying to set many results, clear them
+        current_editor_text = self.editor.toPlainText().strip()
+
+        # Case 1: Single empty line
+        if len(lines) == 1 and len(current_editor_text) == 0:
+            print(f"DEBUG: Single empty line detected - clearing results")
+            text_content = ""
+        # Case 2: Empty editor but many results (condensed results from other tabs)
+        elif len(current_editor_text) == 0 and len(out) > 5:
+            print(f"DEBUG: Empty editor with {len(out)} results detected - clearing condensed results")
+            text_content = ""
+        else:
+            # Update results with plain text (no HTML needed since we're using QPlainTextEdit)
+            text_content = '\n'.join(out)
+
         self.results.setPlainText(text_content)
-        
+
+        # Clear mass delete flag after evaluation is complete (with delay to prevent premature clearing)
+        calculator = None
+        parent = self.parent()
+        while parent and not hasattr(parent, 'tabs'):
+            parent = parent.parent()
+        if parent and hasattr(parent, 'tabs'):
+            calculator = parent
+            if hasattr(calculator, '_mass_delete_in_progress') and calculator._mass_delete_in_progress:
+                # Use a timer to clear the flag after a short delay to allow all related evaluations to complete
+                def clear_mass_delete_flag():
+                    if hasattr(calculator, '_mass_delete_in_progress'):
+                        print(f"DEBUG: Mass delete flag CLEARED from True to False (delayed)")
+                        calculator._mass_delete_in_progress = False
+
+                # Clear the flag after 1000ms to allow all cascading evaluations to be blocked
+                QTimer.singleShot(1000, clear_mass_delete_flag)
+
         # Stage 3.1: Build/update line dependency graph after evaluation
         # Only build if dirty or if this is a major evaluation
         if self._dependency_graph_dirty or not hasattr(self, '_last_dependency_build'):
@@ -4594,6 +4767,89 @@ class Worksheet(QWidget):
             self.results.setGeometry(0, 0, container_size.width(), container_size.height())
             # The line number area will be repositioned by the resize event of the results widget
             
+    def check_and_fix_results(self):
+        """Post-evaluation check: Implement the simple fix suggested by user"""
+        try:
+            current_editor_text = self.editor.toPlainText().strip()
+            lines = self.editor.toPlainText().split('\n')
+            current_results = self.results.toPlainText().strip()
+
+            print(f"DEBUG: Post-evaluation check - Editor lines: {len(lines)}, Editor empty: {len(current_editor_text) == 0}, Has results: {len(current_results) > 0}")
+
+            # Simple fix: If there is only 1 line and the expression field is empty, clear line 1 results
+            if len(lines) == 1 and len(current_editor_text) == 0 and len(current_results) > 0:
+                print(f"DEBUG: Post-evaluation fix - Single empty line with results detected, clearing results")
+                # Directly clear the results without triggering more evaluations
+                self.results.blockSignals(True)
+                self.results.setPlainText("")
+                self.results.blockSignals(False)
+            # Extended fix: If editor is completely empty but has many results, clear them
+            elif len(current_editor_text) == 0 and len(current_results.split('\n')) > 5:
+                print(f"DEBUG: Post-evaluation fix - Empty editor with many results detected, clearing results")
+                self.results.blockSignals(True)
+                self.results.setPlainText("")
+                self.results.blockSignals(False)
+        except Exception as e:
+            print(f"DEBUG: Error in check_and_fix_results: {e}")
+
+    def efficient_brute_force_fix(self):
+        """Efficient brute force fix - runs continuously with 300ms interval"""
+        try:
+            current_editor_text = self.editor.toPlainText().strip()
+            lines = self.editor.toPlainText().split('\n')
+            current_results = self.results.toPlainText()
+            result_lines = current_results.split('\n')
+
+            # Case 1: Single empty line (original fix)
+            if len(lines) == 1 and len(current_editor_text) == 0 and len(current_results.strip()) > 0:
+                print(f"DEBUG: Efficient brute force fix - Single empty line with results detected, clearing results")
+                self.results.blockSignals(True)
+                self.results.setPlainText("")
+                self.results.blockSignals(False)
+                return
+
+            # Case 2: Check for condensed results in individual lines
+            fixed_results = []
+            results_were_fixed = False
+
+            for i, line in enumerate(lines):
+                line_content = line.strip()
+
+                if i < len(result_lines):
+                    result_content = result_lines[i].strip()
+
+                    # If the editor line is empty but the result line has content, check if it's condensed
+                    if len(line_content) == 0 and len(result_content) > 0:
+                        # Check if this looks like condensed results - be more aggressive
+                        # Look for: commas, multiple numbers, or very long results on empty lines
+                        is_condensed = (
+                            ',' in result_content or  # Multiple values separated by commas
+                            len(result_content) > 15 or  # Very long results are likely condensed
+                            result_content.count('.') > 1  # Multiple decimal numbers
+                        )
+
+                        if is_condensed:
+                            print(f"DEBUG: Condensed results detected on line {i+1}: '{result_content[:50]}...'")
+                            fixed_results.append("")  # Clear the condensed results
+                            results_were_fixed = True
+                        else:
+                            fixed_results.append(result_content)  # Keep normal single results
+                    else:
+                        fixed_results.append(result_content)  # Keep as-is
+                else:
+                    fixed_results.append("")  # Add empty result for new lines
+
+            # Apply the fix if we found condensed results
+            if results_were_fixed:
+                print(f"DEBUG: Applying condensed results fix")
+                self.results.blockSignals(True)
+                self.results.setPlainText('\n'.join(fixed_results))
+                self.results.blockSignals(False)
+
+        except Exception as e:
+            # Silently ignore errors to avoid spam
+            pass
+
     def clear_results_for_empty_lines(self, changed_lines):
         """Force clear results for lines that are now empty or removed"""
         if not changed_lines:
@@ -4642,7 +4898,21 @@ class Worksheet(QWidget):
     def _evaluate_lines_loop(self, lines, vals, doc):
         """Main line-by-line evaluation logic with Stage 1 caching optimization"""
         out = []
-        
+
+        # Check if all lines are empty - if so, clear all caches and return empty results
+        all_lines_empty = all(not line.strip() for line in lines)
+
+        if all_lines_empty:
+            # Clear all caches when all content is empty
+            self._expression_cache.clear()
+            self.raw_values.clear()
+            self._line_result_cache.clear()
+            self._dependency_fingerprints.clear()
+            if hasattr(self.editor, 'ln_value_map'):
+                self.editor.ln_value_map.clear()
+            # Return empty results for all lines
+            return [''] * len(lines)
+
         # Tab switching optimization - Stage 1: Detect cross-sheet references during evaluation
         detected_cross_sheet_refs = False
         
@@ -4669,9 +4939,9 @@ class Worksheet(QWidget):
                 if isinstance(data, LineData):
                     self.editor.ln_value_map[data.id] = vals[idx]
                     
-                # Important: Make sure to clear any previous cached values    
-                if idx in self.raw_values:
-                    self.raw_values.pop(idx, None)
+                # Important: Make sure to clear any previous cached values
+                if idx+1 in self.raw_values:  # raw_values uses 1-based indexing
+                    self.raw_values.pop(idx+1, None)
                     
                 # Clear the result in this line    
                 out.append("")
@@ -5235,6 +5505,16 @@ class Worksheet(QWidget):
         """Stage 2 optimization: Only evaluate lines with cross-sheet references"""
         if not hasattr(self, 'has_cross_sheet_refs') or not self.has_cross_sheet_refs:
             return
+
+        # Skip cross-sheet evaluation during mass delete operations
+        calculator = None
+        parent = self.parent()
+        while parent and not hasattr(parent, 'tabs'):
+            parent = parent.parent()
+        if parent and hasattr(parent, 'tabs'):
+            calculator = parent
+            if hasattr(calculator, '_mass_delete_in_progress') and calculator._mass_delete_in_progress:
+                return
         
         # Pattern to detect cross-sheet references: S.SheetName.LN#
         cross_sheet_pattern = r'\bS\.[^.]+\.LN\d+\b'
@@ -5336,17 +5616,6 @@ class Worksheet(QWidget):
     def _initialize_evaluation(self):
         """Initialize evaluation state and prepare data structures"""
         evaluation_context = {}
-        
-        # Debug and performance logging setup
-        if hasattr(self.editor, '_debug_enabled') and self.editor._debug_enabled:
-            start_time = self.editor._log_perf("evaluate")
-            print(f"EVALUATION TRIGGERED at line {self.editor.textCursor().blockNumber()}")
-            
-            # Add stack trace to see what's calling evaluation
-            stack = traceback.extract_stack()
-            print("EVAL CALL STACK:")
-            for frame in stack[-5:-1]:  # Show last 4 frames before this one
-                print(f"  {frame.filename}:{frame.lineno} in {frame.name}()")
         
         # Store current cursor and scroll positions
         evaluation_context['cursor'] = self.editor.textCursor()
@@ -5593,15 +5862,19 @@ class Calculator(QWidget):
         
         # Tab switching optimization - Initialize change flag for new sheet
         self._sheet_changed_flags[idx] = False
-        
+
         # Stage 3: Initialize dependency tracking for new sheet
         self._sheet_dependencies[idx] = set()
         # Rebuild dependency graph to account for new sheet
         self.build_dependency_graph()
-        
+
         # Invalidate cross-sheet caches in all editors
         self.invalidate_all_cross_sheet_caches()
-        
+
+        # Initialize mass delete flag for cross-tab evaluation control
+        if not hasattr(self, '_mass_delete_in_progress'):
+            self._mass_delete_in_progress = False
+
         # Capture state for undo system
         self.undo_manager.capture_state(self)
 
@@ -5986,10 +6259,19 @@ class Calculator(QWidget):
         """Smart tab switching with Stage 3 dependency graph optimization"""
         if index < 0:  # Invalid tab index
             return
-            
+
         current_sheet = self.tabs.widget(index)
         if not current_sheet or not hasattr(current_sheet, 'evaluate'):
             return
+
+        # Clear mass delete flag when switching away from the tab that had the mass delete
+        if hasattr(self, '_mass_delete_in_progress') and self._mass_delete_in_progress:
+            mass_delete_tab_index = getattr(self, '_mass_delete_tab_index', -1)
+            if index != mass_delete_tab_index:
+                print(f"DEBUG: Clearing mass delete flag due to tab switch from {mass_delete_tab_index} to {index}")
+                self._mass_delete_in_progress = False
+                if hasattr(self, '_mass_delete_tab_index'):
+                    delattr(self, '_mass_delete_tab_index')
         
         # Debug output - ENABLE THIS TO DIAGNOSE TAB SWITCHING PERFORMANCE
         DEBUG_TAB_SWITCHING = False  # Set to True to enable debug output
@@ -6203,7 +6485,11 @@ class Calculator(QWidget):
         """Stage 3: Process all pending dependency updates in a batch"""
         if not self._pending_updates:
             return
-            
+
+        # Skip batch updates during mass delete operations
+        if hasattr(self, '_mass_delete_in_progress') and self._mass_delete_in_progress:
+            return
+
         # print(f"🔄 [STAGE 3] Processing batch updates for sheets: {self._pending_updates}")  # Comment out for normal usage
         
         # Process each pending update
