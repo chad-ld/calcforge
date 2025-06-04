@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CalcForge v4.0</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/syntax.css">
+    <link rel="stylesheet" href="styles/components.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Application Header -->
+        <header class="app-header">
+            <div class="header-left">
+                <h1 class="app-title">CalcForge v4.0</h1>
+                <div class="connection-status" id="connection-status">
+                    <span class="status-indicator" id="status-indicator"></span>
+                    <span class="status-text" id="status-text">Connecting...</span>
+                </div>
+            </div>
+            
+            <div class="header-controls">
+                <button class="header-btn" id="new-tab-btn" title="New Tab">
+                    <span class="icon">⊕</span>
+                </button>
+                <button class="header-btn" id="save-btn" title="Save All">
+                    <span class="icon">💾</span>
+                </button>
+                <button class="header-btn" id="load-btn" title="Load File">
+                    <span class="icon">📁</span>
+                </button>
+                <button class="header-btn" id="help-btn" title="Help">
+                    <span class="icon">?</span>
+                </button>
+                <label class="stay-on-top-label">
+                    <input type="checkbox" id="stay-on-top" checked>
+                    <span>Stay on Top</span>
+                </label>
+            </div>
+        </header>
+        
+        <!-- Tab Container -->
+        <div class="tab-container">
+            <div class="tab-bar" id="tab-bar">
+                <!-- Tabs will be dynamically created here -->
+            </div>
+            <button class="new-tab-button" id="new-tab-button" title="New Tab">+</button>
+        </div>
+        
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Left Panel: Expression Editor -->
+            <div class="editor-panel">
+                <div class="panel-header">
+                    <h3>Expressions</h3>
+                    <div class="panel-controls">
+                        <button class="panel-btn" id="clear-btn" title="Clear All">Clear</button>
+                        <button class="panel-btn" id="undo-btn" title="Undo">↶</button>
+                        <button class="panel-btn" id="redo-btn" title="Redo">↷</button>
+                    </div>
+                </div>
+                
+                <div class="editor-container">
+                    <div class="line-numbers" id="editor-line-numbers"></div>
+                    <div class="editor-wrapper">
+                        <textarea 
+                            id="expression-editor" 
+                            placeholder="Enter expressions...
+Examples:
+2 + 3 * 4
+TC(24, 100)
+5 feet to meters
+sum(LN1:LN5)
+D(July 4, 2023 + 30)"
+                            spellcheck="false"
+                            autocomplete="off"
+                        ></textarea>
+                        <div class="syntax-overlay" id="syntax-overlay"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Splitter -->
+            <div class="splitter" id="splitter"></div>
+            
+            <!-- Right Panel: Results -->
+            <div class="results-panel">
+                <div class="panel-header">
+                    <h3>Results</h3>
+                    <div class="panel-controls">
+                        <button class="panel-btn" id="copy-results-btn" title="Copy Results">📋</button>
+                        <button class="panel-btn" id="export-btn" title="Export">📤</button>
+                    </div>
+                </div>
+                
+                <div class="results-container">
+                    <div class="line-numbers" id="results-line-numbers"></div>
+                    <div class="results-display" id="results-display">
+                        <!-- Results will be displayed here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span id="current-line">Line: 1</span>
+                <span id="total-lines">Total: 0</span>
+                <span id="calculation-time">Time: 0ms</span>
+            </div>
+            <div class="status-right">
+                <span id="api-status">API: Ready</span>
+                <span id="last-update">Updated: Never</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Autocompletion Popup -->
+    <div class="autocomplete-popup" id="autocomplete-popup">
+        <div class="autocomplete-list" id="autocomplete-list"></div>
+        <div class="autocomplete-description" id="autocomplete-description">
+            <h4 id="function-name"></h4>
+            <p id="function-description"></p>
+            <div class="function-examples" id="function-examples"></div>
+        </div>
+    </div>
+    
+    <!-- Error Toast -->
+    <div class="error-toast" id="error-toast">
+        <div class="toast-content">
+            <span class="toast-icon">⚠️</span>
+            <span class="toast-message" id="toast-message"></span>
+            <button class="toast-close" id="toast-close">×</button>
+        </div>
+    </div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Calculating...</div>
+    </div>
+    
+    <!-- Help Modal -->
+    <div class="modal-overlay" id="help-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>CalcForge Help</h2>
+                <button class="modal-close" id="help-close">×</button>
+            </div>
+            <div class="modal-content">
+                <div class="help-section">
+                    <h3>Basic Operations</h3>
+                    <ul>
+                        <li><code>2 + 3 * 4</code> - Basic arithmetic</li>
+                        <li><code>2^3</code> - Exponentiation</li>
+                        <li><code>sqrt(16)</code> - Square root</li>
+                        <li><code>sin(pi/2)</code> - Trigonometric functions</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h3>Special Functions</h3>
+                    <ul>
+                        <li><code>TC(24, 100)</code> - Timecode conversion</li>
+                        <li><code>AR(1920x1080, ?x720)</code> - Aspect ratio</li>
+                        <li><code>D(July 4, 2023 + 30)</code> - Date arithmetic</li>
+                        <li><code>5 feet to meters</code> - Unit conversion</li>
+                        <li><code>100 dollars to euros</code> - Currency conversion</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h3>Line References</h3>
+                    <ul>
+                        <li><code>LN1</code> - Reference to line 1</li>
+                        <li><code>sum(LN1:LN5)</code> - Sum of lines 1-5</li>
+                        <li><code>S.Sheet2.LN3</code> - Cross-sheet reference</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h3>Comments</h3>
+                    <ul>
+                        <li><code>::: This is a comment</code> - Comments start with :::</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="scripts/api.js"></script>
+    <script src="scripts/editor.js"></script>
+    <script src="scripts/tabs.js"></script>
+    <script src="scripts/autocomplete.js"></script>
+    <script src="scripts/electron-integration.js"></script>
+    <script src="scripts/main.js"></script>
+</body>
+</html>

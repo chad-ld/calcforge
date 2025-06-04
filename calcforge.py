@@ -474,7 +474,7 @@ GLOBALS = {"TC": TC, "AR": AR, "truncate": truncate, "TR": truncate, **MATH_FUNC
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPlainTextEdit,
-    QTextEdit, QSplitter, QPushButton, QMessageBox, QTabWidget, QTabBar, QInputDialog,
+    QTextEdit, QSplitter, QPushButton, QMessageBox, QTabWidget, QInputDialog,
     QToolTip, QCompleter, QListWidget, QCheckBox, QDialog, QLabel
 )
 from PySide6.QtGui import (
@@ -820,12 +820,11 @@ class FormulaHighlighter(BaseHighlighter):
 
 class ResultsHighlighter(BaseHighlighter):
     """Simple syntax highlighter for results panel, highlighting errors and important information"""
-
+    
     def __init__(self, document):
         super().__init__(document)
-        # Use GitHub dark theme error color
-        self.error_format = self._fmt(COLORS['error'], bold=True)
-
+        self.error_format = self._fmt("#FF5C5C", bold=True)
+        
     def highlightBlock(self, text):
         # Highlight error text
         if "ERROR" in text or "TC ERROR" in text:
@@ -2365,64 +2364,48 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
         self.completion_list.hide()
         self.setup_autocompletion()
 
-        # Setup editor with GitHub dark theme styling to match HTML version
-        self.setFont(QFont("Roboto Mono", self.current_font_size, QFont.Normal))
+        # Then setup the editor
+        self.setFont(QFont("Courier New", self.current_font_size, QFont.Bold))
         self.setStyleSheet("""
             QPlainTextEdit {
-                background-color: #0D1117;
-                color: #e0e0e0;
-                border: 1px solid #30363D;
-                border-radius: 6px;
-                padding: 8px;
+                background-color: #2c2c2e; 
+                color: white;
+                border: none;
+                padding: 0px;
                 margin: 0px;
-                line-height: 1.4em;
-                font-family: 'Roboto Mono', 'Courier New', monospace;
-                font-size: 14px;
-                font-weight: 400;
+                line-height: 1.2em;
             }
             QScrollBar:vertical {
-                background-color: #21262D;
-                width: 12px;
-                border-radius: 6px;
+                background: #2c2c2e;
+                width: 8px;
+                border: none;
             }
             QScrollBar::handle:vertical {
-                background-color: #30363D;
-                border-radius: 6px;
-                border: 3px solid #21262D;
+                background: #555555;
                 min-height: 20px;
+                border-radius: 2px;
             }
             QScrollBar::handle:vertical:hover {
-                background-color: #4A5568;
+                background: #666666;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
-                background: none;
-                border: none;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: none;
             }
             QScrollBar:horizontal {
-                background-color: #21262D;
-                height: 12px;
-                border-radius: 6px;
+                background: #2c2c2e;
+                height: 8px;
+                border: none;
             }
             QScrollBar::handle:horizontal {
-                background-color: #30363D;
-                border-radius: 6px;
-                border: 3px solid #21262D;
+                background: #555555;
                 min-width: 20px;
+                border-radius: 2px;
             }
             QScrollBar::handle:horizontal:hover {
-                background-color: #4A5568;
+                background: #666666;
             }
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
                 width: 0px;
-                background: none;
-                border: none;
-            }
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                background: none;
             }
         """)
         self.highlighter = FormulaHighlighter(self.document())
@@ -2756,7 +2739,7 @@ class FormulaEditor(QPlainTextEdit, EditorAutoCompletionMixin, EditorPerformance
 
     def lineNumberAreaPaintEvent(self, event):
         painter = QPainter(self.lnr)
-        painter.fillRect(event.rect(), QColor("#0D1117"))
+        painter.fillRect(event.rect(), QColor("#1e1e1e"))
         block = self.firstVisibleBlock()
         top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
         bottom = top + self.blockBoundingRect(block).height()
@@ -3227,61 +3210,47 @@ class Worksheet(QWidget):
         font_size = self.settings.value('font_size', 14, type=int)
         self.results.setFont(QFont("Courier New", font_size, QFont.Bold))
         
-        # Apply GitHub dark theme styling to results panel
+        # Use the exact same stylesheet as the editor for consistent scrollbar appearance
         self.results.setStyleSheet("""
             QPlainTextEdit {
-                background-color: #161B22;
-                color: #e0e0e0;
+                background-color: #2c2c2e; 
+                color: white;
                 border: none;
                 padding: 0px;
                 margin: 0px;
                 line-height: 1.2em;
-                font-family: 'Roboto Mono', 'Courier New', monospace;
-                font-size: 14px;
             }
             QScrollBar:vertical {
-                background-color: #21262D;
-                width: 12px;
-                border-radius: 6px;
+                background: #2c2c2e;
+                width: 8px;
+                border: none;
             }
             QScrollBar::handle:vertical {
-                background-color: #30363D;
-                border-radius: 6px;
-                border: 3px solid #21262D;
+                background: #555555;
                 min-height: 20px;
+                border-radius: 2px;
             }
             QScrollBar::handle:vertical:hover {
-                background-color: #4A5568;
+                background: #666666;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
-                background: none;
-                border: none;
-            }
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
-                background: none;
             }
             QScrollBar:horizontal {
-                background-color: #21262D;
-                height: 12px;
-                border-radius: 6px;
+                background: #2c2c2e;
+                height: 8px;
+                border: none;
             }
             QScrollBar::handle:horizontal {
-                background-color: #30363D;
-                border-radius: 6px;
-                border: 3px solid #21262D;
+                background: #555555;
                 min-width: 20px;
+                border-radius: 2px;
             }
             QScrollBar::handle:horizontal:hover {
-                background-color: #4A5568;
+                background: #666666;
             }
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
                 width: 0px;
-                background: none;
-                border: none;
-            }
-            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-                background: none;
             }
         """)
         
@@ -3320,13 +3289,7 @@ class Worksheet(QWidget):
         
         # Create a container widget for the results with line numbers FIRST
         self.results_container = QWidget()
-        self.results_container.setStyleSheet("""
-            QWidget {
-                background-color: #161B22;
-                border: 1px solid #30363D;
-                border-radius: 6px;
-            }
-        """)
+        self.results_container.setStyleSheet("background-color: #2c2c2e;")
         
         # Setup the results layout immediately
         self.setupResultsLayout()
@@ -3354,37 +3317,11 @@ class Worksheet(QWidget):
         self.editor.verticalScrollBar().valueChanged.connect(self._sync_editor_to_results)
         self.results.verticalScrollBar().valueChanged.connect(self._sync_results_to_editor)
         
-        # Apply GitHub dark theme styling to splitter
-        self.splitter.setStyleSheet("""
-            QSplitter {
-                background-color: #0D1117;
-                border: none;
-            }
-            QSplitter::handle {
-                background-color: #30363D;
-                width: 4px;
-                height: 4px;
-                border-radius: 2px;
-                margin: 2px;
-            }
-            QSplitter::handle:hover {
-                background-color: #4A5568;
-            }
-        """)
-
         # Add widgets to splitter
         self.splitter.addWidget(self.editor)
         self.splitter.addWidget(self.results_container)
         self.splitter.setSizes([600, 200])
         layout.addWidget(self.splitter)
-
-        # Apply main layout styling
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #0D1117;
-                color: #e0e0e0;
-            }
-        """)
         
         # Stage 1: Smart evaluation timer - starts with intelligent timing
         self.timer = QTimer(self)
@@ -5785,226 +5722,54 @@ class Calculator(QWidget):
         self.show()  # Need to show again after changing flags
         
         main=QVBoxLayout(self)
-
-        # Create GitHub-inspired header
-        header = QWidget()
-        header.setStyleSheet("""
-            QWidget {
-                background-color: #161B22;
-                border-bottom: 1px solid #30363D;
-                padding: 8px 16px;
-            }
-        """)
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(16, 8, 16, 8)
-        header_layout.setSpacing(12)
-
-        # Left side: CalcForge title
-        title_label = QLabel("CalcForge v4.0")
-        title_label.setStyleSheet("""
-            QLabel {
-                color: #e0e0e0;
-                font-size: 14px;
-                font-weight: 600;
-                background: transparent;
-                border: none;
-                padding: 0;
-            }
-        """)
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
-
-        # Right side: Button container
-        button_container = QWidget()
-        button_layout = QHBoxLayout(button_container)
-        button_layout.setContentsMargins(0, 0, 0, 0)
-        button_layout.setSpacing(8)
-
-        # New Tab button with plus icon
-        add_btn = QPushButton()
-        add_btn.setFixedSize(32, 28)
+        top=QHBoxLayout()
+        
+        # Add buttons
+        add_btn=QPushButton("+")
+        add_btn.setFixedWidth(30)
         add_btn.clicked.connect(self.add_tab)
-        add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #21262D;
-                border: 1px solid #30363D;
-                border-radius: 6px;
-                color: #0c7ff2;
-                font-size: 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #30363D;
-            }
-            QPushButton:pressed {
-                background-color: #4A5568;
-            }
-        """)
-        add_btn.setText("⊕")  # Plus in circle symbol
-        add_btn.setToolTip("New Tab")
-
-        # Help button
-        help_btn = QPushButton("?")
-        help_btn.setFixedSize(32, 28)
+        
+        help_btn=QPushButton("?")
+        help_btn.setFixedWidth(30)
         help_btn.clicked.connect(self.show_help)
-        help_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #21262D;
-                border: 1px solid #30363D;
-                border-radius: 6px;
-                color: #e0e0e0;
-                font-size: 14px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #30363D;
-            }
-            QPushButton:pressed {
-                background-color: #4A5568;
-            }
-        """)
-        help_btn.setToolTip("Help")
-
-        # Stay on Top checkbox with text outside (like HTML design)
-        stay_on_top_container = QWidget()
-        stay_on_top_layout = QHBoxLayout(stay_on_top_container)
-        stay_on_top_layout.setContentsMargins(0, 0, 0, 0)
-        stay_on_top_layout.setSpacing(6)
-
-        self.stay_on_top = QCheckBox()
-        self.stay_on_top.setChecked(True)
+        
+        # Add stay on top checkbox
+        self.stay_on_top = QCheckBox("Stay on Top")
+        self.stay_on_top.setChecked(True)  # Set to checked by default
         self.stay_on_top.stateChanged.connect(self.toggle_stay_on_top)
+        # Add stylesheet to make checkbox more visible
         self.stay_on_top.setStyleSheet("""
+            QCheckBox {
+                color: #ffffff;
+                padding: 2px;
+                border: 1px solid #4477ff;
+                border-radius: 4px;
+                background-color: #3a3a3d;
+            }
             QCheckBox::indicator {
-                width: 16px;
-                height: 16px;
-                border: 2px solid #30363D;
-                border-radius: 3px;
-                background-color: #21262D;
+                width: 13px;
+                height: 13px;
+                border: 1px solid #4477ff;
+                border-radius: 2px;
+                background-color: #2c2c2e;
             }
             QCheckBox::indicator:checked {
-                background-color: #0c7ff2;
-                border-color: #0c7ff2;
-            }
-            QCheckBox::indicator:hover {
-                border-color: #4A5568;
+                background-color: #4477ff;
             }
         """)
-
-        stay_on_top_label = QLabel("Stay on Top")
-        stay_on_top_label.setStyleSheet("""
-            QLabel {
-                color: #8b949e;
-                font-size: 12px;
-                font-weight: 400;
-            }
-        """)
-
-        stay_on_top_layout.addWidget(self.stay_on_top)
-        stay_on_top_layout.addWidget(stay_on_top_label)
-
-        button_layout.addWidget(add_btn)
-        button_layout.addWidget(help_btn)
-        button_layout.addWidget(stay_on_top_container)
-        header_layout.addWidget(button_container)
-
-        main.addWidget(header)
         
-        # Create GitHub-style tab widget
-        self.tabs = QTabWidget()
+        top.addWidget(add_btn)
+        top.addWidget(help_btn)
+        top.addWidget(self.stay_on_top)
+        top.addStretch()
+        main.addLayout(top)
+        
+        self.tabs=QTabWidget()
         self.tabs.setTabsClosable(True)
-        self.tabs.setMovable(True)
+        self.tabs.setMovable(True)  # Make tabs reorderable
         self.tabs.tabCloseRequested.connect(self.close_tab)
         self.tabs.tabBarDoubleClicked.connect(self.rename_tab)
-        self.tabs.currentChanged.connect(self.on_tab_changed)
-
-        # Apply GitHub-inspired tab styling - compact and rounded like HTML version
-        self.tabs.setStyleSheet("""
-            QTabWidget {
-                background-color: #0D1117;
-                border: none;
-            }
-            QTabWidget::pane {
-                background-color: #0D1117;
-                border: none;
-                border-top: 1px solid #30363D;
-            }
-            QTabBar {
-                background-color: #161B22;
-                border: none;
-                border-bottom: 1px solid #30363D;
-                padding: 4px 16px;
-            }
-            QTabBar::tab {
-                background-color: #21262D;
-                color: #8b949e;
-                border: 1px solid #30363D;
-                border-bottom: none;
-                border-radius: 6px;
-                padding: 6px 24px 6px 12px;
-                margin-right: 2px;
-                margin-top: 2px;
-                font-size: 12px;
-                font-weight: 500;
-                min-width: 60px;
-                max-height: 28px;
-            }
-            QTabBar::tab:hover {
-                background-color: #30363D;
-                color: #e0e0e0;
-            }
-            QTabBar::tab:selected {
-                background-color: #0D1117;
-                color: #e0e0e0;
-                border: 2px solid #0c7ff2;
-                border-bottom: none;
-                margin-top: 0px;
-            }
-            QTabBar::close-button {
-                background-color: transparent;
-                border: none;
-                border-radius: 8px;
-                width: 16px;
-                height: 16px;
-                margin: 0px 4px 0px 8px;
-                padding: 0px;
-                color: #8b949e;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QTabBar::close-button:hover {
-                background-color: #30363D;
-                color: #e0e0e0;
-            }
-            QTabBar::close-button:pressed {
-                background-color: #4A5568;
-            }
-        """)
-
-        # Create custom close button text
-        class CustomTabBar(QTabBar):
-            def __init__(self, parent=None):
-                super().__init__(parent)
-
-            def paintEvent(self, event):
-                super().paintEvent(event)
-                # Paint custom × symbols on close buttons
-                painter = QPainter(self)
-                painter.setRenderHint(QPainter.Antialiasing)
-
-                for i in range(self.count()):
-                    tab_rect = self.tabRect(i)
-                    close_rect = QRect(tab_rect.right() - 20, tab_rect.top() + 6, 16, 16)
-
-                    # Draw × symbol
-                    painter.setPen(QColor("#8b949e"))
-                    painter.setFont(QFont("Arial", 10, QFont.Bold))
-                    painter.drawText(close_rect, Qt.AlignCenter, "×")
-
-        # Replace the tab bar with our custom one
-        custom_tab_bar = CustomTabBar()
-        self.tabs.setTabBar(custom_tab_bar)
-
+        self.tabs.currentChanged.connect(self.on_tab_changed)  # Connect tab change signal
         main.addWidget(self.tabs)
         
         # Load saved worksheets or create new one
