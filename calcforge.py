@@ -3978,18 +3978,18 @@ class Worksheet(QWidget):
                     for arg in start_end.split(','):
                         line_num = int(arg.strip()) - 1
                         if line_num < len(vals) and vals[line_num] is not None:
-                            if timecode_mode or is_timecode(vals[line_num]):
-                                values.append(vals[line_num])
-                            elif isinstance(vals[line_num], (int, float)):
-                                values.append(vals[line_num])
+                            if isinstance(vals[line_num], (int, float)):
+                                numbers.append(float(vals[line_num]))
+                            elif is_timecode(vals[line_num]):
+                                return "ERROR: Timecode values not supported for this function"
                         elif line_num >= len(vals) or vals[line_num] is None:
                             # Try to evaluate if not yet processed
                             value = evaluate_line_if_needed(line_num)
                             if value is not None:
-                                if timecode_mode or is_timecode(value):
-                                    values.append(value)
-                                elif isinstance(value, (int, float)):
-                                    values.append(value)
+                                if isinstance(value, (int, float)):
+                                    numbers.append(float(value))
+                                elif is_timecode(value):
+                                    return "ERROR: Timecode values not supported for this function"
             except:
                 pass
             return numbers
