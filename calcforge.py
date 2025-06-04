@@ -5685,11 +5685,15 @@ class Calculator(QWidget):
         super().__init__()
         # Set window flags to ensure it appears on top initially
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
-        
+
         # Set window icon
         icon_path = os.path.join(os.path.dirname(sys.argv[0]), "calcforge.ico")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
+
+        # Ensure window can receive focus
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, False)  # Ensure window activates when shown
         
         # Tab switching optimization - Stage 1: Change tracking system
         self._sheet_changed_flags = {}  # Tab index -> bool (True if sheet content changed)
@@ -6268,11 +6272,88 @@ class Calculator(QWidget):
   
     def force_focus(self):
         """Force the window and current editor to get focus - useful for keyboard shortcuts"""
-        # Force window to front and activate
+        # Cross-platform Qt focus methods
         self.raise_()
         self.activateWindow()
         self.setFocus()
-        
+
+        # Platform-specific focus forcing
+        if sys.platform.startswith('win'):
+            # Windows-specific aggressive focus forcing
+            try:
+                import ctypes
+
+                # Get the window handle
+                hwnd = int(self.winId())
+
+                # Get current foreground window to check if we need to force focus
+                current_fg = ctypes.windll.user32.GetForegroundWindow()
+
+                # If we're not already the foreground window, force focus aggressively
+                if current_fg != hwnd:
+                    # Method 1: Attach to the current foreground thread and then set focus
+                    current_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+                    if current_fg != 0:
+                        fg_thread = ctypes.windll.user32.GetWindowThreadProcessId(current_fg, None)
+                        if fg_thread != current_thread:
+                            ctypes.windll.user32.AttachThreadInput(fg_thread, current_thread, True)
+                            ctypes.windll.user32.SetForegroundWindow(hwnd)
+                            ctypes.windll.user32.AttachThreadInput(fg_thread, current_thread, False)
+
+                    # Method 2: Use keybd_event to simulate Alt key to allow SetForegroundWindow
+                    ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)  # Alt down
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)  # Alt up
+
+                    # Method 3: Multiple aggressive focus methods
+                    ctypes.windll.user32.BringWindowToTop(hwnd)
+                    ctypes.windll.user32.SetActiveWindow(hwnd)
+                    ctypes.windll.user32.SetFocus(hwnd)
+
+                    # Method 4: Force window to be shown and not minimized
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    ctypes.windll.user32.ShowWindow(hwnd, 3)  # SW_MAXIMIZE then restore to ensure visibility
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+
+                    # Method 5: Set window position to force it to top
+                    ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002)  # HWND_TOPMOST
+                    ctypes.windll.user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0001 | 0x0002)  # HWND_NOTOPMOST
+
+                    # Method 6: Final attempt with SetForegroundWindow
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+
+            except Exception as e:
+                pass
+
+        elif sys.platform == 'darwin':
+            # macOS-specific focus forcing
+            try:
+                # Use NSApplication to force focus on macOS
+                from PySide6.QtCore import QTimer
+
+                # Additional macOS focus methods
+                self.show()
+                self.raise_()
+
+                # Force the application to become active
+                def delayed_mac_focus():
+                    try:
+                        # Try to use Cocoa APIs if available
+                        import objc
+                        from AppKit import NSApplication, NSApp
+                        app = NSApplication.sharedApplication()
+                        app.activateIgnoringOtherApps_(True)
+                    except ImportError:
+                        # Fallback to Qt methods
+                        self.activateWindow()
+                        self.raise_()
+
+                # Delay slightly to ensure window is ready
+                QTimer.singleShot(10, delayed_mac_focus)
+
+            except Exception as e:
+                pass
+
         # Set focus to the current editor
         current_widget = self.tabs.currentWidget()
         if current_widget and hasattr(current_widget, 'editor'):
@@ -6758,47 +6839,119 @@ if __name__=="__main__":
     if os.path.exists(icon_path):
         win.setWindowIcon(icon)  # Set icon again explicitly for the window
     win.show()
-    
+
     # Force the window to get focus when launched (especially important for keyboard shortcuts)
     win.raise_()  # Bring window to front
     win.activateWindow()  # Activate the window
     win.setFocus()  # Set focus to the window
-    
-    # Additional Windows-specific focus forcing
-    try:
-        import ctypes
-        from ctypes import wintypes
-        
-        # Get the window handle
-        hwnd = int(win.winId())
-        
-        # Force the window to the foreground
-        ctypes.windll.user32.SetForegroundWindow(hwnd)
-        ctypes.windll.user32.BringWindowToTop(hwnd)
-        
-        # Additional method to ensure focus
-        ctypes.windll.user32.SetActiveWindow(hwnd)
-            
-    except Exception as e:
-        pass
-    
-    # Use our custom focus method to ensure editor gets focus too
-    win.force_focus()
-    
-    # Also set focus after a short delay to ensure window is fully rendered
-    # This is especially important when launched via keyboard shortcuts
-    from PySide6.QtCore import QTimer
-    def delayed_focus():
-        win.force_focus()
-        # Additional Windows-specific delayed focus
+
+    # Platform-specific focus forcing
+    if sys.platform.startswith('win'):
+        # Windows-specific aggressive focus forcing
         try:
             import ctypes
+
+            # Get the window handle
             hwnd = int(win.winId())
-            ctypes.windll.user32.SetForegroundWindow(hwnd)
-        except:
+
+            # Get current foreground window
+            current_fg = ctypes.windll.user32.GetForegroundWindow()
+
+            # Aggressive focus forcing if we're not already foreground
+            if current_fg != hwnd:
+                # Method 1: Thread input attachment
+                current_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+                if current_fg != 0:
+                    fg_thread = ctypes.windll.user32.GetWindowThreadProcessId(current_fg, None)
+                    if fg_thread != current_thread:
+                        ctypes.windll.user32.AttachThreadInput(fg_thread, current_thread, True)
+                        ctypes.windll.user32.SetForegroundWindow(hwnd)
+                        ctypes.windll.user32.AttachThreadInput(fg_thread, current_thread, False)
+
+                # Method 2: Simulate Alt key to bypass focus restrictions
+                ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)  # Alt down
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+                ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)  # Alt up
+
+                # Method 3: Multiple window manipulation calls
+                ctypes.windll.user32.BringWindowToTop(hwnd)
+                ctypes.windll.user32.SetActiveWindow(hwnd)
+                ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+
+                # Method 4: Topmost manipulation
+                ctypes.windll.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002)  # HWND_TOPMOST
+                ctypes.windll.user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0001 | 0x0002)  # HWND_NOTOPMOST
+
+        except Exception as e:
             pass
-    
-    QTimer.singleShot(100, delayed_focus)  # 100ms delay
+
+    elif sys.platform == 'darwin':
+        # macOS-specific focus forcing
+        try:
+            # Force the application to become active on macOS
+            try:
+                import objc
+                from AppKit import NSApplication
+                app = NSApplication.sharedApplication()
+                app.activateIgnoringOtherApps_(True)
+            except ImportError:
+                # Fallback if PyObjC not available
+                pass
+        except Exception as e:
+            pass
+
+    # Use our custom focus method to ensure editor gets focus too
+    win.force_focus()
+
+    # Also set focus after multiple delays to ensure window is fully rendered
+    # This is especially important when launched via keyboard shortcuts
+    from PySide6.QtCore import QTimer
+
+    def delayed_focus_1():
+        """First delayed focus attempt"""
+        win.force_focus()
+        if sys.platform.startswith('win'):
+            try:
+                import ctypes
+                hwnd = int(win.winId())
+                current_fg = ctypes.windll.user32.GetForegroundWindow()
+                if current_fg != hwnd:
+                    # Simulate Alt key and force focus
+                    ctypes.windll.user32.keybd_event(0x12, 0, 0, 0)  # Alt down
+                    ctypes.windll.user32.SetForegroundWindow(hwnd)
+                    ctypes.windll.user32.keybd_event(0x12, 0, 2, 0)  # Alt up
+                    ctypes.windll.user32.BringWindowToTop(hwnd)
+            except:
+                pass
+
+    def delayed_focus_2():
+        """Second delayed focus attempt - more aggressive"""
+        win.force_focus()
+        if sys.platform.startswith('win'):
+            try:
+                import ctypes
+                hwnd = int(win.winId())
+                current_fg = ctypes.windll.user32.GetForegroundWindow()
+                if current_fg != hwnd:
+                    # Thread attachment method
+                    current_thread = ctypes.windll.kernel32.GetCurrentThreadId()
+                    if current_fg != 0:
+                        fg_thread = ctypes.windll.user32.GetWindowThreadProcessId(current_fg, None)
+                        if fg_thread != current_thread:
+                            ctypes.windll.user32.AttachThreadInput(fg_thread, current_thread, True)
+                            ctypes.windll.user32.SetForegroundWindow(hwnd)
+                            ctypes.windll.user32.AttachThreadInput(fg_thread, current_thread, False)
+
+                    # Additional aggressive methods
+                    ctypes.windll.user32.SetActiveWindow(hwnd)
+                    ctypes.windll.user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                    ctypes.windll.user32.SetFocus(hwnd)
+            except:
+                pass
+
+    # Multiple delayed focus attempts
+    QTimer.singleShot(50, delayed_focus_1)   # 50ms delay
+    QTimer.singleShot(200, delayed_focus_2)  # 200ms delay
     
     app.exec()
         
