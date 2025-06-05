@@ -30,13 +30,13 @@
     --error: #DA3633;
     --info: #0969DA;
     
-    /* Syntax Colors */
-    --syntax-number: #79C0FF;
-    --syntax-operator: #FF7B72;
-    --syntax-function: #D2A8FF;
-    --syntax-paren: #FFA657;
-    --syntax-comment: #8B949E;
-    --syntax-error: #F85149;
+    /* Syntax Colors - Match Python app exactly */
+    --syntax-number: #FFFFFF;    /* White numbers */
+    --syntax-operator: #4A90E2;  /* Blue operators */
+    --syntax-function: #4A90E2;  /* Blue functions */
+    --syntax-paren: #7ED321;     /* Green parentheses */
+    --syntax-comment: #7ED321;   /* Green comments */
+    --syntax-error: #F85149;     /* Red errors */
     
     /* Fonts */
     --font-mono: 'Roboto Mono', 'Courier New', monospace;
@@ -336,10 +336,10 @@ body {
     gap: var(--spacing-md);
 }
 
-/* Scrollbars */
+/* Scrollbars - Consistent thickness throughout app */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 12px;   /* Match expression editor scrollbar thickness */
+    height: 12px;  /* Match expression editor scrollbar thickness */
 }
 
 ::-webkit-scrollbar-track {

@@ -189,22 +189,22 @@ MATH_FUNCS = {
 # UI CONSTANTS
 # =============================================================================
 
-# GitHub Dark Theme Colors for Syntax Highlighting
+# Python App Colors for Syntax Highlighting (matching original)
 COLORS = {
     'background': '#0D1117',      # Main background
     'current_line': '#FFFFFF',    # Current line text (white)
-    'comment': '#8B949E',         # Gray comments
-    'number': '#79C0FF',          # Light blue numbers
-    'operator': '#FF7B72',        # Light red operators
-    'function': '#D2A8FF',        # Light purple functions
-    'paren': '#FFA657',           # Orange parentheses
+    'comment': '#7ED321',         # Green comments (matching Python app)
+    'number': '#FFFFFF',          # White numbers (matching Python app)
+    'operator': '#4A90E2',        # Blue operators (matching Python app)
+    'function': '#4A90E2',        # Blue functions (matching Python app)
+    'paren': '#7ED321',           # Green parentheses (matching Python app)
     'unmatched': '#F85149',       # Red for unmatched parentheses
     'ln_highlight': '#A5D6FF',    # Cyan for LN references
     'sheet_ref': '#4DA6FF',       # Blue for sheet references
     'error': '#F85149',           # Red for errors
 }
 
-# LN variable colors for syntax highlighting
+# LN variable colors for syntax highlighting - Match original Python app
 LN_COLORS = [
     "#FF9999", "#99FF99", "#9999FF", "#FFFF99", "#FF99FF", "#99FFFF",
     "#FFB366", "#B3FF66", "#66FFB3", "#B366FF", "#FF66B3", "#FF6666",

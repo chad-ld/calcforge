@@ -76,6 +76,51 @@
     background: var(--bg-primary);
 }
 
+/* Editor Wrapper */
+.editor-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Phase 1: Plain White Text - ContentEditable */
+.expression-editor-div {
+    flex: 1;
+    background: transparent;
+    border: none;
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: var(--spacing-sm);
+    outline: none;
+    /* NO WORD WRAPPING - scroll horizontally instead */
+    white-space: pre;
+    word-wrap: normal;
+    overflow-x: auto;
+    overflow-y: auto;
+    min-height: 200px;
+    width: 100%;
+}
+
+/* Force all text in contenteditable to be white - use CSS variable */
+.expression-editor-div,
+.expression-editor-div * {
+    color: var(--syntax-number) !important;  /* Pure white #FFFFFF */
+}
+
+/* Placeholder for contenteditable */
+.expression-editor-div:empty::before {
+    content: attr(data-placeholder);
+    color: var(--text-muted);
+    opacity: 0.7;
+    white-space: pre-line;
+    pointer-events: none;
+}
+
+.expression-editor-div:focus:empty::before {
+    opacity: 0.5;
+}
+
 .line-numbers {
     background: var(--bg-secondary);
     border-right: 1px solid var(--border-primary);
@@ -86,7 +131,7 @@
     color: var(--text-muted);
     text-align: right;
     user-select: none;
-    min-width: 50px;
+    min-width: 45px;
     white-space: pre;
     overflow: hidden;
 }
@@ -94,7 +139,10 @@
 .line-numbers .line-number {
     display: block;
     height: 21px;
-    padding-right: var(--spacing-xs);
+    padding-right: 6px;
+    margin: 0;
+    line-height: 21px;
+    text-align: right;
 }
 
 .line-numbers .line-number.current {
@@ -110,48 +158,28 @@
     color: var(--error);
 }
 
-/* Editor Wrapper */
-.editor-wrapper {
-    flex: 1;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
+/* Remove old textarea styles - using contenteditable now */
 
-#expression-editor {
-    flex: 1;
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    font-family: var(--font-mono);
-    font-size: 14px;
-    line-height: 1.5;
-    padding: var(--spacing-sm);
-    resize: none;
-    outline: none;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    overflow-y: auto;
-    z-index: 2;
-    position: relative;
-}
-
-#expression-editor::placeholder {
-    color: var(--text-muted);
-    opacity: 0.7;
-}
-
-/* Results Display */
+/* Results Display - Match expression editor behavior */
 .results-display {
     flex: 1;
     padding: var(--spacing-sm);
     font-family: var(--font-mono);
     font-size: 14px;
     line-height: 1.5;
-    color: var(--text-primary);
+    /* Phase 1: Force white text to match expression column */
+    color: var(--syntax-number) !important;
+    /* NO WORD WRAPPING - scroll horizontally instead */
+    overflow-x: auto;
     overflow-y: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
+    white-space: pre;
+    word-wrap: normal;
+}
+
+/* Phase 1: Force all results text to be white */
+.results-display,
+.results-display * {
+    color: var(--syntax-number) !important;
 }
 
 .result-line {
@@ -161,19 +189,20 @@
     margin: 0;
 }
 
+/* Phase 1: Disable all result colors - plain white text only */
 .result-line.error {
-    color: var(--error);
-    font-weight: 600;
+    color: var(--syntax-number) !important;  /* Force white */
+    font-weight: normal;  /* Remove bold */
 }
 
 .result-line.comment {
-    color: var(--text-muted);
-    font-style: italic;
+    color: var(--syntax-number) !important;  /* Force white */
+    font-style: normal;  /* Remove italic */
 }
 
 .result-line.empty {
-    color: var(--text-muted);
-    opacity: 0.5;
+    color: var(--syntax-number) !important;  /* Force white */
+    opacity: 1;  /* Remove transparency */
 }
 
 /* Autocomplete Popup */
@@ -186,7 +215,7 @@
     z-index: 1000;
     display: none;
     max-width: 500px;
-    max-height: 300px;
+    max-height: 200px;
     overflow: hidden;
 }
 
@@ -196,7 +225,7 @@
 
 .autocomplete-list {
     min-width: 200px;
-    max-height: 300px;
+    max-height: 200px;
     overflow-y: auto;
     border-right: 1px solid var(--border-primary);
 }
@@ -208,6 +237,9 @@
     border-bottom: 1px solid var(--border-secondary);
     font-family: var(--font-mono);
     font-size: 13px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
 }
 
 .autocomplete-item:hover,
@@ -249,7 +281,7 @@
     background: var(--bg-tertiary);
     padding: 2px 4px;
     border-radius: 2px;
-    color: var(--syntax-function);
+    color: var(--syntax-number);  /* Phase 1: Force white */
 }
 
 /* Error Toast */
@@ -444,7 +476,7 @@
 
 .help-section code {
     background: var(--bg-tertiary);
-    color: var(--syntax-function);
+    color: var(--syntax-number);  /* Phase 1: Force white */
     padding: 2px 4px;
     border-radius: 2px;
     font-family: var(--font-mono);

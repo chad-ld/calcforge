@@ -70,8 +70,16 @@ class CalcForgeApp {
                 this.setupFileOperations();
             }
 
+            // Load original worksheets if in Electron
+            if (this.electron && this.electron.isElectronApp()) {
+                await this.loadOriginalWorksheets();
+            }
+
             this.isInitialized = true;
             console.log('CalcForge initialized successfully');
+
+            // Make saveWorksheetsOnExit available globally for Electron main process
+            window.calcForgeApp = this;
 
             return true;
             
@@ -310,6 +318,59 @@ class CalcForgeApp {
         }
     }
     
+    /**
+     * Load original worksheets from the Python app folder
+     */
+    async loadOriginalWorksheets() {
+        try {
+            if (!window.electronAPI) {
+                console.log('Not in Electron environment, skipping original worksheets load');
+                return;
+            }
+
+            console.log('Loading original worksheets...');
+            const result = await window.electronAPI.loadOriginalWorksheets();
+
+            if (result.success && result.data) {
+                console.log('Loaded original worksheets:', Object.keys(result.data));
+                this.tabs.loadTabs(result.data);
+                this.showSuccess('Loaded worksheets from original CalcForge folder');
+            } else {
+                console.error('Failed to load original worksheets:', result.error);
+                // Create default tab if loading fails
+                this.tabs.createNewTab();
+            }
+        } catch (error) {
+            console.error('Error loading original worksheets:', error);
+            // Create default tab if loading fails
+            this.tabs.createNewTab();
+        }
+    }
+
+    /**
+     * Save worksheets to original location (called on app exit)
+     */
+    async saveWorksheetsOnExit() {
+        try {
+            if (!window.electronAPI) {
+                console.log('Not in Electron environment, skipping save');
+                return;
+            }
+
+            console.log('Saving worksheets on exit...');
+            const data = this.tabs.getAllTabs();
+            const result = await window.electronAPI.saveOriginalWorksheets(data);
+
+            if (result.success) {
+                console.log('Successfully saved worksheets to original location');
+            } else {
+                console.error('Failed to save worksheets:', result.error);
+            }
+        } catch (error) {
+            console.error('Error saving worksheets on exit:', error);
+        }
+    }
+
     /**
      * UI operations
      */

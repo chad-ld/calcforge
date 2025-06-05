@@ -17,6 +17,40 @@ class AutocompleteManager {
         this.currentWord = '';
         this.wordStart = 0;
         
+        // Unit completions for conversion
+        this.units = [
+            // Length units
+            'meters', 'feet', 'inches', 'centimeters', 'millimeters', 'kilometers', 'miles', 'yards',
+            // Weight units
+            'kilograms', 'pounds', 'ounces', 'grams', 'tons',
+            // Volume units
+            'liters', 'gallons', 'quarts', 'pints', 'cups', 'milliliters',
+            // Temperature units
+            'celsius', 'fahrenheit', 'kelvin',
+            // Time units
+            'seconds', 'minutes', 'hours', 'days', 'weeks', 'months', 'years',
+            // Currency units
+            'dollars', 'euros', 'pounds', 'yen', 'canadian dollars', 'australian dollars'
+        ];
+
+        // Function parameter options
+        this.functionParameters = {
+            'sum': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'mean': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'median': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'mode': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'min': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'max': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'count': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'product': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'variance': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'stdev': ['above', 'below', 'LN1:LN5', '1,2,3,4,5', 'cg-above', 'cg-below'],
+            'tc': ['24', '29.97', '30', '23.976', '25', '50', '59.94', '60'],
+            'ar': ['1920x1080', '1280x720', '3840x2160', '2560x1440'],
+            'tr': ['2', '0', '1', '3', '4'],
+            'truncate': ['2', '0', '1', '3', '4']
+        };
+
         // Function descriptions
         this.functionDescriptions = {
             'sum': {
@@ -150,7 +184,8 @@ class AutocompleteManager {
         
         // Set up event listeners
         if (this.editor && this.editor.editor) {
-            this.editor.editor.addEventListener('keydown', this.onKeyDown);
+            // Use capture phase to ensure autocomplete handles keys before editor
+            this.editor.editor.addEventListener('keydown', this.onKeyDown, true);
             this.editor.editor.addEventListener('input', this.onInput);
         }
         
@@ -165,17 +200,48 @@ class AutocompleteManager {
      * Load available functions from API
      */
     async loadFunctions() {
+        // Always start with a basic set of functions
+        this.functions = [
+            { name: 'sin', description: 'Sine function' },
+            { name: 'cos', description: 'Cosine function' },
+            { name: 'tan', description: 'Tangent function' },
+            { name: 'sqrt', description: 'Square root function' },
+            { name: 'sum', description: 'Sum of values' },
+            { name: 'mean', description: 'Average of values' },
+            { name: 'max', description: 'Maximum value' },
+            { name: 'min', description: 'Minimum value' },
+            { name: 'abs', description: 'Absolute value' },
+            { name: 'floor', description: 'Floor function' },
+            { name: 'ceil', description: 'Ceiling function' },
+            { name: 'log', description: 'Natural logarithm' },
+            { name: 'exp', description: 'Exponential function' },
+            { name: 'median', description: 'Median value' },
+            { name: 'mode', description: 'Mode value' },
+            { name: 'count', description: 'Count values' },
+            { name: 'product', description: 'Product of values' },
+            { name: 'variance', description: 'Variance' },
+            { name: 'stdev', description: 'Standard deviation' },
+            { name: 'range', description: 'Range of values' }
+        ];
+
         try {
-            this.functions = await this.api.getFunctions();
-            console.log('Loaded functions:', this.functions.length);
+            const apiFunctions = await this.api.getFunctions();
+            console.log('Loaded functions from API:', apiFunctions ? apiFunctions.length : 0);
+
+            if (apiFunctions && apiFunctions.length > 0) {
+                // Merge API functions with basic functions, avoiding duplicates
+                const existingNames = new Set(this.functions.map(f => f.name));
+                for (const func of apiFunctions) {
+                    if (!existingNames.has(func.name)) {
+                        this.functions.push(func);
+                    }
+                }
+            }
         } catch (error) {
-            console.error('Failed to load functions:', error);
-            // Use fallback function list
-            this.functions = Object.keys(this.functionDescriptions).map(name => ({
-                name: name,
-                description: this.functionDescriptions[name].description
-            }));
+            console.error('Failed to load functions from API:', error);
         }
+
+        console.log('Autocomplete initialized with', this.functions.length, 'functions');
     }
     
     /**
@@ -196,21 +262,29 @@ class AutocompleteManager {
         switch (event.key) {
             case 'ArrowDown':
                 event.preventDefault();
+                event.stopPropagation();
                 this.selectNext();
-                break;
+                return false;
             case 'ArrowUp':
                 event.preventDefault();
+                event.stopPropagation();
                 this.selectPrevious();
-                break;
+                return false;
             case 'Enter':
             case 'Tab':
-                event.preventDefault();
-                this.insertSelected();
+                if (this.filteredFunctions.length > 0) {
+                    console.log('Autocomplete handling Enter/Tab - inserting:', this.filteredFunctions[this.selectedIndex].name);
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.insertSelected();
+                    return false;
+                }
                 break;
             case 'Escape':
                 event.preventDefault();
+                event.stopPropagation();
                 this.hide();
-                break;
+                return false;
         }
     }
     
@@ -220,21 +294,50 @@ class AutocompleteManager {
     onInput(event) {
         const cursorPosition = this.editor.editor.selectionStart;
         const text = this.editor.editor.value;
-        
+
+        // Handle backspace/delete operations more carefully
+        if (event && (event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward')) {
+            // For delete operations, only hide if we're not in a valid word anymore
+            const wordInfo = this.getCurrentWord(text, cursorPosition);
+            if (!wordInfo || wordInfo.word.length === 0) {
+                this.hide();
+                return;
+            }
+            // Continue processing if we're still in a valid word
+        }
+
+        // Quick exit for non-alphabetic characters at cursor
+        const charAtCursor = text[cursorPosition - 1];
+
+        // Don't trigger autocomplete for numbers, operators, or spaces unless we're in a function context
+        if (charAtCursor && /[0-9+\-*/=\s.]/.test(charAtCursor)) {
+            // Only continue if we might be in a function parameter context
+            const beforeCursor = text.substring(0, cursorPosition);
+            if (!beforeCursor.includes('(') || beforeCursor.lastIndexOf('(') < beforeCursor.lastIndexOf(')')) {
+                this.hide();
+                return;
+            }
+        }
+
         // Find the current word being typed
         const wordInfo = this.getCurrentWord(text, cursorPosition);
-        
+
         if (wordInfo && wordInfo.word.length > 0) {
-            this.currentWord = wordInfo.word;
-            this.wordStart = wordInfo.start;
-            
-            // Filter functions based on current word
-            this.filterFunctions(this.currentWord);
-            
-            if (this.filteredFunctions.length > 0) {
-                this.showAutocomplete();
-            } else {
-                this.hide();
+            // Only process if the word has changed or context changed
+            if (wordInfo.word !== this.currentWord || wordInfo.context !== this.currentContext) {
+                this.currentWord = wordInfo.word;
+                this.wordStart = wordInfo.start;
+                this.currentContext = wordInfo.context || 'function';
+                this.currentFunctionName = wordInfo.functionName;
+
+                // Filter functions based on current word and context
+                this.filterFunctions(this.currentWord, this.currentContext, this.currentFunctionName);
+
+                if (this.filteredFunctions.length > 0) {
+                    this.showAutocomplete();
+                } else {
+                    this.hide();
+                }
             }
         } else {
             this.hide();
@@ -245,52 +348,173 @@ class AutocompleteManager {
      * Get the current word being typed
      */
     getCurrentWord(text, cursorPosition) {
-        // Find word boundaries
+        // Check for function parameter context
+        const beforeCursor = text.substring(0, cursorPosition);
+        const afterCursor = text.substring(cursorPosition);
+
+        // Check if we're inside function parentheses
+        const functionParamPattern = /(\w+)\s*\(\s*([^)]*)$/i;
+        const functionParamMatch = functionParamPattern.exec(beforeCursor);
+
+        if (functionParamMatch) {
+            const functionName = functionParamMatch[1].toLowerCase();
+            const paramText = functionParamMatch[2];
+
+            // Check if this function has parameter suggestions
+            if (this.functionParameters[functionName]) {
+                // Find the current parameter being typed
+                const paramParts = paramText.split(',');
+                const currentParam = paramParts[paramParts.length - 1].trim();
+
+                return {
+                    word: currentParam,
+                    start: cursorPosition - currentParam.length,
+                    end: cursorPosition,
+                    context: 'function_param',
+                    functionName: functionName
+                };
+            }
+        }
+
+        // Check if we just typed a function with opening parenthesis (immediate parameter suggestions)
+        const justAfterFunctionPattern = /(\w+)\s*\(\s*$/i;
+        const justAfterFunctionMatch = justAfterFunctionPattern.exec(beforeCursor);
+
+        if (justAfterFunctionMatch) {
+            const functionName = justAfterFunctionMatch[1].toLowerCase();
+
+            // Check if this function has parameter suggestions
+            if (this.functionParameters[functionName]) {
+                return {
+                    word: '',
+                    start: cursorPosition,
+                    end: cursorPosition,
+                    context: 'function_param',
+                    functionName: functionName
+                };
+            }
+        }
+
+        // Check for unit conversion context (number + word + "to")
+        const unitToPattern = /(\d+(?:\.\d+)?)\s+([a-zA-Z\s]+)\s+to\s+([a-zA-Z\s]*)$/i;
+        const unitToMatch = unitToPattern.exec(beforeCursor);
+
+        if (unitToMatch) {
+            const targetUnit = unitToMatch[3];
+            return {
+                word: targetUnit,
+                start: cursorPosition - targetUnit.length,
+                end: cursorPosition,
+                context: 'unit_target'
+            };
+        }
+
+        // Pattern for source unit: "5 doll" (typing "dollars")
+        const unitSourcePattern = /(\d+(?:\.\d+)?)\s+([a-zA-Z\s]+)$/i;
+        const unitSourceMatch = unitSourcePattern.exec(beforeCursor);
+
+        if (unitSourceMatch && !afterCursor.trim().startsWith('to')) {
+            const sourceUnit = unitSourceMatch[2];
+            return {
+                word: sourceUnit,
+                start: cursorPosition - sourceUnit.length,
+                end: cursorPosition,
+                context: 'unit_source'
+            };
+        }
+
+        // Find word boundaries for functions
         let start = cursorPosition;
         let end = cursorPosition;
-        
-        // Move start backwards to find word start
+
+        // Move start backwards to find word start (only letters and underscore)
         while (start > 0 && /[a-zA-Z_]/.test(text[start - 1])) {
             start--;
         }
-        
-        // Move end forwards to find word end
+
+        // Move end forwards to find word end (only letters and underscore)
         while (end < text.length && /[a-zA-Z_]/.test(text[end])) {
             end++;
         }
-        
+
         const word = text.substring(start, end);
-        
-        // Only show autocomplete for function-like words
-        if (word.length > 0 && /^[a-zA-Z_]/.test(word)) {
-            return { word, start, end };
+
+        // Only show autocomplete for function-like words:
+        // 1. Must start with a letter
+        // 2. Must be at least 1 character
+        // 3. Cursor must be within or at end of word
+        // 4. Must not be preceded by a number (to avoid triggering on "100s")
+        if (word.length > 0 && /^[a-zA-Z]/.test(word) && cursorPosition >= start && cursorPosition <= end) {
+            // Check if there's a number immediately before this word
+            const charBeforeWord = start > 0 ? text[start - 1] : '';
+            if (/[0-9]/.test(charBeforeWord)) {
+                return null; // Don't trigger autocomplete for things like "100s"
+            }
+
+            return { word, start, end, context: 'function' };
         }
-        
+
         return null;
     }
     
     /**
      * Filter functions based on input
      */
-    filterFunctions(input) {
-        const inputLower = input.toLowerCase();
-        
-        this.filteredFunctions = this.functions.filter(func => 
-            func.name.toLowerCase().startsWith(inputLower)
-        ).sort((a, b) => {
-            // Exact matches first
-            if (a.name.toLowerCase() === inputLower) return -1;
-            if (b.name.toLowerCase() === inputLower) return 1;
-            
-            // Then by length (shorter first)
-            if (a.name.length !== b.name.length) {
-                return a.name.length - b.name.length;
-            }
-            
-            // Finally alphabetically
-            return a.name.localeCompare(b.name);
-        });
-        
+    filterFunctions(input, context = 'function', functionName = null) {
+        const inputLower = input.toLowerCase().trim();
+
+        if (context === 'function_param' && functionName && this.functionParameters[functionName]) {
+            // Filter function parameters - only show if input is empty or matches from start
+            this.filteredFunctions = this.functionParameters[functionName]
+                .filter(param => {
+                    if (inputLower === '') return true;
+                    return param.toLowerCase().startsWith(inputLower);
+                })
+                .map(param => ({ name: param, description: `Parameter: ${param}` }))
+                .sort((a, b) => {
+                    // Exact matches first
+                    if (a.name.toLowerCase() === inputLower) return -1;
+                    if (b.name.toLowerCase() === inputLower) return 1;
+
+                    // Then by length
+                    return a.name.length - b.name.length;
+                });
+        } else if (context === 'unit_source' || context === 'unit_target') {
+            // Filter units - only match from start of word
+            this.filteredFunctions = this.units
+                .filter(unit => unit.toLowerCase().startsWith(inputLower))
+                .map(unit => ({ name: unit, description: `Unit: ${unit}` }))
+                .sort((a, b) => {
+                    // Exact matches first
+                    if (a.name.toLowerCase() === inputLower) return -1;
+                    if (b.name.toLowerCase() === inputLower) return 1;
+
+                    // Then by length
+                    return a.name.length - b.name.length;
+                });
+        } else {
+            // Filter functions - only match from start of word
+            this.filteredFunctions = this.functions.filter(func =>
+                func.name.toLowerCase().startsWith(inputLower)
+            ).sort((a, b) => {
+                // Exact matches first
+                if (a.name.toLowerCase() === inputLower) return -1;
+                if (b.name.toLowerCase() === inputLower) return 1;
+
+                // Then by length (shorter first)
+                if (a.name.length !== b.name.length) {
+                    return a.name.length - b.name.length;
+                }
+
+                // Finally alphabetically
+                return a.name.localeCompare(b.name);
+            });
+        }
+
+
+
+        // Limit to 5 items maximum
+        this.filteredFunctions = this.filteredFunctions.slice(0, 5);
         this.selectedIndex = 0;
     }
     
@@ -430,24 +654,54 @@ class AutocompleteManager {
      */
     insertSelected() {
         if (this.filteredFunctions.length === 0) return;
-        
+
         const selectedFunc = this.filteredFunctions[this.selectedIndex];
+        console.log('insertSelected called for:', selectedFunc.name, 'context:', this.currentContext);
         const editor = this.editor.editor;
-        
+
         // Replace current word with function name
         const start = this.wordStart;
         const end = start + this.currentWord.length;
-        
+
         const value = editor.value;
-        const newValue = value.substring(0, start) + selectedFunc.name + '(' + value.substring(end);
-        
+        let newValue;
+        let cursorPos;
+
+        if (this.currentContext === 'function_param') {
+            // For function parameters, just replace the current parameter
+            newValue = value.substring(0, start) + selectedFunc.name + value.substring(end);
+            cursorPos = start + selectedFunc.name.length;
+        } else if (this.currentContext === 'unit_source' || this.currentContext === 'unit_target') {
+            // For units, just replace the word
+            if (this.currentContext === 'unit_target') {
+                newValue = value.substring(0, start) + selectedFunc.name + value.substring(end);
+                cursorPos = start + selectedFunc.name.length;
+            } else {
+                // For source units, add " to " after
+                newValue = value.substring(0, start) + selectedFunc.name + ' to ' + value.substring(end);
+                cursorPos = start + selectedFunc.name.length + 4;
+            }
+        } else {
+            // For functions, add parentheses
+            newValue = value.substring(0, start) + selectedFunc.name + '(' + value.substring(end);
+            cursorPos = start + selectedFunc.name.length + 1;
+        }
+
         editor.value = newValue;
-        editor.setSelectionRange(start + selectedFunc.name.length + 1, start + selectedFunc.name.length + 1);
-        
+        editor.setSelectionRange(cursorPos, cursorPos);
+
         // Trigger input event
         editor.dispatchEvent(new Event('input'));
-        
-        this.hide();
+
+        // For functions, immediately check for parameter suggestions
+        if (this.currentContext === 'function') {
+            // Small delay to let the input event process, then check for parameter autocomplete
+            setTimeout(() => {
+                this.onInput({ inputType: 'insertText' });
+            }, 50);
+        } else {
+            this.hide();
+        }
     }
     
     /**

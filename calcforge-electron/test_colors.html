@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CalcForge Color Test</title>
+    <style>
+        body {
+            background: #0D1117;
+            color: #E6EDF3;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            padding: 20px;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #30363D;
+            border-radius: 6px;
+        }
+        
+        .test-section h3 {
+            margin-top: 0;
+            color: #58A6FF;
+        }
+        
+        /* Original Python app colors */
+        .ln-original-0 { color: #FF9999; font-weight: bold; }
+        .ln-original-1 { color: #99FF99; font-weight: bold; }
+        .ln-original-2 { color: #9999FF; font-weight: bold; }
+        .ln-original-3 { color: #FFFF99; font-weight: bold; }
+        .ln-original-4 { color: #FF99FF; font-weight: bold; }
+        .ln-original-5 { color: #99FFFF; font-weight: bold; }
+        
+        /* New Electron colors */
+        .ln-new-0 { color: #FF9999; font-weight: bold; }
+        .ln-new-1 { color: #99FF99; font-weight: bold; }
+        .ln-new-2 { color: #9999FF; font-weight: bold; }
+        .ln-new-3 { color: #FFFF99; font-weight: bold; }
+        .ln-new-4 { color: #FF99FF; font-weight: bold; }
+        .ln-new-5 { color: #99FFFF; font-weight: bold; }
+        
+        /* Syntax colors - Match Python app exactly */
+        .syntax-number { color: #FFFFFF; }    /* White numbers */
+        .syntax-operator { color: #4A90E2; }  /* Blue operators */
+        .syntax-function { color: #4A90E2; }  /* Blue functions */
+        .syntax-paren { color: #7ED321; }     /* Green parentheses */
+        .syntax-comment { color: #7ED321; font-style: italic; } /* Green comments */
+    </style>
+</head>
+<body>
+    <h1>CalcForge Color Test</h1>
+    
+    <div class="test-section">
+        <h3>LN Variable Colors (Should match Python app)</h3>
+        <p><span class="ln-new-0">LN1</span> + <span class="ln-new-1">LN2</span> * <span class="ln-new-2">LN3</span></p>
+        <p><span class="ln-new-3">LN4</span> - <span class="ln-new-4">LN5</span> / <span class="ln-new-5">LN6</span></p>
+    </div>
+    
+    <div class="test-section">
+        <h3>Syntax Highlighting Colors (Should match Python app)</h3>
+        <p><span class="syntax-number">123.45</span> <span class="syntax-operator">+</span> <span class="syntax-function">sin</span><span class="syntax-paren">(</span><span class="syntax-number">90</span><span class="syntax-paren">)</span> - Numbers: WHITE, Operators/Functions: BLUE, Parentheses: GREEN</p>
+        <p><span class="syntax-function">sum</span><span class="syntax-paren">(</span><span class="ln-new-0">LN1</span><span class="syntax-operator">:</span><span class="ln-new-4">LN5</span><span class="syntax-paren">)</span></p>
+        <p><span class="syntax-comment">::: This is a comment - Comments: GREEN</span></p>
+    </div>
+    
+    <div class="test-section">
+        <h3>Complete Expression Example</h3>
+        <div style="background: #161B22; padding: 10px; border-radius: 4px; font-family: monospace;">
+            <div><span class="syntax-number">100</span> <span class="syntax-operator">+</span> <span class="syntax-number">50</span></div>
+            <div><span class="ln-new-0">LN1</span> <span class="syntax-operator">*</span> <span class="syntax-number">2</span></div>
+            <div><span class="syntax-function">sin</span><span class="syntax-paren">(</span><span class="syntax-number">45</span><span class="syntax-paren">)</span> <span class="syntax-operator">+</span> <span class="ln-new-1">LN2</span></div>
+            <div><span class="syntax-comment">::: Comment line</span></div>
+            <div><span class="syntax-function">sum</span><span class="syntax-paren">(</span><span class="ln-new-0">LN1</span><span class="syntax-operator">:</span><span class="ln-new-2">LN3</span><span class="syntax-paren">)</span></div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h3>Color Comparison</h3>
+        <p><strong>Syntax Colors (should match Python app):</strong></p>
+        <ul>
+            <li><span class="syntax-number">Numbers: White (#FFFFFF)</span></li>
+            <li><span class="syntax-operator">Operators: Blue (#4A90E2)</span></li>
+            <li><span class="syntax-function">Functions: Blue (#4A90E2)</span></li>
+            <li><span class="syntax-paren">Parentheses: Green (#7ED321)</span></li>
+            <li><span class="syntax-comment">Comments: Green (#7ED321)</span></li>
+        </ul>
+        <p><strong>LN Variable Colors (rotating):</strong></p>
+        <ul>
+            <li><span class="ln-new-0">LN1 - Light Red (#FF9999)</span></li>
+            <li><span class="ln-new-1">LN2 - Light Green (#99FF99)</span></li>
+            <li><span class="ln-new-2">LN3 - Light Blue (#9999FF)</span></li>
+            <li><span class="ln-new-3">LN4 - Light Yellow (#FFFF99)</span></li>
+            <li><span class="ln-new-4">LN5 - Light Magenta (#FF99FF)</span></li>
+            <li><span class="ln-new-5">LN6 - Light Cyan (#99FFFF)</span></li>
+        </ul>
+    </div>
+</body>
+</html>

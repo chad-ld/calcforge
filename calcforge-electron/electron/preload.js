@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
     readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
     writeFile: (filePath, data) => ipcRenderer.invoke('write-file', filePath, data),
+
+    // Original worksheets operations
+    loadOriginalWorksheets: () => ipcRenderer.invoke('load-original-worksheets'),
+    saveOriginalWorksheets: (data) => ipcRenderer.invoke('save-original-worksheets', data),
     
     // Menu event listeners
     onMenuNewTab: (callback) => ipcRenderer.on('menu-new-tab', callback),

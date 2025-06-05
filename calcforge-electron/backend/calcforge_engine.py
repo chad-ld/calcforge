@@ -70,66 +70,94 @@ class CalcForgeEngine:
     def evaluate_expression(self, expr, sheet_id=0, line_num=1):
         """
         Core expression evaluation method.
-        
+
         Args:
             expr (str): The expression to evaluate
             sheet_id (int): ID of the worksheet
             line_num (int): Line number for context
-            
+
         Returns:
             dict: Result containing value, unit (if applicable), and any errors
         """
         try:
             # Clean the expression
             expr = expr.strip()
-            
+
             if not expr or expr.startswith(":::"):
                 return {"value": "", "unit": "", "error": None}
-            
+
+            # Skip evaluation of single letters or incomplete expressions
+            if len(expr) == 1 and expr.isalpha():
+                return {"value": "", "unit": "", "error": None}
+
+            # Skip evaluation of incomplete function names
+            if expr.isalpha() and len(expr) < 3:
+                return {"value": "", "unit": "", "error": None}
+
+            # Store the result for this line number
+            self.current_sheet = sheet_id
+
             # Handle date arithmetic
             if expr.upper().startswith('D(') and expr.endswith(')'):
                 date_expr = expr[2:-1]  # Remove D( and )
                 result = self.handle_date_arithmetic(date_expr)
                 if result is not None:
+                    # Store result for LN references
+                    self.ln_value_map[line_num] = result
                     return {"value": result, "unit": "", "error": None}
-            
+
             # Process LN references
             if re.search(r"\bLN(\d+)\b", expr, re.IGNORECASE):
                 expr = self.process_ln_refs(expr, sheet_id)
-            
+
             # Process cross-sheet references
             if re.search(r"\bS\..*?\.LN\d+\b", expr, re.IGNORECASE):
                 expr = self.process_cross_sheet_refs(expr)
-            
+
             # Handle unit conversion
             unit_result = self.handle_unit_conversion(expr)
             if unit_result is not None:
+                # Store numeric result for LN references
+                self.ln_value_map[line_num] = unit_result['value']
                 return {"value": unit_result['value'], "unit": unit_result['unit'], "error": None}
-            
+
             # Handle currency conversion
             currency_result = self.handle_currency_conversion(expr)
             if currency_result is not None:
+                # Store numeric result for LN references
+                self.ln_value_map[line_num] = currency_result['value']
                 return {"value": currency_result['value'], "unit": currency_result['unit'], "error": None}
-            
+
             # Handle statistical functions
-            stat_result = self.handle_statistical_functions(expr, sheet_id)
+            stat_result = self.handle_statistical_functions(expr, sheet_id, line_num)
             if stat_result is not None:
+                # Store result for LN references
+                self.ln_value_map[line_num] = stat_result
                 return {"value": stat_result, "unit": "", "error": None}
-            
+
             # Convert ^ to ** for proper exponentiation
             expr = expr.replace('^', '**')
 
+            # Handle padded numbers (leading zeros) - convert 010 to 10, etc.
+            expr = re.sub(r'\b0+(\d+)', r'\1', expr)
+
+            # Handle cases where we might have just zeros
+            expr = re.sub(r'\b0+\b', '0', expr)
+
             # Regular mathematical evaluation
             result = eval(expr, self.globals, {})
-            
+
             # Format the result
             if isinstance(result, float):
                 result = round(result, 6)
                 if result.is_integer():
                     result = int(result)
-            
+
+            # Store result for LN references
+            self.ln_value_map[line_num] = result
+
             return {"value": result, "unit": "", "error": None}
-            
+
         except Exception as e:
             error_msg = f"ERROR: {str(e)}"
             return {"value": "", "unit": "", "error": error_msg}
@@ -713,7 +741,7 @@ class CalcForgeEngine:
     # STATISTICAL FUNCTIONS
     # =========================================================================
 
-    def handle_statistical_functions(self, expr, sheet_id=0):
+    def handle_statistical_functions(self, expr, sheet_id=0, current_line=None):
         """Handle statistical functions like sum, mean, etc."""
         # Pattern to match statistical functions
         stat_pattern = r'^(sum|mean|median|mode|min|max|count|product|variance|stdev|std|range|geomean|harmmean|sumsq|perc5|perc95|meanfps)\s*\(\s*(.+?)\s*\)$'
@@ -724,7 +752,7 @@ class CalcForgeEngine:
             range_expr = match.group(2)
 
             # Get values from the range expression
-            values = self.get_values_from_range(range_expr, sheet_id)
+            values = self.get_values_from_range(range_expr, sheet_id, current_line)
 
             if not values:
                 return 0
@@ -774,7 +802,7 @@ class CalcForgeEngine:
 
         return None
 
-    def get_values_from_range(self, range_expr, sheet_id=0):
+    def get_values_from_range(self, range_expr, sheet_id=0, current_line=None):
         """Extract numeric values from a range expression"""
         values = []
 
@@ -805,8 +833,25 @@ class CalcForgeEngine:
                     pass
         elif range_expr.lower() in ['above', 'below']:
             # Special keywords for relative ranges
-            # This would need current line context to implement properly
-            pass
+            if current_line is not None:
+                if range_expr.lower() == 'above':
+                    # Get all lines above current line
+                    for i in range(1, current_line):
+                        value = self.get_line_value(i, sheet_id)
+                        if value is not None:
+                            values.append(value)
+                elif range_expr.lower() == 'below':
+                    # Get all lines below current line
+                    # We need to know the total number of lines for this
+                    # For now, check up to line 100 (reasonable limit)
+                    for i in range(current_line + 1, min(current_line + 100, 101)):
+                        value = self.get_line_value(i, sheet_id)
+                        if value is not None:
+                            values.append(value)
+                        else:
+                            # Stop when we hit empty lines
+                            break
+            return values
         else:
             # Single line number
             try:

@@ -16,7 +16,10 @@ class EditorManager {
         this.totalLines = 0;
         this.isCalculating = false;
         this.calculationTimeout = null;
-        this.calculationDelay = 300; // ms
+        this.syntaxTimeout = null;
+        this.calculationDelay = 200; // ms - responsive but not too aggressive
+        this.calculatingStartTime = null;
+        this.minCalculatingTime = 300; // Minimum time to show calculating animation
         
         this.undoStack = [];
         this.redoStack = [];
@@ -37,20 +40,26 @@ class EditorManager {
     init() {
         this.editor = document.getElementById('expression-editor');
         this.resultsDisplay = document.getElementById('results-display');
-        this.syntaxOverlay = document.getElementById('syntax-overlay');
         this.editorLineNumbers = document.getElementById('editor-line-numbers');
         this.resultsLineNumbers = document.getElementById('results-line-numbers');
-        
+
         if (!this.editor) {
             console.error('Editor element not found');
             return false;
         }
+
+        console.log('Phase 1: Initializing contenteditable with plain white text');
         
-        // Set up event listeners
+        // Set up event listeners for contenteditable
         this.editor.addEventListener('input', this.onInput);
         this.editor.addEventListener('keydown', this.onKeyDown);
         this.editor.addEventListener('scroll', this.onScroll);
-        this.editor.addEventListener('selectionchange', this.onSelectionChange);
+        this.editor.addEventListener('blur', this.onSelectionChange);
+        this.editor.addEventListener('keyup', this.onSelectionChange);
+        this.editor.addEventListener('mouseup', this.onSelectionChange);
+
+        // Set up scroll synchronization between columns
+        this.setupScrollSync();
         
         // Listen for API calculation results
         window.addEventListener('calculationResult', this.onCalculationResult);
@@ -69,15 +78,15 @@ class EditorManager {
     onInput(event) {
         // Save state for undo
         this.saveUndoState();
-        
+
         // Update line numbers
         this.updateLineNumbers();
-        
+
         // Debounced calculation
         this.scheduleCalculation();
-        
-        // Update syntax highlighting
-        this.updateSyntaxHighlighting();
+
+        // Debounced syntax highlighting to prevent flickering
+        this.scheduleSyntaxHighlighting();
     }
     
     /**
@@ -132,13 +141,18 @@ class EditorManager {
         if (this.resultsDisplay) {
             this.resultsDisplay.scrollTop = this.editor.scrollTop;
         }
-        
+
         // Update line number scroll
         if (this.editorLineNumbers) {
             this.editorLineNumbers.scrollTop = this.editor.scrollTop;
         }
         if (this.resultsLineNumbers) {
             this.resultsLineNumbers.scrollTop = this.editor.scrollTop;
+        }
+
+        // Sync syntax overlay scroll
+        if (this.syntaxOverlay) {
+            this.syntaxOverlay.scrollTop = this.editor.scrollTop;
         }
     }
     
@@ -156,10 +170,23 @@ class EditorManager {
         if (this.calculationTimeout) {
             clearTimeout(this.calculationTimeout);
         }
-        
+
         this.calculationTimeout = setTimeout(() => {
             this.calculateAll();
         }, this.calculationDelay);
+    }
+
+    /**
+     * Schedule syntax highlighting with debouncing to prevent flickering
+     */
+    scheduleSyntaxHighlighting() {
+        if (this.syntaxTimeout) {
+            clearTimeout(this.syntaxTimeout);
+        }
+
+        this.syntaxTimeout = setTimeout(() => {
+            this.updateSyntaxHighlighting();
+        }, 100); // Quick syntax highlighting
     }
     
     /**
@@ -167,8 +194,8 @@ class EditorManager {
      */
     async calculateAll() {
         if (this.isCalculating) return;
-        
-        const text = this.editor.value;
+
+        const text = this.getEditorText();
         const lines = text.split('\n');
         
         if (lines.length === 0) {
@@ -207,10 +234,10 @@ class EditorManager {
      * Update line numbers
      */
     updateLineNumbers() {
-        const text = this.editor.value;
+        const text = this.getEditorText();
         const lines = text.split('\n');
         this.totalLines = lines.length;
-        
+
         // Update editor line numbers
         if (this.editorLineNumbers) {
             const lineNumbersHTML = lines.map((line, index) => {
@@ -218,18 +245,18 @@ class EditorManager {
                 const isComment = line.trim().startsWith(':::');
                 const isEmpty = line.trim() === '';
                 const isCurrent = lineNum === this.currentLine;
-                
+
                 let className = 'line-number';
                 if (isCurrent) className += ' current';
                 if (isComment) className += ' comment';
                 if (isEmpty) className += ' empty';
-                
-                return `<span class="${className}">${lineNum}</span>`;
-            }).join('\n');
-            
+
+                return `<div class="${className}">${lineNum}</div>`;
+            }).join('');
+
             this.editorLineNumbers.innerHTML = lineNumbersHTML;
         }
-        
+
         // Update results line numbers
         if (this.resultsLineNumbers) {
             const resultLineNumbersHTML = lines.map((line, index) => {
@@ -237,21 +264,21 @@ class EditorManager {
                 const isComment = line.trim().startsWith(':::');
                 const isEmpty = line.trim() === '';
                 const isCurrent = lineNum === this.currentLine;
-                
+
                 let className = 'line-number';
                 if (isCurrent) className += ' current';
                 if (isComment) className += ' comment';
                 if (isEmpty) className += ' empty';
-                
+
                 let displayText = lineNum;
                 if (isComment) displayText = 'C';
-                
-                return `<span class="${className}">${displayText}</span>`;
-            }).join('\n');
-            
+
+                return `<div class="${className}">${displayText}</div>`;
+            }).join('');
+
             this.resultsLineNumbers.innerHTML = resultLineNumbersHTML;
         }
-        
+
         // Update status
         this.updateStatus();
     }
@@ -260,10 +287,11 @@ class EditorManager {
      * Update current line number
      */
     updateCurrentLine() {
-        const cursorPosition = this.editor.selectionStart;
-        const textBeforeCursor = this.editor.value.substring(0, cursorPosition);
+        const selection = this.getSelection();
+        const text = this.getEditorText();
+        const textBeforeCursor = text.substring(0, selection.start);
         this.currentLine = textBeforeCursor.split('\n').length;
-        
+
         this.updateLineNumbers();
         this.updateStatus();
     }
@@ -273,8 +301,8 @@ class EditorManager {
      */
     updateResults(results) {
         if (!this.resultsDisplay) return;
-        
-        const text = this.editor.value;
+
+        const text = this.getEditorText();
         const lines = text.split('\n');
         
         const resultHTML = lines.map((line, index) => {
@@ -317,56 +345,55 @@ class EditorManager {
     }
     
     /**
-     * Update syntax highlighting
+     * Update syntax highlighting - PHASE 1: DISABLED
      */
     async updateSyntaxHighlighting() {
-        if (!this.syntaxOverlay) return;
-        
-        const text = this.editor.value;
-        if (!text.trim()) {
-            this.syntaxOverlay.innerHTML = '';
-            return;
-        }
-        
-        try {
-            const highlights = await this.api.getSyntaxHighlighting(text);
-            this.applySyntaxHighlights(highlights, text);
-        } catch (error) {
-            console.error('Syntax highlighting failed:', error);
-        }
+        console.log('Phase 1: Syntax highlighting disabled - plain white text only');
+        // Phase 1: No highlighting, just plain white text
+        // This will be implemented in later phases
+        return;
     }
     
     /**
      * Apply syntax highlights to overlay
      */
     applySyntaxHighlights(highlights, text) {
-        if (!this.syntaxOverlay) return;
-        
+        console.log('applySyntaxHighlights called with:', highlights.length, 'highlights');
+        if (!this.syntaxOverlay) {
+            console.error('Syntax overlay not found in applySyntaxHighlights!');
+            return;
+        }
+
         // Create highlighted version of text
         let highlightedText = '';
         let lastIndex = 0;
-        
+
         // Sort highlights by start position
         highlights.sort((a, b) => a.start - b.start);
-        
+
         for (const highlight of highlights) {
             // Add text before highlight
             highlightedText += this.escapeHtml(text.substring(lastIndex, highlight.start));
-            
+
             // Add highlighted text
             const highlightedPart = text.substring(highlight.start, highlight.start + highlight.length);
             const className = highlight.class || 'syntax-default';
             const style = highlight.color ? `color: ${highlight.color};` : '';
-            
+
+            console.log('Highlighting:', highlightedPart, 'with class:', className, 'and style:', style);
             highlightedText += `<span class="${className}" style="${style}">${this.escapeHtml(highlightedPart)}</span>`;
-            
+
             lastIndex = highlight.start + highlight.length;
         }
-        
+
         // Add remaining text
         highlightedText += this.escapeHtml(text.substring(lastIndex));
-        
+
+        console.log('Final highlighted text:', highlightedText);
+        console.log('Syntax overlay element:', this.syntaxOverlay);
+        console.log('Setting overlay innerHTML...');
         this.syntaxOverlay.innerHTML = highlightedText;
+        console.log('Overlay innerHTML after setting:', this.syntaxOverlay.innerHTML);
     }
     
     /**
@@ -399,8 +426,23 @@ class EditorManager {
 
     showCalculating(show) {
         const loadingOverlay = document.getElementById('loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.classList.toggle('visible', show);
+        if (!loadingOverlay) return;
+
+        if (show) {
+            this.calculatingStartTime = performance.now();
+            loadingOverlay.classList.add('visible');
+        } else {
+            // Only hide if minimum time has passed
+            const elapsed = performance.now() - (this.calculatingStartTime || 0);
+            const remainingTime = Math.max(0, this.minCalculatingTime - elapsed);
+
+            if (remainingTime > 0) {
+                setTimeout(() => {
+                    loadingOverlay.classList.remove('visible');
+                }, remainingTime);
+            } else {
+                loadingOverlay.classList.remove('visible');
+            }
         }
     }
 
@@ -517,18 +559,9 @@ class EditorManager {
      * Special key handlers
      */
     handleEnterKey(event) {
-        // Get current line indentation
-        const cursorPosition = this.editor.selectionStart;
-        const textBeforeCursor = this.editor.value.substring(0, cursorPosition);
-        const currentLineStart = textBeforeCursor.lastIndexOf('\n') + 1;
-        const currentLine = textBeforeCursor.substring(currentLineStart);
-        const indentMatch = currentLine.match(/^(\s*)/);
-        const indent = indentMatch ? indentMatch[1] : '';
-
-        // Insert newline with same indentation
-        event.preventDefault();
-        const newText = '\n' + indent;
-        this.insertText(newText);
+        // Phase 1: Let contenteditable handle Enter key naturally
+        // Don't prevent default - let the browser create new lines
+        console.log('Phase 1: Enter key - letting browser handle naturally');
     }
 
     handleTabKey(event) {
@@ -565,15 +598,17 @@ class EditorManager {
         this.editor.dispatchEvent(new Event('input'));
     }
 
+
+
     /**
      * Public methods for external use
      */
     getText() {
-        return this.editor.value;
+        return this.getEditorText();
     }
 
     setText(text) {
-        this.editor.value = text;
+        this.setEditorText(text);
         this.updateLineNumbers();
         this.scheduleCalculation();
         this.updateSyntaxHighlighting();
@@ -588,14 +623,140 @@ class EditorManager {
     }
 
     getSelectedText() {
-        return this.editor.value.substring(
-            this.editor.selectionStart,
-            this.editor.selectionEnd
-        );
+        const selection = this.getSelection();
+        const text = this.getEditorText();
+        return text.substring(selection.start, selection.end);
     }
 
     replaceSelection(text) {
         this.insertText(text);
+    }
+
+    /**
+     * ContentEditable helper methods
+     */
+    getEditorText() {
+        return this.editor.textContent || '';
+    }
+
+    setEditorText(text) {
+        this.editor.textContent = text;
+    }
+
+    getSelection() {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            return {
+                start: this.getTextOffset(range.startContainer, range.startOffset),
+                end: this.getTextOffset(range.endContainer, range.endOffset)
+            };
+        }
+        return { start: 0, end: 0 };
+    }
+
+    setSelection(start, end) {
+        const range = document.createRange();
+        const selection = window.getSelection();
+
+        const startPos = this.getNodeAndOffset(start);
+        const endPos = this.getNodeAndOffset(end);
+
+        if (startPos && endPos) {
+            range.setStart(startPos.node, startPos.offset);
+            range.setEnd(endPos.node, endPos.offset);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+    }
+
+    getTextOffset(node, offset) {
+        let textOffset = 0;
+        const walker = document.createTreeWalker(
+            this.editor,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+
+        let currentNode;
+        while (currentNode = walker.nextNode()) {
+            if (currentNode === node) {
+                return textOffset + offset;
+            }
+            textOffset += currentNode.textContent.length;
+        }
+        return textOffset;
+    }
+
+    getNodeAndOffset(textOffset) {
+        let currentOffset = 0;
+        const walker = document.createTreeWalker(
+            this.editor,
+            NodeFilter.SHOW_TEXT,
+            null,
+            false
+        );
+
+        let currentNode;
+        while (currentNode = walker.nextNode()) {
+            const nodeLength = currentNode.textContent.length;
+            if (currentOffset + nodeLength >= textOffset) {
+                return {
+                    node: currentNode,
+                    offset: textOffset - currentOffset
+                };
+            }
+            currentOffset += nodeLength;
+        }
+
+        // If we reach here, return the last position
+        if (currentNode) {
+            return {
+                node: currentNode,
+                offset: currentNode.textContent.length
+            };
+        }
+
+        return null;
+    }
+
+    /**
+     * Set up scroll synchronization between expression and results columns
+     */
+    setupScrollSync() {
+        console.log('Setting up scroll synchronization between columns');
+
+        // Prevent infinite scroll loops
+        this.isScrollSyncing = false;
+
+        // Sync expression -> results
+        this.editor.addEventListener('scroll', () => {
+            if (this.isScrollSyncing) return;
+            this.isScrollSyncing = true;
+
+            if (this.resultsDisplay) {
+                this.resultsDisplay.scrollTop = this.editor.scrollTop;
+            }
+
+            setTimeout(() => {
+                this.isScrollSyncing = false;
+            }, 10);
+        });
+
+        // Sync results -> expression
+        if (this.resultsDisplay) {
+            this.resultsDisplay.addEventListener('scroll', () => {
+                if (this.isScrollSyncing) return;
+                this.isScrollSyncing = true;
+
+                this.editor.scrollTop = this.resultsDisplay.scrollTop;
+
+                setTimeout(() => {
+                    this.isScrollSyncing = false;
+                }, 10);
+            });
+        }
     }
 }
 

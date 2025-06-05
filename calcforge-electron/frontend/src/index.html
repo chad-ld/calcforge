@@ -64,19 +64,19 @@
                 <div class="editor-container">
                     <div class="line-numbers" id="editor-line-numbers"></div>
                     <div class="editor-wrapper">
-                        <textarea 
-                            id="expression-editor" 
-                            placeholder="Enter expressions...
+                        <div
+                            id="expression-editor"
+                            class="expression-editor-div"
+                            contenteditable="true"
+                            spellcheck="false"
+                            data-placeholder="Enter expressions...
 Examples:
 2 + 3 * 4
 TC(24, 100)
 5 feet to meters
 sum(LN1:LN5)
 D(July 4, 2023 + 30)"
-                            spellcheck="false"
-                            autocomplete="off"
-                        ></textarea>
-                        <div class="syntax-overlay" id="syntax-overlay"></div>
+                        ></div>
                     </div>
                 </div>
             </div>

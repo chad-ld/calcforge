@@ -20,6 +20,9 @@ let backendProcess = null;
 let isQuitting = false;
 let isDev = false;
 
+// Path to the original worksheets.json file
+const originalWorksheetsPath = path.join(__dirname, '..', '..', 'worksheets.json');
+
 // Check if running in development mode
 isDev = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
 
@@ -77,6 +80,8 @@ function createMainWindow() {
             mainWindow.webContents.openDevTools();
         }
 
+        // DevTools can be opened manually with F12 or Debug menu
+
         // Set stay on top if enabled
         const stayOnTop = store.get('stayOnTop', true);
         mainWindow.setAlwaysOnTop(stayOnTop);
@@ -97,10 +102,32 @@ function createMainWindow() {
     });
     
     // Handle window close event
-    mainWindow.on('close', (event) => {
-        if (!isQuitting && process.platform === 'darwin') {
-            event.preventDefault();
-            mainWindow.hide();
+    mainWindow.on('close', async (event) => {
+        if (!isQuitting) {
+            if (process.platform === 'darwin') {
+                event.preventDefault();
+                mainWindow.hide();
+            } else {
+                // On Windows/Linux, save worksheets before closing
+                event.preventDefault();
+                try {
+                    // Request the frontend to save worksheets
+                    await mainWindow.webContents.executeJavaScript(`
+                        if (window.calcForgeApp && window.calcForgeApp.saveWorksheetsOnExit) {
+                            window.calcForgeApp.saveWorksheetsOnExit();
+                        }
+                    `);
+                    // Small delay to ensure save completes
+                    setTimeout(() => {
+                        isQuitting = true;
+                        mainWindow.destroy();
+                    }, 500);
+                } catch (error) {
+                    console.error('Error saving worksheets on exit:', error);
+                    isQuitting = true;
+                    mainWindow.destroy();
+                }
+            }
         }
     });
     
@@ -284,38 +311,90 @@ function setupIpcHandlers() {
             mainWindow.close();
         }
     });
+
+    // Handle loading original worksheets.json
+    ipcMain.handle('load-original-worksheets', async () => {
+        try {
+            console.log('Loading original worksheets from:', originalWorksheetsPath);
+            if (fs.existsSync(originalWorksheetsPath)) {
+                const data = fs.readFileSync(originalWorksheetsPath, 'utf8');
+                return { success: true, data: JSON.parse(data) };
+            } else {
+                console.log('Original worksheets.json not found, creating empty data');
+                return { success: true, data: { "Sheet 1": "" } };
+            }
+        } catch (error) {
+            console.error('Error loading original worksheets:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // Handle saving to original worksheets.json
+    ipcMain.handle('save-original-worksheets', async (event, data) => {
+        try {
+            console.log('Saving worksheets to:', originalWorksheetsPath);
+            fs.writeFileSync(originalWorksheetsPath, JSON.stringify(data, null, 2), 'utf8');
+            return { success: true };
+        } catch (error) {
+            console.error('Error saving original worksheets:', error);
+            return { success: false, error: error.message };
+        }
+    });
 }
 
 /**
  * Create application menu (hidden for CalcForge)
  */
 function createMenu() {
-    // Hide the menu bar completely for a cleaner calculator interface
-    if (process.platform !== 'darwin') {
-        // On Windows/Linux, hide the menu bar entirely
-        Menu.setApplicationMenu(null);
-        if (mainWindow) {
-            mainWindow.setMenuBarVisibility(false);
+    // Create a minimal menu with DevTools access for debugging
+    const template = [
+        {
+            label: 'Debug',
+            submenu: [
+                {
+                    label: 'Toggle DevTools',
+                    accelerator: 'F12',
+                    click: () => {
+                        if (mainWindow) {
+                            mainWindow.webContents.toggleDevTools();
+                        }
+                    }
+                },
+                {
+                    label: 'Reload',
+                    accelerator: 'F5',
+                    click: () => {
+                        if (mainWindow) {
+                            mainWindow.webContents.reload();
+                        }
+                    }
+                }
+            ]
         }
-    } else {
-        // On macOS, we need a minimal menu for proper app behavior
-        const template = [
-            {
-                label: app.getName(),
-                submenu: [
-                    { role: 'about' },
-                    { type: 'separator' },
-                    { role: 'hide' },
-                    { role: 'hideothers' },
-                    { role: 'unhide' },
-                    { type: 'separator' },
-                    { role: 'quit' }
-                ]
-            }
-        ];
+    ];
 
-        const menu = Menu.buildFromTemplate(template);
-        Menu.setApplicationMenu(menu);
+    if (process.platform === 'darwin') {
+        // On macOS, add the standard app menu
+        template.unshift({
+            label: app.getName(),
+            submenu: [
+                { role: 'about' },
+                { type: 'separator' },
+                { role: 'hide' },
+                { role: 'hideothers' },
+                { role: 'unhide' },
+                { type: 'separator' },
+                { role: 'quit' }
+            ]
+        });
+    }
+
+    const menu = Menu.buildFromTemplate(template);
+    Menu.setApplicationMenu(menu);
+
+    // Show menu bar on Windows/Linux for debugging
+    if (mainWindow && process.platform !== 'darwin') {
+        mainWindow.setMenuBarVisibility(true);
     }
 }
 

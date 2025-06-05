@@ -1,164 +1,50 @@
-/* CalcForge Syntax Highlighting Styles */
+/* CalcForge Syntax Highlighting Styles - Phase 1: DISABLED */
 
-/* Syntax Highlighting Classes */
-.syntax-number {
-    color: var(--syntax-number);
-    font-weight: 500;
+/*
+ * Phase 1: All syntax highlighting classes disabled
+ * These will be re-enabled in later phases step by step
+ * For now, everything should be plain white text
+ */
+
+/* PHASE 1: ALL COLORS DISABLED - PLAIN WHITE TEXT ONLY */
+.syntax-number,
+.syntax-operator,
+.syntax-function,
+.syntax-paren,
+.syntax-unmatched,
+.syntax-comment,
+.syntax-ln-ref,
+.syntax-sheet-ref,
+.syntax-sheet-name,
+.syntax-error,
+.ln-color-0,
+.ln-color-1,
+.ln-color-2,
+.ln-color-3,
+.ln-color-4,
+.ln-color-5,
+.ln-color-6,
+.ln-color-7,
+.ln-color-8,
+.ln-color-9,
+.ln-color-10,
+.ln-color-11,
+.ln-color-12,
+.ln-color-13,
+.ln-color-14,
+.ln-color-15,
+.ln-color-16 {
+    /* Phase 1: Force all syntax elements to be plain white */
+    color: var(--syntax-number) !important;  /* Pure white */
+    font-weight: normal !important;          /* No bold */
+    font-style: normal !important;           /* No italic */
 }
 
-.syntax-operator {
-    color: var(--syntax-operator);
-    font-weight: 600;
-}
+/* Phase 1: No overlay system - using contenteditable directly */
 
-.syntax-function {
-    color: var(--syntax-function);
-    font-weight: 600;
-}
+/* Phase 1: All old styling effects removed for clean base */
 
-.syntax-paren {
-    color: var(--syntax-paren);
-    font-weight: 600;
-}
-
-.syntax-unmatched {
-    color: var(--syntax-error);
-    background-color: rgba(248, 81, 73, 0.2);
-    border-radius: 2px;
-    padding: 0 2px;
-}
-
-.syntax-comment {
-    color: var(--syntax-comment);
-    font-style: italic;
-    opacity: 0.8;
-}
-
-.syntax-ln-ref {
-    font-weight: 700;
-    text-shadow: 0 0 2px currentColor;
-}
-
-.syntax-sheet-ref {
-    font-weight: 700;
-    text-shadow: 0 0 2px currentColor;
-}
-
-.syntax-sheet-name {
-    color: #4DA6FF;
-    font-weight: 600;
-}
-
-.syntax-error {
-    color: var(--syntax-error);
-    background-color: rgba(248, 81, 73, 0.2);
-    border-radius: 2px;
-    padding: 0 2px;
-    text-decoration: underline wavy var(--syntax-error);
-}
-
-/* LN Variable Colors - Dynamic classes will be generated */
-.ln-color-0 { color: #FF9999; }
-.ln-color-1 { color: #99FF99; }
-.ln-color-2 { color: #9999FF; }
-.ln-color-3 { color: #FFFF99; }
-.ln-color-4 { color: #FF99FF; }
-.ln-color-5 { color: #99FFFF; }
-.ln-color-6 { color: #FFB366; }
-.ln-color-7 { color: #B3FF66; }
-.ln-color-8 { color: #66FFB3; }
-.ln-color-9 { color: #B366FF; }
-.ln-color-10 { color: #FF66B3; }
-.ln-color-11 { color: #FF6666; }
-.ln-color-12 { color: #66FF66; }
-.ln-color-13 { color: #6666FF; }
-.ln-color-14 { color: #FFFF66; }
-.ln-color-15 { color: #FF66FF; }
-.ln-color-16 { color: #66FFFF; }
-
-/* Syntax Overlay for Editor */
-.syntax-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none;
-    font-family: var(--font-mono);
-    font-size: inherit;
-    line-height: inherit;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    overflow: hidden;
-    padding: inherit;
-    margin: inherit;
-    border: inherit;
-    background: transparent;
-    color: transparent;
-    z-index: 1;
-}
-
-.syntax-overlay .highlight {
-    position: absolute;
-    border-radius: 2px;
-    pointer-events: none;
-}
-
-/* Error Highlighting */
-.error-highlight {
-    background-color: rgba(248, 81, 73, 0.15);
-    border-bottom: 2px wavy var(--syntax-error);
-}
-
-/* Current Line Highlighting */
-.current-line-highlight {
-    background-color: rgba(255, 255, 255, 0.05);
-    border-left: 3px solid var(--accent-primary);
-    margin-left: -3px;
-    padding-left: 3px;
-}
-
-/* Matching Parentheses */
-.matching-paren {
-    background-color: rgba(255, 166, 87, 0.3);
-    border-radius: 2px;
-    animation: pulse-paren 0.3s ease-in-out;
-}
-
-@keyframes pulse-paren {
-    0% { background-color: rgba(255, 166, 87, 0.1); }
-    50% { background-color: rgba(255, 166, 87, 0.5); }
-    100% { background-color: rgba(255, 166, 87, 0.3); }
-}
-
-/* Search Highlighting */
-.search-highlight {
-    background-color: rgba(255, 235, 59, 0.3);
-    border-radius: 2px;
-    box-shadow: 0 0 0 1px rgba(255, 235, 59, 0.6);
-}
-
-.search-highlight.current {
-    background-color: rgba(255, 193, 7, 0.5);
-    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.8);
-}
-
-/* Autocomplete Highlighting */
-.autocomplete-match {
-    background-color: rgba(9, 105, 218, 0.3);
-    border-radius: 2px;
-    font-weight: 600;
-}
-
-/* Hover Effects for Syntax Elements */
-.syntax-function:hover,
-.syntax-ln-ref:hover,
-.syntax-sheet-ref:hover {
-    text-decoration: underline;
-    cursor: pointer;
-}
-
-/* Selection Styling */
+/* Selection Styling - Keep this for user experience */
 ::selection {
     background-color: rgba(9, 105, 218, 0.4);
     color: inherit;
@@ -167,78 +53,4 @@
 ::-moz-selection {
     background-color: rgba(9, 105, 218, 0.4);
     color: inherit;
-}
-
-/* Syntax Highlighting Animation */
-.syntax-highlight-enter {
-    animation: highlight-enter 0.2s ease-out;
-}
-
-@keyframes highlight-enter {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-/* Dark Theme Adjustments */
-@media (prefers-color-scheme: dark) {
-    .syntax-number { color: #79C0FF; }
-    .syntax-operator { color: #FF7B72; }
-    .syntax-function { color: #D2A8FF; }
-    .syntax-paren { color: #FFA657; }
-    .syntax-comment { color: #8B949E; }
-    .syntax-error { color: #F85149; }
-}
-
-/* High Contrast Mode */
-@media (prefers-contrast: high) {
-    .syntax-number { color: #FFFFFF; font-weight: 700; }
-    .syntax-operator { color: #FF0000; font-weight: 700; }
-    .syntax-function { color: #00FF00; font-weight: 700; }
-    .syntax-paren { color: #FFFF00; font-weight: 700; }
-    .syntax-comment { color: #888888; font-weight: 400; }
-    .syntax-error { 
-        color: #FF0000; 
-        background-color: rgba(255, 0, 0, 0.3);
-        font-weight: 700;
-    }
-}
-
-/* Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-    .syntax-highlight-enter,
-    .matching-paren {
-        animation: none;
-    }
-    
-    .syntax-overlay .highlight {
-        transition: none;
-    }
-}
-
-/* Print Styles */
-@media print {
-    .syntax-overlay {
-        display: none;
-    }
-    
-    .syntax-number,
-    .syntax-operator,
-    .syntax-function,
-    .syntax-paren,
-    .syntax-comment {
-        color: #000000 !important;
-        background: transparent !important;
-    }
-    
-    .syntax-error {
-        color: #000000 !important;
-        background: #EEEEEE !important;
-        text-decoration: underline;
-    }
 }
