@@ -84,7 +84,7 @@
     flex-direction: column;
 }
 
-/* Textarea for text input */
+/* Expression editor textarea */
 .expression-editor-textarea {
     flex: 1;
     background: transparent;
@@ -93,22 +93,23 @@
     font-size: 14px;
     line-height: 1.5;
     padding: var(--spacing-sm);
+    padding-bottom: 25px;
     outline: none;
-    color: var(--syntax-number); /* White text */
+    color: var(--syntax-number);
     resize: none;
     overflow-x: auto;
     overflow-y: auto;
     min-height: 200px;
     width: 100%;
     box-sizing: border-box;
-    /* Ensure proper scrolling */
     white-space: pre;
     word-wrap: normal;
     overflow-wrap: normal;
-    /* Position for overlay alignment */
     position: relative;
     z-index: 1;
 }
+
+/* Textarea uses global scrollbar styling from main.css */
 
 /* Textarea placeholder */
 .expression-editor-textarea::placeholder {
@@ -132,13 +133,15 @@
     font-size: 14px;
     line-height: 1.5;
     padding: var(--spacing-sm);
-    pointer-events: none; /* Allow clicks to pass through to textarea */
-    overflow: hidden; /* Hide overflow to match textarea */
+    padding-bottom: 25px;
+    overflow-x: auto;
+    overflow-y: auto;
     white-space: pre;
     word-wrap: normal;
     overflow-wrap: normal;
-    z-index: 2; /* Above textarea */
-    /* Make text invisible but preserve layout */
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 2;
     color: transparent;
 }
 
@@ -146,7 +149,8 @@
     background: var(--bg-secondary);
     border-right: 1px solid var(--border-primary);
     padding: var(--spacing-sm) var(--spacing-xs);
-    font-family: var(--font-mono);
+    padding-bottom: 25px;
+    font-family: 'Roboto Mono', 'Courier New', monospace;
     font-size: 14px;
     line-height: 1.5;
     color: var(--text-muted);
@@ -159,10 +163,9 @@
 
 .line-numbers .line-number {
     display: block;
-    height: 21px;
     padding-right: 6px;
     margin: 0;
-    line-height: 21px;
+    line-height: 1.5;
     text-align: right;
 }
 
@@ -179,28 +182,32 @@
     color: var(--error);
 }
 
-/* Remove old textarea styles - using contenteditable now */
-
-/* Results Display - Match expression editor behavior */
+/* Results display */
 .results-display {
     flex: 1;
     padding: var(--spacing-sm);
+    padding-bottom: 25px;
     font-family: var(--font-mono);
     font-size: 14px;
     line-height: 1.5;
-    /* Phase 1: Force white text to match expression column */
     color: var(--syntax-number) !important;
-    /* NO WORD WRAPPING - scroll horizontally instead */
     overflow-x: auto;
     overflow-y: auto;
     white-space: pre;
     word-wrap: normal;
 }
 
-/* Phase 1: Force all results text to be white */
+/* Force all results to use white text */
 .results-display,
-.results-display * {
+.results-display *,
+.result-line,
+.result-line.error,
+.result-line.comment,
+.result-line.empty {
     color: var(--syntax-number) !important;
+    font-weight: normal;
+    font-style: normal;
+    opacity: 1;
 }
 
 .result-line {
@@ -208,22 +215,6 @@
     min-height: 21px;
     padding: 0;
     margin: 0;
-}
-
-/* Phase 1: Disable all result colors - plain white text only */
-.result-line.error {
-    color: var(--syntax-number) !important;  /* Force white */
-    font-weight: normal;  /* Remove bold */
-}
-
-.result-line.comment {
-    color: var(--syntax-number) !important;  /* Force white */
-    font-style: normal;  /* Remove italic */
-}
-
-.result-line.empty {
-    color: var(--syntax-number) !important;  /* Force white */
-    opacity: 1;  /* Remove transparency */
 }
 
 /* Autocomplete Popup */

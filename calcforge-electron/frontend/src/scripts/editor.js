@@ -79,6 +79,9 @@ class EditorManager {
         this.updateLineNumbers();
         this.updateResults([]);
 
+        // Step 2.1: Initialize overlay
+        this.updateOverlay();
+
         // No need to fix content with textarea - it's always clean text
 
         // Load saved font size
@@ -97,8 +100,10 @@ class EditorManager {
         // Debounced calculation
         this.scheduleCalculation();
 
-        // Syntax highlighting completely disabled for now
-        // this.scheduleSyntaxHighlighting();
+        // Update overlay with small delay to ensure DOM is updated
+        setTimeout(() => {
+            this.updateOverlay();
+        }, 0);
     }
     
     /**
@@ -139,8 +144,33 @@ class EditorManager {
         if (event.key === 'Enter') {
             // Let browser handle Enter completely naturally
             this.handleEnterKey(event);
+
+            // Multiple overlay updates to ensure perfect registration
+            setTimeout(() => {
+                this.updateOverlay();
+                this.updateLineNumbers();
+
+                // Second update to catch any DOM settling
+                setTimeout(() => {
+                    this.updateOverlay();
+                }, 5);
+
+                // Third update for stubborn cases
+                setTimeout(() => {
+                    this.updateOverlay();
+                }, 15);
+            }, 0);
         }
         
+        // Handle arrow keys for navigation
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+            // Let default arrow key behavior happen
+            setTimeout(() => {
+                this.updateCurrentLine();
+                this.ensureCursorVisible();
+            }, 0);
+        }
+
         // Handle Tab key
         if (event.key === 'Tab') {
             this.handleTabKey(event);
@@ -151,22 +181,33 @@ class EditorManager {
      * Handle scroll synchronization
      */
     onScroll() {
-        if (this.resultsDisplay) {
-            this.resultsDisplay.scrollTop = this.editor.scrollTop;
+        // Use requestAnimationFrame for smoother scroll sync
+        if (this.scrollSyncFrame) {
+            cancelAnimationFrame(this.scrollSyncFrame);
         }
 
-        // Update line number scroll
-        if (this.editorLineNumbers) {
-            this.editorLineNumbers.scrollTop = this.editor.scrollTop;
-        }
-        if (this.resultsLineNumbers) {
-            this.resultsLineNumbers.scrollTop = this.editor.scrollTop;
-        }
+        this.scrollSyncFrame = requestAnimationFrame(() => {
+            const scrollTop = this.editor.scrollTop;
+            const scrollLeft = this.editor.scrollLeft;
 
-        // Sync syntax overlay scroll
-        if (this.syntaxOverlay) {
-            this.syntaxOverlay.scrollTop = this.editor.scrollTop;
-        }
+            if (this.resultsDisplay) {
+                this.resultsDisplay.scrollTop = scrollTop;
+            }
+
+            // Update line number scroll with precise synchronization
+            if (this.editorLineNumbers) {
+                this.editorLineNumbers.scrollTop = scrollTop;
+            }
+            if (this.resultsLineNumbers) {
+                this.resultsLineNumbers.scrollTop = scrollTop;
+            }
+
+            // Sync syntax overlay scroll (both vertical and horizontal)
+            if (this.syntaxOverlay) {
+                this.syntaxOverlay.scrollTop = scrollTop;
+                this.syntaxOverlay.scrollLeft = scrollLeft;
+            }
+        });
     }
     
     /**
@@ -244,6 +285,18 @@ class EditorManager {
     }
     
     /**
+     * Get exact line height to match textarea
+     */
+    getExactLineHeight() {
+        const textareaStyle = window.getComputedStyle(this.editor);
+        return parseFloat(textareaStyle.lineHeight) || (this.currentFontSize * 1.5);
+    }
+
+
+
+
+
+    /**
      * Update line numbers
      */
     updateLineNumbers() {
@@ -267,15 +320,21 @@ class EditorManager {
                 return `<div class="${className}">${lineNum}</div>`;
             }).join('');
 
-            this.editorLineNumbers.innerHTML = lineNumbersHTML;
+            // Add extra spacing at bottom to match textarea padding behavior
+            const extraSpacing = '<div class="line-number" style="height: 25px; visibility: hidden;"></div>';
+
+            this.editorLineNumbers.innerHTML = lineNumbersHTML + extraSpacing;
 
             // Apply current font size to newly created line number elements
             const lineNumberElements = this.editorLineNumbers.querySelectorAll('.line-number');
-            const lineHeight = Math.round(this.currentFontSize * 1.5);
+            const exactLineHeight = this.getExactLineHeight();
+
             lineNumberElements.forEach(element => {
                 element.style.fontSize = `${this.currentFontSize}px`;
-                element.style.lineHeight = `${lineHeight}px`;
-                element.style.height = `${lineHeight}px`;
+                element.style.lineHeight = `${exactLineHeight}px`;
+                element.style.height = `${exactLineHeight}px`;
+                element.style.margin = '0';
+                element.style.padding = '0';
             });
         }
 
@@ -298,15 +357,21 @@ class EditorManager {
                 return `<div class="${className}">${displayText}</div>`;
             }).join('');
 
-            this.resultsLineNumbers.innerHTML = resultLineNumbersHTML;
+            // Add extra spacing at bottom to match textarea padding behavior
+            const extraSpacing = '<div class="line-number" style="height: 25px; visibility: hidden;"></div>';
+
+            this.resultsLineNumbers.innerHTML = resultLineNumbersHTML + extraSpacing;
 
             // Apply current font size to newly created line number elements
             const lineNumberElements = this.resultsLineNumbers.querySelectorAll('.line-number');
-            const lineHeight = Math.round(this.currentFontSize * 1.5);
+            const exactLineHeight = this.getExactLineHeight();
+
             lineNumberElements.forEach(element => {
                 element.style.fontSize = `${this.currentFontSize}px`;
-                element.style.lineHeight = `${lineHeight}px`;
-                element.style.height = `${lineHeight}px`;
+                element.style.lineHeight = `${exactLineHeight}px`;
+                element.style.height = `${exactLineHeight}px`;
+                element.style.margin = '0';
+                element.style.padding = '0';
             });
         }
 
@@ -408,13 +473,36 @@ class EditorManager {
         }
     }
 
-    // Removed contenteditable-specific methods - not needed with textarea
+    /**
+     * Update syntax overlay with plain text mirroring
+     */
+    updateOverlay() {
+        if (!this.syntaxOverlay) {
+            return;
+        }
+
+        const text = this.getEditorText();
+
+        // Sync overlay font metrics with textarea's actual computed styles
+        const textareaStyle = window.getComputedStyle(this.editor);
+        this.syntaxOverlay.style.fontSize = textareaStyle.fontSize;
+        this.syntaxOverlay.style.lineHeight = textareaStyle.lineHeight;
+        this.syntaxOverlay.style.fontFamily = textareaStyle.fontFamily;
+        this.syntaxOverlay.style.padding = textareaStyle.padding;
+
+        // Mirror plain text from textarea to overlay
+        this.syntaxOverlay.innerHTML = this.escapeHtml(text);
+
+        // Ensure scroll position is synchronized
+        this.syntaxOverlay.scrollTop = this.editor.scrollTop;
+        this.syntaxOverlay.scrollLeft = this.editor.scrollLeft;
+    }
 
     /**
-     * Apply syntax highlights using overlay approach (DISABLED - will be replaced)
+     * Apply syntax highlights (disabled - future implementation)
      */
     applySyntaxHighlightsWithCSS(highlights, text) {
-        // Completely disabled - will be replaced with overlay approach
+        // Disabled - will be implemented with overlay approach
         return;
     }
 
@@ -422,8 +510,6 @@ class EditorManager {
      * Convert highlight data to appropriate CSS class
      */
     getCSSClassForHighlight(highlight) {
-        // console.log('getCSSClassForHighlight called with:', highlight);
-
         // Handle LN variables with rotating colors
         if (highlight.class === 'syntax-ln-ref' && highlight.ln_number) {
             const colorIndex = ((highlight.ln_number - 1) % 8) + 1;
@@ -432,7 +518,6 @@ class EditorManager {
 
         // The backend returns a "class" property directly - use it!
         if (highlight.class) {
-            // console.log(`Using backend class: "${highlight.class}"`);
             return highlight.class;
         }
 
@@ -576,34 +661,27 @@ class EditorManager {
         }
     }
 
-    // Removed all undo/redo functionality for simplicity
-
     /**
      * Special key handlers
      */
     handleEnterKey(event) {
-        // Don't prevent default - let browser handle Enter completely naturally
-        // Just update UI after the browser creates the line
+        // Update UI after Enter key creates new line
         setTimeout(() => {
             this.updateLineNumbers();
             this.updateCurrentLine();
             this.scheduleCalculation();
-            // Syntax highlighting completely disabled for now
-            // this.scheduleSyntaxHighlighting();
+            this.updateOverlay();
         }, 0);
     }
 
     handleTabKey(event) {
         event.preventDefault();
-        this.insertText('    '); // 4 spaces
+        this.insertText('    ');
     }
 
     handleCopy(event) {
-        // Custom copy behavior - copy only numbers without units
         const selectedText = this.getSelectedText();
-
         if (selectedText) {
-            // Extract numbers from selection
             const numbers = selectedText.match(/\d+(?:\.\d+)?/g);
             if (numbers && numbers.length > 0) {
                 navigator.clipboard.writeText(numbers.join('\n'));
@@ -615,16 +693,12 @@ class EditorManager {
     insertText(text) {
         const selection = this.getSelection();
         const currentText = this.getEditorText();
-
         const newText = currentText.substring(0, selection.start) + text + currentText.substring(selection.end);
+
         this.setEditorText(newText);
         this.setSelection(selection.start + text.length, selection.start + text.length);
-
-        // Trigger input event
         this.editor.dispatchEvent(new Event('input'));
     }
-
-
 
     /**
      * Public methods for external use
@@ -636,17 +710,13 @@ class EditorManager {
     setText(text, skipCalculation = false) {
         this.setEditorText(text);
 
-        // No need to fix content with textarea - it's always clean text
-
         this.updateLineNumbers();
+        this.updateOverlay();
 
         // Only schedule calculation if not explicitly skipped (e.g., during tab switches)
         if (!skipCalculation) {
             this.scheduleCalculation();
         }
-
-        // Syntax highlighting completely disabled for now
-        // this.updateSyntaxHighlighting();
     }
 
     clear() {
@@ -672,19 +742,16 @@ class EditorManager {
      */
     getEditorText() {
         if (!this.editor) return '';
-        // Simple textarea value - no HTML parsing needed
         return this.editor.value || '';
     }
 
     setEditorText(text) {
         if (!this.editor) return;
-        // Simple textarea value assignment
         this.editor.value = text || '';
     }
 
     getSelection() {
         if (!this.editor) return { start: 0, end: 0 };
-        // Simple textarea selection
         return {
             start: this.editor.selectionStart || 0,
             end: this.editor.selectionEnd || 0
@@ -693,7 +760,6 @@ class EditorManager {
 
     setSelection(start, end) {
         if (!this.editor) return;
-        // Simple textarea selection
         this.editor.selectionStart = start;
         this.editor.selectionEnd = end;
         this.editor.focus();
@@ -722,48 +788,56 @@ class EditorManager {
     }
 
     updateFontSize() {
-        const lineHeight = Math.round(this.currentFontSize * 1.5);
+        // Use unitless line-height to match CSS exactly
+        const lineHeight = '1.5';
 
         // Update both expression editor and results display
         if (this.editor) {
             this.editor.style.fontSize = `${this.currentFontSize}px`;
-            this.editor.style.lineHeight = `${lineHeight}px`;
+            this.editor.style.lineHeight = lineHeight;
         }
 
         if (this.resultsDisplay) {
             this.resultsDisplay.style.fontSize = `${this.currentFontSize}px`;
-            this.resultsDisplay.style.lineHeight = `${lineHeight}px`;
+            this.resultsDisplay.style.lineHeight = lineHeight;
+        }
+
+        // Update syntax overlay to match new font size
+        if (this.syntaxOverlay) {
+            this.syntaxOverlay.style.fontSize = `${this.currentFontSize}px`;
+            this.syntaxOverlay.style.lineHeight = lineHeight;
         }
 
         // Update line number containers
         if (this.editorLineNumbers) {
             this.editorLineNumbers.style.fontSize = `${this.currentFontSize}px`;
-            this.editorLineNumbers.style.lineHeight = `${lineHeight}px`;
+            this.editorLineNumbers.style.lineHeight = lineHeight;
 
             // Update all individual line number elements
             const lineNumberElements = this.editorLineNumbers.querySelectorAll('.line-number');
             lineNumberElements.forEach(element => {
                 element.style.fontSize = `${this.currentFontSize}px`;
-                element.style.lineHeight = `${lineHeight}px`;
-                element.style.height = `${lineHeight}px`;
+                element.style.lineHeight = lineHeight;
             });
         }
 
         if (this.resultsLineNumbers) {
             this.resultsLineNumbers.style.fontSize = `${this.currentFontSize}px`;
-            this.resultsLineNumbers.style.lineHeight = `${lineHeight}px`;
+            this.resultsLineNumbers.style.lineHeight = lineHeight;
 
             // Update all individual line number elements
             const lineNumberElements = this.resultsLineNumbers.querySelectorAll('.line-number');
             lineNumberElements.forEach(element => {
                 element.style.fontSize = `${this.currentFontSize}px`;
-                element.style.lineHeight = `${lineHeight}px`;
-                element.style.height = `${lineHeight}px`;
+                element.style.lineHeight = lineHeight;
             });
         }
 
         // Update line numbers after font size change (this will recreate them with proper styling)
         this.updateLineNumbers();
+
+        // Update syntax overlay after font size change
+        this.updateOverlay();
 
         // Store font size preference
         localStorage.setItem('calcforge-font-size', this.currentFontSize.toString());
@@ -826,39 +900,86 @@ class EditorManager {
     }
 
     /**
+     * Ensure cursor is visible in textarea (fixes arrow key navigation issues)
+     */
+    ensureCursorVisible() {
+        if (!this.editor) return;
+
+        const textarea = this.editor;
+        const cursorPosition = textarea.selectionStart;
+
+        // Get the text up to cursor position
+        const textBeforeCursor = textarea.value.substring(0, cursorPosition);
+        const lines = textBeforeCursor.split('\n');
+        const currentLineIndex = lines.length - 1;
+
+        // Calculate line height based on current font size (more accurate)
+        const computedStyle = getComputedStyle(textarea);
+        let lineHeight;
+
+        if (computedStyle.lineHeight === 'normal' || computedStyle.lineHeight === '1.5') {
+            // Use current font size * 1.5 for unitless line-height
+            lineHeight = this.currentFontSize * 1.5;
+        } else {
+            // Parse pixel value
+            lineHeight = parseFloat(computedStyle.lineHeight) || (this.currentFontSize * 1.5);
+        }
+
+        const padding = parseFloat(computedStyle.paddingTop) || 8;
+        const bottomPadding = parseFloat(computedStyle.paddingBottom) || 25;
+
+        // Calculate cursor Y position
+        const cursorY = currentLineIndex * lineHeight + padding;
+
+        // Get textarea dimensions
+        const textareaHeight = textarea.clientHeight;
+        const scrollTop = textarea.scrollTop;
+
+        // Check if cursor is below visible area (account for bottom padding)
+        const visibleBottom = scrollTop + textareaHeight - bottomPadding - lineHeight; // Extra line height buffer
+
+        let scrollChanged = false;
+
+        if (cursorY > visibleBottom) {
+            // Scroll down to show cursor with proper spacing
+            textarea.scrollTop = cursorY - textareaHeight + bottomPadding + (lineHeight * 2);
+            scrollChanged = true;
+        }
+
+        // Check if cursor is above visible area
+        const visibleTop = scrollTop;
+        if (cursorY < visibleTop) {
+            // Scroll up to show cursor with some buffer
+            textarea.scrollTop = Math.max(0, cursorY - lineHeight);
+            scrollChanged = true;
+        }
+
+        // Note: Scroll sync will be handled automatically by the scroll event listener
+    }
+
+    /**
      * Set up scroll synchronization between expression and results columns
      */
     setupScrollSync() {
-        // Setting up scroll synchronization between columns
+        // IMPROVED: Better scroll synchronization with requestAnimationFrame
 
         // Prevent infinite scroll loops
         this.isScrollSyncing = false;
 
-        // Sync expression -> results
-        this.editor.addEventListener('scroll', () => {
-            if (this.isScrollSyncing) return;
-            this.isScrollSyncing = true;
-
-            if (this.resultsDisplay) {
-                this.resultsDisplay.scrollTop = this.editor.scrollTop;
-            }
-
-            setTimeout(() => {
-                this.isScrollSyncing = false;
-            }, 10);
-        });
-
-        // Sync results -> expression
+        // Sync results -> expression (when user scrolls in results panel)
         if (this.resultsDisplay) {
             this.resultsDisplay.addEventListener('scroll', () => {
                 if (this.isScrollSyncing) return;
                 this.isScrollSyncing = true;
 
-                this.editor.scrollTop = this.resultsDisplay.scrollTop;
+                // Use requestAnimationFrame for smooth sync
+                requestAnimationFrame(() => {
+                    this.editor.scrollTop = this.resultsDisplay.scrollTop;
 
-                setTimeout(() => {
-                    this.isScrollSyncing = false;
-                }, 10);
+                    setTimeout(() => {
+                        this.isScrollSyncing = false;
+                    }, 10);
+                });
             });
         }
     }
