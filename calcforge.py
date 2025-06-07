@@ -10,10 +10,13 @@ import traceback
 import pint
 ureg = pint.UnitRegistry()
 
-# Import constants from external module
+# Import constants from backend module (single source of truth)
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'calcforge-electron', 'backend'))
 from constants import (
     FALLBACK_RATES, CURRENCY_ABBR, CURRENCY_DISPLAY,
-    UNIT_ABBR, UNIT_DISPLAY, MATH_FUNCS, COLORS, LN_COLORS, 
+    UNIT_ABBR, UNIT_DISPLAY, MATH_FUNCS, COLORS, LN_COLORS,
     FUNCTION_NAMES, DEFAULT_FPS, lcm
 )
 

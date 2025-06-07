@@ -189,23 +189,20 @@ MATH_FUNCS = {
 # UI CONSTANTS
 # =============================================================================
 
-# Python App Colors for Syntax Highlighting (matching original)
+# Python App Colors for Syntax Highlighting (matching final implementation)
 COLORS = {
     'background': '#0D1117',      # Main background
     'current_line': '#FFFFFF',    # Current line text (white)
     'comment': '#7ED321',         # Green comments (matching Python app)
     'number': '#FFFFFF',          # White numbers (matching Python app)
-    'operator': '#4A90E2',        # Blue operators (matching Python app)
-    'function': '#4A90E2',        # Blue functions (matching Python app)
+    'operator': '#FF8C00',        # Bright orange operators (final implementation)
+    'function': '#BB8FCE',        # Light purple functions (final implementation)
     'paren': '#7ED321',           # Green parentheses (matching Python app)
-    'unmatched': '#F85149',       # Red for unmatched parentheses
+    'unmatched': '#FF6B6B',       # Red for unmatched parentheses
     'ln_highlight': '#A5D6FF',    # Cyan for LN references
-    'sheet_ref': '#4DA6FF',       # Blue for sheet references
-    'error': '#F85149',           # Red for errors
+    'sheet_ref': '#4ECDC4',       # Teal for sheet references
+    'error': '#FF6B6B',           # Red for errors
 }
-
-# Debug: Print when this constants file is loaded
-print(f"DEBUG: Backend constants.py loaded - comment color: {COLORS['comment']}")
 
 # LN variable colors for syntax highlighting - Match original Python app
 LN_COLORS = [

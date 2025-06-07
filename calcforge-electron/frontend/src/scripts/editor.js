@@ -48,7 +48,7 @@ class EditorManager {
             return false;
         }
 
-        console.log('Phase 1: Initializing contenteditable with plain white text');
+        // Phase 1: Initializing contenteditable with plain white text
         
         // Set up event listeners for contenteditable
         this.editor.addEventListener('input', this.onInput);
@@ -351,7 +351,7 @@ class EditorManager {
      * Update syntax highlighting using CSS classes (safe approach)
      */
     async updateSyntaxHighlighting() {
-        console.log('CSS-based syntax highlighting enabled');
+        // CSS-based syntax highlighting enabled
 
         if (!this.editor || this.isApplyingHighlights) {
             return;
@@ -385,7 +385,7 @@ class EditorManager {
 
         // Check if content has syntax highlighting spans - if so, don't strip them
         if (innerHTML.includes('<span class="syntax-')) {
-            console.log('Content has syntax highlighting, skipping fixBrokenContent');
+            // Content has syntax highlighting, skipping fixBrokenContent
             return;
         }
 
@@ -403,7 +403,7 @@ class EditorManager {
         this.editor.innerHTML = '';
         this.editor.textContent = plainText;
 
-        console.log('Fixed broken editor content, restored clean plain text');
+        // Fixed broken editor content, restored clean plain text
     }
 
     /**
@@ -438,7 +438,7 @@ class EditorManager {
             const highlightedPart = text.substring(highlight.start, highlight.start + highlight.length);
             const cssClass = this.getCSSClassForHighlight(highlight);
 
-            console.log(`Highlighting "${highlightedPart}" with class "${cssClass}" (type: ${highlight.type})`);
+            // Highlighting text with CSS class
             highlightedHTML += `<span class="${cssClass}">${this.escapeHtml(highlightedPart)}</span>`;
 
             lastIndex = highlight.start + highlight.length;
@@ -450,8 +450,6 @@ class EditorManager {
         // Apply highlighting directly to contenteditable
         this.editor.innerHTML = highlightedHTML;
 
-        console.log('Final highlighted HTML:', this.editor.innerHTML.substring(0, 200) + '...');
-
         // Restore cursor position
         this.restoreSelection(selection);
 
@@ -459,8 +457,6 @@ class EditorManager {
         setTimeout(() => {
             this.isApplyingHighlights = false;
         }, 100);
-
-        console.log('Applied CSS-based syntax highlighting to contenteditable element');
     }
 
     /**
@@ -505,74 +501,12 @@ class EditorManager {
             case 'error':
                 return 'syntax-error';
             default:
-                console.log(`Unknown highlight type: "${type}", using default`);
+                // Unknown highlight type, using default
                 return 'syntax-default';
         }
     }
 
-    /**
-     * Apply syntax highlights directly to contenteditable (inline approach)
-     */
-    applySyntaxHighlights(highlights, text) {
-        console.log('applySyntaxHighlights called with:', highlights.length, 'highlights');
 
-        if (!this.editor) {
-            console.error('Editor element not found in applySyntaxHighlights!');
-            return;
-        }
-
-        // Set flag to prevent infinite loops
-        this.isApplyingHighlights = true;
-
-        // Save cursor position before modifying innerHTML
-        const selection = this.saveSelection();
-
-        // Create highlighted version of text using inline spans
-        let highlightedHTML = '';
-        let lastIndex = 0;
-
-        // Sort highlights by start position
-        highlights.sort((a, b) => a.start - b.start);
-
-        for (const highlight of highlights) {
-            // Add text before highlight (escaped)
-            highlightedHTML += this.escapeHtml(text.substring(lastIndex, highlight.start));
-
-            // Add highlighted text with inline styles
-            const highlightedPart = text.substring(highlight.start, highlight.start + highlight.length);
-            const className = highlight.class || 'syntax-default';
-
-            // Build style string with color and bold
-            let styleProps = [];
-            if (highlight.color) {
-                styleProps.push(`color: ${highlight.color}`);
-            }
-            if (highlight.bold) {
-                styleProps.push('font-weight: bold');
-            }
-            const style = styleProps.length > 0 ? `style="${styleProps.join('; ')};"` : '';
-
-            highlightedHTML += `<span class="${className}" ${style}>${this.escapeHtml(highlightedPart)}</span>`;
-
-            lastIndex = highlight.start + highlight.length;
-        }
-
-        // Add remaining text (escaped)
-        highlightedHTML += this.escapeHtml(text.substring(lastIndex));
-
-        // Apply highlighting directly to contenteditable
-        this.editor.innerHTML = highlightedHTML;
-
-        // Restore cursor position
-        this.restoreSelection(selection);
-
-        // Clear the flag after a short delay to allow DOM to settle
-        setTimeout(() => {
-            this.isApplyingHighlights = false;
-        }, 100);
-
-        console.log('Applied syntax highlighting to contenteditable element');
-    }
 
     /**
      * Save current cursor/selection position
@@ -619,7 +553,7 @@ class EditorManager {
     onCalculationResult(event) {
         const data = event.detail;
         // Handle single line calculation result
-        console.log('Calculation result:', data);
+        // Handle calculation result
     }
     
     /**
@@ -778,7 +712,7 @@ class EditorManager {
     handleEnterKey(event) {
         // Phase 1: Let contenteditable handle Enter key naturally
         // Don't prevent default - let the browser create new lines
-        console.log('Phase 1: Enter key - letting browser handle naturally');
+        // Phase 1: Enter key - letting browser handle naturally
     }
 
     handleTabKey(event) {
@@ -946,7 +880,7 @@ class EditorManager {
      * Set up scroll synchronization between expression and results columns
      */
     setupScrollSync() {
-        console.log('Setting up scroll synchronization between columns');
+        // Setting up scroll synchronization between columns
 
         // Prevent infinite scroll loops
         this.isScrollSyncing = false;
