@@ -38,9 +38,9 @@
     --syntax-comment: #7ED321;   /* Green comments */
     --syntax-error: #F85149;     /* Red errors */
     
-    /* Fonts */
-    --font-mono: 'Roboto Mono', 'Courier New', monospace;
-    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    /* Fonts - Local only */
+    --font-mono: 'Roboto Mono Local', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Fira Mono', 'Droid Sans Mono', 'Consolas', 'Courier New', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
     
     /* Spacing */
     --spacing-xs: 4px;
@@ -316,25 +316,7 @@ body {
     background-color: var(--accent-primary);
 }
 
-/* Syntax highlighting classes - make them super specific for contenteditable */
-.editor-container .syntax-comment,
-[contenteditable] .syntax-comment,
-#expression-editor .syntax-comment,
-.expression-editor-div .syntax-comment,
-div.expression-editor-div span.syntax-comment {
-    color: #7ED321 !important;
-    font-weight: bold !important;
-    background-color: rgba(126, 211, 33, 0.1) !important;
-}
-
-.editor-container .syntax-number,
-[contenteditable] .syntax-number,
-#expression-editor .syntax-number,
-.expression-editor-div .syntax-number,
-div.expression-editor-div span.syntax-number {
-    color: #FFFFFF !important;
-    background-color: rgba(255, 255, 255, 0.1) !important;
-}
+/* Syntax highlighting moved to syntax.css to avoid duplicates */
 
 .editor-container .syntax-operator,
 [contenteditable] .syntax-operator,

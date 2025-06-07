@@ -162,13 +162,19 @@ class TabManager {
         // Update tab visual state
         this.updateTabStates();
         
-        // Load tab content into editor
+        // Load tab content into editor without triggering immediate calculation
         if (this.editor) {
-            this.editor.setText(newTab.content);
+            this.editor.setText(newTab.content, true); // Skip immediate calculation during tab switch
         }
-        
+
         // Update worksheets in API for cross-sheet references
         this.updateWorksheets();
+
+        // Trigger calculation immediately for tab switches to match Python app behavior
+        if (this.editor && newTab.content.trim()) {
+            // Use immediate calculation for tab switches to eliminate any delay
+            this.editor.calculateAll();
+        }
         
         return true;
     }

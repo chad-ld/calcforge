@@ -1,0 +1,74 @@
+/* Local Fonts for CalcForge - No Internet Required */
+
+/* Roboto Mono Font Family - Local fallbacks */
+@font-face {
+    font-family: 'Roboto Mono Local';
+    src: local('Roboto Mono'), 
+         local('RobotoMono-Regular'),
+         local('Monaco'),
+         local('Menlo'),
+         local('Consolas'),
+         local('Courier New'),
+         local('monospace');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Roboto Mono Local';
+    src: local('Roboto Mono Medium'), 
+         local('RobotoMono-Medium'),
+         local('Monaco'),
+         local('Menlo'),
+         local('Consolas'),
+         local('Courier New'),
+         local('monospace');
+    font-weight: 500;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Roboto Mono Local';
+    src: local('Roboto Mono Bold'), 
+         local('RobotoMono-Bold'),
+         local('Monaco'),
+         local('Menlo'),
+         local('Consolas'),
+         local('Courier New'),
+         local('monospace');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* System Font Stack for UI */
+.system-font {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* Monospace Font Stack for Code */
+.mono-font {
+    font-family: 'Roboto Mono Local', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Fira Mono', 'Droid Sans Mono', 'Consolas', 'Courier New', monospace;
+}
+
+/* Apply fonts to specific elements */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.expression-editor,
+.results-display,
+.line-numbers,
+pre,
+code,
+.font-mono {
+    font-family: 'Roboto Mono Local', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Fira Mono', 'Droid Sans Mono', 'Consolas', 'Courier New', monospace !important;
+}
+
+/* Ensure consistent font rendering */
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

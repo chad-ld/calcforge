@@ -292,8 +292,10 @@ class AutocompleteManager {
      * Handle input events
      */
     onInput(event) {
-        const cursorPosition = this.editor.editor.selectionStart;
-        const text = this.editor.editor.value;
+        // Get text and cursor position from contenteditable
+        const text = this.editor.getEditorText();
+        const selection = this.editor.getSelection();
+        const cursorPosition = selection.start;
 
         // Handle backspace/delete operations more carefully
         if (event && (event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward')) {
@@ -307,7 +309,7 @@ class AutocompleteManager {
         }
 
         // Quick exit for non-alphabetic characters at cursor
-        const charAtCursor = text[cursorPosition - 1];
+        const charAtCursor = text && cursorPosition > 0 ? text[cursorPosition - 1] : '';
 
         // Don't trigger autocomplete for numbers, operators, or spaces unless we're in a function context
         if (charAtCursor && /[0-9+\-*/=\s.]/.test(charAtCursor)) {
@@ -348,6 +350,11 @@ class AutocompleteManager {
      * Get the current word being typed
      */
     getCurrentWord(text, cursorPosition) {
+        // Safety check for undefined text
+        if (!text || typeof text !== 'string' || cursorPosition < 0) {
+            return null;
+        }
+
         // Check for function parameter context
         const beforeCursor = text.substring(0, cursorPosition);
         const afterCursor = text.substring(cursorPosition);
@@ -657,41 +664,41 @@ class AutocompleteManager {
 
         const selectedFunc = this.filteredFunctions[this.selectedIndex];
         console.log('insertSelected called for:', selectedFunc.name, 'context:', this.currentContext);
-        const editor = this.editor.editor;
 
         // Replace current word with function name
         const start = this.wordStart;
         const end = start + this.currentWord.length;
 
-        const value = editor.value;
-        let newValue;
+        const text = this.editor.getEditorText();
+        let newText;
         let cursorPos;
 
         if (this.currentContext === 'function_param') {
             // For function parameters, just replace the current parameter
-            newValue = value.substring(0, start) + selectedFunc.name + value.substring(end);
+            newText = text.substring(0, start) + selectedFunc.name + text.substring(end);
             cursorPos = start + selectedFunc.name.length;
         } else if (this.currentContext === 'unit_source' || this.currentContext === 'unit_target') {
             // For units, just replace the word
             if (this.currentContext === 'unit_target') {
-                newValue = value.substring(0, start) + selectedFunc.name + value.substring(end);
+                newText = text.substring(0, start) + selectedFunc.name + text.substring(end);
                 cursorPos = start + selectedFunc.name.length;
             } else {
                 // For source units, add " to " after
-                newValue = value.substring(0, start) + selectedFunc.name + ' to ' + value.substring(end);
+                newText = text.substring(0, start) + selectedFunc.name + ' to ' + text.substring(end);
                 cursorPos = start + selectedFunc.name.length + 4;
             }
         } else {
             // For functions, add parentheses
-            newValue = value.substring(0, start) + selectedFunc.name + '(' + value.substring(end);
+            newText = text.substring(0, start) + selectedFunc.name + '(' + text.substring(end);
             cursorPos = start + selectedFunc.name.length + 1;
         }
 
-        editor.value = newValue;
-        editor.setSelectionRange(cursorPos, cursorPos);
+        // Update the contenteditable element
+        this.editor.setEditorText(newText);
+        this.editor.setSelection(cursorPos, cursorPos);
 
-        // Trigger input event
-        editor.dispatchEvent(new Event('input'));
+        // Trigger input event on the contenteditable element
+        this.editor.editor.dispatchEvent(new Event('input'));
 
         // For functions, immediately check for parameter suggestions
         if (this.currentContext === 'function') {

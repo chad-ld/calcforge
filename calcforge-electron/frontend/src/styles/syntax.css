@@ -1,0 +1,135 @@
+/* CalcForge Syntax Highlighting Styles */
+
+/* Phase 1: Plain text color implementation - no overlays, just direct text colors */
+
+/* Base syntax highlighting classes */
+.syntax-number {
+    color: #FFFFFF !important;  /* White numbers */
+}
+
+.syntax-operator {
+    color: #FF8C00 !important;  /* Bright orange operators/functions */
+}
+
+.syntax-function {
+    color: #FF8C00 !important;  /* Bright orange functions */
+}
+
+.syntax-paren {
+    color: #00FF00 !important;  /* Green parentheses */
+}
+
+.syntax-comment {
+    color: #00FF00 !important;  /* Bright green comments */
+    font-weight: bold !important;
+}
+
+.syntax-error {
+    color: #FF0000 !important;  /* Red errors */
+}
+
+/* LN variable colors - rotating through distinct colors */
+.syntax-ln-1 { color: #FF6B6B !important; }  /* Red */
+.syntax-ln-2 { color: #4ECDC4 !important; }  /* Teal */
+.syntax-ln-3 { color: #45B7D1 !important; }  /* Blue */
+.syntax-ln-4 { color: #96CEB4 !important; }  /* Green */
+.syntax-ln-5 { color: #FFEAA7 !important; }  /* Yellow */
+.syntax-ln-6 { color: #DDA0DD !important; }  /* Plum */
+.syntax-ln-7 { color: #98D8C8 !important; }  /* Mint */
+.syntax-ln-8 { color: #F7DC6F !important; }  /* Light Yellow */
+.syntax-ln-9 { color: #BB8FCE !important; }  /* Light Purple */
+.syntax-ln-10 { color: #85C1E9 !important; } /* Light Blue */
+.syntax-ln-11 { color: #F8C471 !important; } /* Orange */
+.syntax-ln-12 { color: #82E0AA !important; } /* Light Green */
+.syntax-ln-13 { color: #F1948A !important; } /* Light Red */
+.syntax-ln-14 { color: #85CDFD !important; } /* Sky Blue */
+.syntax-ln-15 { color: #D7BDE2 !important; } /* Lavender */
+.syntax-ln-16 { color: #A9DFBF !important; } /* Pale Green */
+.syntax-ln-17 { color: #F9E79F !important; } /* Pale Yellow */
+
+/* Ensure LN variables are very bold and visible */
+[class*="syntax-ln-"] {
+    font-weight: 900 !important;  /* Very bold */
+}
+
+/* Expression and results column text styling */
+.expression-editor,
+.results-display {
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 21px;
+    color: #FFFFFF;  /* Default white text */
+}
+
+/* Ensure no text shadows or glow effects */
+.expression-editor *,
+.results-display * {
+    text-shadow: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+}
+
+/* Phase 1: Simple text color changes only */
+.syntax-highlight {
+    /* Container for syntax highlighted content */
+}
+
+/* Error highlighting for invalid expressions */
+.syntax-error-line {
+    background-color: rgba(255, 0, 0, 0.1);
+    border-left: 3px solid #FF0000;
+}
+
+/* Comment line styling */
+.syntax-comment-line {
+    color: #00FF00 !important;
+    font-weight: bold !important;
+    font-style: italic;
+}
+
+/* Unit highlighting */
+.syntax-unit {
+    color: #87CEEB !important;  /* Sky blue for units */
+}
+
+/* String highlighting */
+.syntax-string {
+    color: #98FB98 !important;  /* Pale green for strings */
+}
+
+/* Keyword highlighting */
+.syntax-keyword {
+    color: #FFB6C1 !important;  /* Light pink for keywords */
+    font-weight: bold !important;
+}
+
+/* Ensure consistent styling across all text elements */
+.expression-editor .line,
+.results-display .line {
+    min-height: 21px;
+    line-height: 21px;
+}
+
+/* Phase 1: No overlay approach - direct text modification only */
+.syntax-overlay {
+    display: none;  /* Phase 1: Disabled overlay approach */
+}
+
+/* Accessibility: High contrast mode support */
+@media (prefers-contrast: high) {
+    .syntax-number { color: #FFFFFF !important; }
+    .syntax-operator { color: #FFFF00 !important; }
+    .syntax-function { color: #FFFF00 !important; }
+    .syntax-paren { color: #00FF00 !important; }
+    .syntax-comment { color: #00FF00 !important; }
+    .syntax-error { color: #FF0000 !important; }
+}
+
+/* Color blind friendly alternative colors (can be enabled via settings) */
+.colorblind-mode .syntax-ln-1 { color: #E69F00 !important; }  /* Orange */
+.colorblind-mode .syntax-ln-2 { color: #56B4E9 !important; }  /* Sky Blue */
+.colorblind-mode .syntax-ln-3 { color: #009E73 !important; }  /* Bluish Green */
+.colorblind-mode .syntax-ln-4 { color: #F0E442 !important; }  /* Yellow */
+.colorblind-mode .syntax-ln-5 { color: #0072B2 !important; }  /* Blue */
+.colorblind-mode .syntax-ln-6 { color: #D55E00 !important; }  /* Vermillion */
+.colorblind-mode .syntax-ln-7 { color: #CC79A7 !important; }  /* Reddish Purple */

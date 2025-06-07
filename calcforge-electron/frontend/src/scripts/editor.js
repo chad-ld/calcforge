@@ -17,9 +17,11 @@ class EditorManager {
         this.isCalculating = false;
         this.calculationTimeout = null;
         this.syntaxTimeout = null;
-        this.calculationDelay = 200; // ms - responsive but not too aggressive
+        this.overlayTimeout = null;
+        this.calculationDelay = 100; // ms - fast but still debounced for typing
         this.calculatingStartTime = null;
-        this.minCalculatingTime = 300; // Minimum time to show calculating animation
+        this.minCalculatingTime = 100; // Reduced minimum time to prevent lag
+        this.showOverlayThreshold = 200; // Only show overlay if calculation takes longer than this
         
         this.undoStack = [];
         this.redoStack = [];
@@ -581,18 +583,31 @@ class EditorManager {
 
         if (show) {
             this.calculatingStartTime = performance.now();
-            loadingOverlay.classList.add('visible');
+            // Only show overlay after a delay to avoid flashing for quick calculations
+            this.overlayTimeout = setTimeout(() => {
+                if (this.isCalculating) { // Only show if still calculating
+                    loadingOverlay.classList.add('visible');
+                }
+            }, this.showOverlayThreshold);
         } else {
-            // Only hide if minimum time has passed
-            const elapsed = performance.now() - (this.calculatingStartTime || 0);
-            const remainingTime = Math.max(0, this.minCalculatingTime - elapsed);
+            // Clear the overlay timeout if calculation finished quickly
+            if (this.overlayTimeout) {
+                clearTimeout(this.overlayTimeout);
+                this.overlayTimeout = null;
+            }
 
-            if (remainingTime > 0) {
-                setTimeout(() => {
+            // Only hide if minimum time has passed and overlay is visible
+            if (loadingOverlay.classList.contains('visible')) {
+                const elapsed = performance.now() - (this.calculatingStartTime || 0);
+                const remainingTime = Math.max(0, this.minCalculatingTime - elapsed);
+
+                if (remainingTime > 0) {
+                    setTimeout(() => {
+                        loadingOverlay.classList.remove('visible');
+                    }, remainingTime);
+                } else {
                     loadingOverlay.classList.remove('visible');
-                }, remainingTime);
-            } else {
-                loadingOverlay.classList.remove('visible');
+                }
             }
         }
     }
@@ -645,10 +660,11 @@ class EditorManager {
      * Undo/Redo functionality
      */
     saveUndoState() {
+        const selection = this.getSelection();
         const state = {
-            value: this.editor.value,
-            selectionStart: this.editor.selectionStart,
-            selectionEnd: this.editor.selectionEnd
+            text: this.getEditorText(),
+            selectionStart: selection.start,
+            selectionEnd: selection.end
         };
 
         this.undoStack.push(state);
@@ -666,17 +682,18 @@ class EditorManager {
         if (this.undoStack.length === 0) return;
 
         // Save current state to redo stack
+        const selection = this.getSelection();
         const currentState = {
-            value: this.editor.value,
-            selectionStart: this.editor.selectionStart,
-            selectionEnd: this.editor.selectionEnd
+            text: this.getEditorText(),
+            selectionStart: selection.start,
+            selectionEnd: selection.end
         };
         this.redoStack.push(currentState);
 
         // Restore previous state
         const previousState = this.undoStack.pop();
-        this.editor.value = previousState.value;
-        this.editor.setSelectionRange(previousState.selectionStart, previousState.selectionEnd);
+        this.setEditorText(previousState.text);
+        this.setSelection(previousState.selectionStart, previousState.selectionEnd);
 
         // Update UI
         this.updateLineNumbers();
@@ -688,17 +705,18 @@ class EditorManager {
         if (this.redoStack.length === 0) return;
 
         // Save current state to undo stack
+        const selection = this.getSelection();
         const currentState = {
-            value: this.editor.value,
-            selectionStart: this.editor.selectionStart,
-            selectionEnd: this.editor.selectionEnd
+            text: this.getEditorText(),
+            selectionStart: selection.start,
+            selectionEnd: selection.end
         };
         this.undoStack.push(currentState);
 
         // Restore next state
         const nextState = this.redoStack.pop();
-        this.editor.value = nextState.value;
-        this.editor.setSelectionRange(nextState.selectionStart, nextState.selectionEnd);
+        this.setEditorText(nextState.text);
+        this.setSelection(nextState.selectionStart, nextState.selectionEnd);
 
         // Update UI
         this.updateLineNumbers();
@@ -722,14 +740,11 @@ class EditorManager {
 
     handleCopy(event) {
         // Custom copy behavior - copy only numbers without units
-        const selection = this.editor.value.substring(
-            this.editor.selectionStart,
-            this.editor.selectionEnd
-        );
+        const selectedText = this.getSelectedText();
 
-        if (selection) {
+        if (selectedText) {
             // Extract numbers from selection
-            const numbers = selection.match(/\d+(?:\.\d+)?/g);
+            const numbers = selectedText.match(/\d+(?:\.\d+)?/g);
             if (numbers && numbers.length > 0) {
                 navigator.clipboard.writeText(numbers.join('\n'));
                 event.preventDefault();
@@ -738,12 +753,12 @@ class EditorManager {
     }
 
     insertText(text) {
-        const start = this.editor.selectionStart;
-        const end = this.editor.selectionEnd;
-        const value = this.editor.value;
+        const selection = this.getSelection();
+        const currentText = this.getEditorText();
 
-        this.editor.value = value.substring(0, start) + text + value.substring(end);
-        this.editor.setSelectionRange(start + text.length, start + text.length);
+        const newText = currentText.substring(0, selection.start) + text + currentText.substring(selection.end);
+        this.setEditorText(newText);
+        this.setSelection(selection.start + text.length, selection.start + text.length);
 
         // Trigger input event
         this.editor.dispatchEvent(new Event('input'));
@@ -758,14 +773,19 @@ class EditorManager {
         return this.getEditorText();
     }
 
-    setText(text) {
+    setText(text, skipCalculation = false) {
         this.setEditorText(text);
 
         // Fix any broken content that might have been loaded
         this.fixBrokenContent();
 
         this.updateLineNumbers();
-        this.scheduleCalculation();
+
+        // Only schedule calculation if not explicitly skipped (e.g., during tab switches)
+        if (!skipCalculation) {
+            this.scheduleCalculation();
+        }
+
         this.updateSyntaxHighlighting();
     }
 
