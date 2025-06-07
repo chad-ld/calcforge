@@ -292,10 +292,22 @@ class AutocompleteManager {
      * Handle input events
      */
     onInput(event) {
-        // Get text and cursor position from contenteditable
+        // Get text and cursor position from textarea
         const text = this.editor.getEditorText();
         const selection = this.editor.getSelection();
         const cursorPosition = selection.start;
+
+        // Check if we're on a comment line - disable autocomplete for comments
+        const lines = text.split('\n');
+        const textBeforeCursor = text.substring(0, cursorPosition);
+        const currentLineNumber = textBeforeCursor.split('\n').length - 1;
+        const currentLine = lines[currentLineNumber] || '';
+
+        if (currentLine.trim().startsWith(':::')) {
+            // We're on a comment line - hide autocomplete and exit
+            this.hide();
+            return;
+        }
 
         // Handle backspace/delete operations more carefully
         if (event && (event.inputType === 'deleteContentBackward' || event.inputType === 'deleteContentForward')) {

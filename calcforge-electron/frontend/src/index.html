@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CalcForge v4.0</title>
     
-    <!-- Stylesheets - Local fonts only, no internet required -->
-    <link rel="stylesheet" href="styles/fonts.css">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/syntax.css">
     <link rel="stylesheet" href="styles/components.css">
@@ -60,19 +64,19 @@
                 <div class="editor-container">
                     <div class="line-numbers" id="editor-line-numbers"></div>
                     <div class="editor-wrapper">
-                        <div
+                        <textarea
                             id="expression-editor"
-                            class="expression-editor-div"
-                            contenteditable="true"
+                            class="expression-editor-textarea"
                             spellcheck="false"
-                            data-placeholder="Enter expressions...
+                            placeholder="Enter expressions...
 Examples:
 2 + 3 * 4
 TC(24, 100)
 5 feet to meters
 sum(LN1:LN5)
 D(July 4, 2023 + 30)"
-                        ></div>
+                        ></textarea>
+                        <div id="syntax-overlay" class="syntax-overlay"></div>
                     </div>
                 </div>
             </div>

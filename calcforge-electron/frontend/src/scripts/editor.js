@@ -23,9 +23,16 @@ class EditorManager {
         this.minCalculatingTime = 100; // Reduced minimum time to prevent lag
         this.showOverlayThreshold = 200; // Only show overlay if calculation takes longer than this
         
-        this.undoStack = [];
-        this.redoStack = [];
-        this.maxUndoSteps = 50;
+        // Removed undo/redo functionality for simplicity
+
+        // Font size management
+        this.currentFontSize = 14; // Default font size
+        this.minFontSize = 8;
+        this.maxFontSize = 32;
+
+        // Syntax highlighting optimization
+        this.lastHighlightedText = '';
+        this.isHandlingEnter = false;
         
         // Bind methods
         this.onInput = this.onInput.bind(this);
@@ -40,7 +47,8 @@ class EditorManager {
      * Initialize the editor
      */
     init() {
-        this.editor = document.getElementById('expression-editor');
+        this.editor = document.getElementById('expression-editor'); // Now a textarea
+        this.syntaxOverlay = document.getElementById('syntax-overlay');
         this.resultsDisplay = document.getElementById('results-display');
         this.editorLineNumbers = document.getElementById('editor-line-numbers');
         this.resultsLineNumbers = document.getElementById('results-line-numbers');
@@ -50,9 +58,9 @@ class EditorManager {
             return false;
         }
 
-        // Phase 1: Initializing contenteditable with plain white text
-        
-        // Set up event listeners for contenteditable
+        // Initialize textarea-based editor with overlay
+
+        // Set up event listeners for textarea
         this.editor.addEventListener('input', this.onInput);
         this.editor.addEventListener('keydown', this.onKeyDown);
         this.editor.addEventListener('scroll', this.onScroll);
@@ -71,8 +79,10 @@ class EditorManager {
         this.updateLineNumbers();
         this.updateResults([]);
 
-        // Fix any broken content from previous sessions
-        this.fixBrokenContent();
+        // No need to fix content with textarea - it's always clean text
+
+        // Load saved font size
+        this.loadFontSize();
 
         return true;
     }
@@ -81,17 +91,14 @@ class EditorManager {
      * Handle text input
      */
     onInput(event) {
-        // Save state for undo
-        this.saveUndoState();
-
         // Update line numbers
         this.updateLineNumbers();
 
         // Debounced calculation
         this.scheduleCalculation();
 
-        // Debounced syntax highlighting to prevent flickering
-        this.scheduleSyntaxHighlighting();
+        // Syntax highlighting completely disabled for now
+        // this.scheduleSyntaxHighlighting();
     }
     
     /**
@@ -101,18 +108,6 @@ class EditorManager {
         // Handle special key combinations
         if (event.ctrlKey || event.metaKey) {
             switch (event.key) {
-                case 'z':
-                    if (event.shiftKey) {
-                        this.redo();
-                    } else {
-                        this.undo();
-                    }
-                    event.preventDefault();
-                    break;
-                case 'y':
-                    this.redo();
-                    event.preventDefault();
-                    break;
                 case 'a':
                     // Select all - let default behavior happen
                     break;
@@ -120,16 +115,29 @@ class EditorManager {
                     // Copy - handle in separate method
                     this.handleCopy(event);
                     break;
-                case 'v':
-                    // Paste - save undo state
-                    setTimeout(() => this.saveUndoState(), 0);
+                case '+':
+                case '=':
+                    // Increase font size (handles both + and = keys)
+                    this.increaseFontSize();
+                    event.preventDefault();
+                    break;
+                case '-':
+                case '_':
+                    // Decrease font size (handles both - and _ keys)
+                    this.decreaseFontSize();
+                    event.preventDefault();
+                    break;
+                case '0':
+                    // Reset font size
+                    this.resetFontSize();
+                    event.preventDefault();
                     break;
             }
         }
         
         // Handle Enter key
         if (event.key === 'Enter') {
-            // Auto-indent on new line
+            // Let browser handle Enter completely naturally
             this.handleEnterKey(event);
         }
         
@@ -191,7 +199,7 @@ class EditorManager {
 
         this.syntaxTimeout = setTimeout(() => {
             this.updateSyntaxHighlighting();
-        }, 100); // Quick syntax highlighting
+        }, 150); // Reduced debounce since we made highlighting less aggressive
     }
     
     /**
@@ -260,6 +268,15 @@ class EditorManager {
             }).join('');
 
             this.editorLineNumbers.innerHTML = lineNumbersHTML;
+
+            // Apply current font size to newly created line number elements
+            const lineNumberElements = this.editorLineNumbers.querySelectorAll('.line-number');
+            const lineHeight = Math.round(this.currentFontSize * 1.5);
+            lineNumberElements.forEach(element => {
+                element.style.fontSize = `${this.currentFontSize}px`;
+                element.style.lineHeight = `${lineHeight}px`;
+                element.style.height = `${lineHeight}px`;
+            });
         }
 
         // Update results line numbers
@@ -282,6 +299,15 @@ class EditorManager {
             }).join('');
 
             this.resultsLineNumbers.innerHTML = resultLineNumbersHTML;
+
+            // Apply current font size to newly created line number elements
+            const lineNumberElements = this.resultsLineNumbers.querySelectorAll('.line-number');
+            const lineHeight = Math.round(this.currentFontSize * 1.5);
+            lineNumberElements.forEach(element => {
+                element.style.fontSize = `${this.currentFontSize}px`;
+                element.style.lineHeight = `${lineHeight}px`;
+                element.style.height = `${lineHeight}px`;
+            });
         }
 
         // Update status
@@ -355,7 +381,7 @@ class EditorManager {
     async updateSyntaxHighlighting() {
         // CSS-based syntax highlighting enabled
 
-        if (!this.editor || this.isApplyingHighlights) {
+        if (!this.editor || this.isApplyingHighlights || this.isHandlingEnter || this.disableSyntaxHighlighting) {
             return;
         }
 
@@ -364,11 +390,17 @@ class EditorManager {
             return;
         }
 
+        // Prevent unnecessary updates if text hasn't changed
+        if (this.lastHighlightedText === text) {
+            return;
+        }
+
         try {
             // Get highlights from API
             const highlights = await this.api.getSyntaxHighlighting(text);
             if (highlights && highlights.length > 0) {
                 this.applySyntaxHighlightsWithCSS(highlights, text);
+                this.lastHighlightedText = text;
             }
         } catch (error) {
             console.error('Syntax highlighting failed:', error);
@@ -376,89 +408,14 @@ class EditorManager {
         }
     }
 
-    /**
-     * Fix broken editor content by converting to plain text
-     */
-    fixBrokenContent() {
-        if (!this.editor) return;
-
-        // Only fix content if it contains broken HTML, not if it has valid syntax highlighting
-        const innerHTML = this.editor.innerHTML;
-
-        // Check if content has syntax highlighting spans - if so, don't strip them
-        if (innerHTML.includes('<span class="syntax-')) {
-            // Content has syntax highlighting, skipping fixBrokenContent
-            return;
-        }
-
-        // Get the plain text content (strips all HTML)
-        let plainText = this.editor.textContent || '';
-
-        // Clean up any extra whitespace that might be causing spacing issues
-        plainText = plainText
-            .replace(/\u00A0/g, ' ')  // Replace non-breaking spaces with regular spaces
-            .replace(/\s+$/gm, '')    // Remove trailing whitespace from each line
-            .replace(/^\s+/gm, '')    // Remove leading whitespace from each line
-            .replace(/\n\s*\n\s*\n/g, '\n\n'); // Replace multiple empty lines with just one
-
-        // Clear and reset with cleaned plain text
-        this.editor.innerHTML = '';
-        this.editor.textContent = plainText;
-
-        // Fixed broken editor content, restored clean plain text
-    }
+    // Removed contenteditable-specific methods - not needed with textarea
 
     /**
-     * Apply syntax highlights using CSS classes (safer approach)
+     * Apply syntax highlights using overlay approach (DISABLED - will be replaced)
      */
     applySyntaxHighlightsWithCSS(highlights, text) {
-        // console.log('applySyntaxHighlightsWithCSS called with:', highlights.length, 'highlights');
-
-        if (!this.editor) {
-            console.error('Editor element not found in applySyntaxHighlightsWithCSS!');
-            return;
-        }
-
-        // Set flag to prevent infinite loops
-        this.isApplyingHighlights = true;
-
-        // Save cursor position before modifying innerHTML
-        const selection = this.saveSelection();
-
-        // Create highlighted version of text using CSS classes
-        let highlightedHTML = '';
-        let lastIndex = 0;
-
-        // Sort highlights by start position
-        highlights.sort((a, b) => a.start - b.start);
-
-        for (const highlight of highlights) {
-            // Add text before highlight (escaped)
-            highlightedHTML += this.escapeHtml(text.substring(lastIndex, highlight.start));
-
-            // Add highlighted text with CSS class
-            const highlightedPart = text.substring(highlight.start, highlight.start + highlight.length);
-            const cssClass = this.getCSSClassForHighlight(highlight);
-
-            // Highlighting text with CSS class
-            highlightedHTML += `<span class="${cssClass}">${this.escapeHtml(highlightedPart)}</span>`;
-
-            lastIndex = highlight.start + highlight.length;
-        }
-
-        // Add remaining text (escaped)
-        highlightedHTML += this.escapeHtml(text.substring(lastIndex));
-
-        // Apply highlighting directly to contenteditable
-        this.editor.innerHTML = highlightedHTML;
-
-        // Restore cursor position
-        this.restoreSelection(selection);
-
-        // Clear the flag after a short delay to allow DOM to settle
-        setTimeout(() => {
-            this.isApplyingHighlights = false;
-        }, 100);
+        // Completely disabled - will be replaced with overlay approach
+        return;
     }
 
     /**
@@ -510,44 +467,7 @@ class EditorManager {
 
 
 
-    /**
-     * Save current cursor/selection position
-     */
-    saveSelection() {
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            return {
-                start: this.getTextOffset(range.startContainer, range.startOffset),
-                end: this.getTextOffset(range.endContainer, range.endOffset)
-            };
-        }
-        return { start: 0, end: 0 };
-    }
-
-    /**
-     * Restore cursor/selection position
-     */
-    restoreSelection(savedSelection) {
-        if (!savedSelection) return;
-
-        try {
-            const range = document.createRange();
-            const selection = window.getSelection();
-
-            const startPos = this.getNodeAndOffset(savedSelection.start);
-            const endPos = this.getNodeAndOffset(savedSelection.end);
-
-            if (startPos && endPos) {
-                range.setStart(startPos.node, startPos.offset);
-                range.setEnd(endPos.node, endPos.offset);
-                selection.removeAllRanges();
-                selection.addRange(range);
-            }
-        } catch (error) {
-            console.warn('Could not restore selection:', error);
-        }
-    }
+    // Removed contenteditable selection methods - textarea handles this natively
 
     /**
      * Handle calculation result from WebSocket
@@ -656,81 +576,21 @@ class EditorManager {
         }
     }
 
-    /**
-     * Undo/Redo functionality
-     */
-    saveUndoState() {
-        const selection = this.getSelection();
-        const state = {
-            text: this.getEditorText(),
-            selectionStart: selection.start,
-            selectionEnd: selection.end
-        };
-
-        this.undoStack.push(state);
-
-        // Limit undo stack size
-        if (this.undoStack.length > this.maxUndoSteps) {
-            this.undoStack.shift();
-        }
-
-        // Clear redo stack when new action is performed
-        this.redoStack = [];
-    }
-
-    undo() {
-        if (this.undoStack.length === 0) return;
-
-        // Save current state to redo stack
-        const selection = this.getSelection();
-        const currentState = {
-            text: this.getEditorText(),
-            selectionStart: selection.start,
-            selectionEnd: selection.end
-        };
-        this.redoStack.push(currentState);
-
-        // Restore previous state
-        const previousState = this.undoStack.pop();
-        this.setEditorText(previousState.text);
-        this.setSelection(previousState.selectionStart, previousState.selectionEnd);
-
-        // Update UI
-        this.updateLineNumbers();
-        this.scheduleCalculation();
-        this.updateSyntaxHighlighting();
-    }
-
-    redo() {
-        if (this.redoStack.length === 0) return;
-
-        // Save current state to undo stack
-        const selection = this.getSelection();
-        const currentState = {
-            text: this.getEditorText(),
-            selectionStart: selection.start,
-            selectionEnd: selection.end
-        };
-        this.undoStack.push(currentState);
-
-        // Restore next state
-        const nextState = this.redoStack.pop();
-        this.setEditorText(nextState.text);
-        this.setSelection(nextState.selectionStart, nextState.selectionEnd);
-
-        // Update UI
-        this.updateLineNumbers();
-        this.scheduleCalculation();
-        this.updateSyntaxHighlighting();
-    }
+    // Removed all undo/redo functionality for simplicity
 
     /**
      * Special key handlers
      */
     handleEnterKey(event) {
-        // Phase 1: Let contenteditable handle Enter key naturally
-        // Don't prevent default - let the browser create new lines
-        // Phase 1: Enter key - letting browser handle naturally
+        // Don't prevent default - let browser handle Enter completely naturally
+        // Just update UI after the browser creates the line
+        setTimeout(() => {
+            this.updateLineNumbers();
+            this.updateCurrentLine();
+            this.scheduleCalculation();
+            // Syntax highlighting completely disabled for now
+            // this.scheduleSyntaxHighlighting();
+        }, 0);
     }
 
     handleTabKey(event) {
@@ -776,8 +636,7 @@ class EditorManager {
     setText(text, skipCalculation = false) {
         this.setEditorText(text);
 
-        // Fix any broken content that might have been loaded
-        this.fixBrokenContent();
+        // No need to fix content with textarea - it's always clean text
 
         this.updateLineNumbers();
 
@@ -786,7 +645,8 @@ class EditorManager {
             this.scheduleCalculation();
         }
 
-        this.updateSyntaxHighlighting();
+        // Syntax highlighting completely disabled for now
+        // this.updateSyntaxHighlighting();
     }
 
     clear() {
@@ -808,92 +668,161 @@ class EditorManager {
     }
 
     /**
-     * ContentEditable helper methods
+     * Textarea helper methods
      */
     getEditorText() {
-        return this.editor.textContent || '';
+        if (!this.editor) return '';
+        // Simple textarea value - no HTML parsing needed
+        return this.editor.value || '';
     }
 
     setEditorText(text) {
-        this.editor.textContent = text;
+        if (!this.editor) return;
+        // Simple textarea value assignment
+        this.editor.value = text || '';
     }
 
     getSelection() {
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-            const range = selection.getRangeAt(0);
-            return {
-                start: this.getTextOffset(range.startContainer, range.startOffset),
-                end: this.getTextOffset(range.endContainer, range.endOffset)
-            };
-        }
-        return { start: 0, end: 0 };
+        if (!this.editor) return { start: 0, end: 0 };
+        // Simple textarea selection
+        return {
+            start: this.editor.selectionStart || 0,
+            end: this.editor.selectionEnd || 0
+        };
     }
 
     setSelection(start, end) {
-        const range = document.createRange();
-        const selection = window.getSelection();
+        if (!this.editor) return;
+        // Simple textarea selection
+        this.editor.selectionStart = start;
+        this.editor.selectionEnd = end;
+        this.editor.focus();
+    }
 
-        const startPos = this.getNodeAndOffset(start);
-        const endPos = this.getNodeAndOffset(end);
-
-        if (startPos && endPos) {
-            range.setStart(startPos.node, startPos.offset);
-            range.setEnd(endPos.node, endPos.offset);
-            selection.removeAllRanges();
-            selection.addRange(range);
+    /**
+     * Font size management methods
+     */
+    increaseFontSize() {
+        if (this.currentFontSize < this.maxFontSize) {
+            this.currentFontSize += 1;
+            this.updateFontSize();
         }
     }
 
-    getTextOffset(node, offset) {
-        let textOffset = 0;
-        const walker = document.createTreeWalker(
-            this.editor,
-            NodeFilter.SHOW_TEXT,
-            null,
-            false
-        );
-
-        let currentNode;
-        while (currentNode = walker.nextNode()) {
-            if (currentNode === node) {
-                return textOffset + offset;
-            }
-            textOffset += currentNode.textContent.length;
+    decreaseFontSize() {
+        if (this.currentFontSize > this.minFontSize) {
+            this.currentFontSize -= 1;
+            this.updateFontSize();
         }
-        return textOffset;
     }
 
-    getNodeAndOffset(textOffset) {
-        let currentOffset = 0;
-        const walker = document.createTreeWalker(
-            this.editor,
-            NodeFilter.SHOW_TEXT,
-            null,
-            false
-        );
+    resetFontSize() {
+        this.currentFontSize = 14; // Reset to default
+        this.updateFontSize();
+    }
 
-        let currentNode;
-        while (currentNode = walker.nextNode()) {
-            const nodeLength = currentNode.textContent.length;
-            if (currentOffset + nodeLength >= textOffset) {
-                return {
-                    node: currentNode,
-                    offset: textOffset - currentOffset
-                };
+    updateFontSize() {
+        const lineHeight = Math.round(this.currentFontSize * 1.5);
+
+        // Update both expression editor and results display
+        if (this.editor) {
+            this.editor.style.fontSize = `${this.currentFontSize}px`;
+            this.editor.style.lineHeight = `${lineHeight}px`;
+        }
+
+        if (this.resultsDisplay) {
+            this.resultsDisplay.style.fontSize = `${this.currentFontSize}px`;
+            this.resultsDisplay.style.lineHeight = `${lineHeight}px`;
+        }
+
+        // Update line number containers
+        if (this.editorLineNumbers) {
+            this.editorLineNumbers.style.fontSize = `${this.currentFontSize}px`;
+            this.editorLineNumbers.style.lineHeight = `${lineHeight}px`;
+
+            // Update all individual line number elements
+            const lineNumberElements = this.editorLineNumbers.querySelectorAll('.line-number');
+            lineNumberElements.forEach(element => {
+                element.style.fontSize = `${this.currentFontSize}px`;
+                element.style.lineHeight = `${lineHeight}px`;
+                element.style.height = `${lineHeight}px`;
+            });
+        }
+
+        if (this.resultsLineNumbers) {
+            this.resultsLineNumbers.style.fontSize = `${this.currentFontSize}px`;
+            this.resultsLineNumbers.style.lineHeight = `${lineHeight}px`;
+
+            // Update all individual line number elements
+            const lineNumberElements = this.resultsLineNumbers.querySelectorAll('.line-number');
+            lineNumberElements.forEach(element => {
+                element.style.fontSize = `${this.currentFontSize}px`;
+                element.style.lineHeight = `${lineHeight}px`;
+                element.style.height = `${lineHeight}px`;
+            });
+        }
+
+        // Update line numbers after font size change (this will recreate them with proper styling)
+        this.updateLineNumbers();
+
+        // Store font size preference
+        localStorage.setItem('calcforge-font-size', this.currentFontSize.toString());
+
+        // Show brief feedback about font size change
+        this.showFontSizeFeedback();
+    }
+
+    /**
+     * Load saved font size from localStorage
+     */
+    loadFontSize() {
+        const savedSize = localStorage.getItem('calcforge-font-size');
+        if (savedSize) {
+            const size = parseInt(savedSize, 10);
+            if (size >= this.minFontSize && size <= this.maxFontSize) {
+                this.currentFontSize = size;
+                this.updateFontSize();
             }
-            currentOffset += nodeLength;
+        }
+    }
+
+    /**
+     * Show brief feedback about font size change
+     */
+    showFontSizeFeedback() {
+        // Create or update font size indicator
+        let indicator = document.getElementById('font-size-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'font-size-indicator';
+            indicator.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-family: var(--font-mono);
+                font-size: 14px;
+                z-index: 9999;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+            `;
+            document.body.appendChild(indicator);
         }
 
-        // If we reach here, return the last position
-        if (currentNode) {
-            return {
-                node: currentNode,
-                offset: currentNode.textContent.length
-            };
-        }
+        // Update text and show
+        indicator.textContent = `Font Size: ${this.currentFontSize}px`;
+        indicator.style.opacity = '1';
 
-        return null;
+        // Hide after 1 second
+        clearTimeout(this.fontSizeTimeout);
+        this.fontSizeTimeout = setTimeout(() => {
+            indicator.style.opacity = '0';
+        }, 1000);
     }
 
     /**
