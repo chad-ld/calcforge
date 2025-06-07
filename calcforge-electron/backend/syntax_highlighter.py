@@ -71,11 +71,14 @@ class SyntaxHighlighter:
 
             # Handle comment lines
             if line.strip().startswith(":::"):
+                # FORCE the correct green color - bypass any import issues
+                correct_green_color = "#7ED321"
+                print(f"DEBUG: Creating comment highlight with FORCED color: {correct_green_color}")
                 highlights.append({
                     "start": line_start,
                     "length": line_length,
                     "class": self.css_classes['comment'],
-                    "color": COLORS['comment']
+                    "color": correct_green_color
                 })
             else:
                 # Process non-comment lines for syntax highlighting

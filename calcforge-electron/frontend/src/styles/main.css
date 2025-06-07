@@ -316,6 +316,209 @@ body {
     background-color: var(--accent-primary);
 }
 
+/* Syntax highlighting classes - make them super specific for contenteditable */
+.editor-container .syntax-comment,
+[contenteditable] .syntax-comment,
+#expression-editor .syntax-comment,
+.expression-editor-div .syntax-comment,
+div.expression-editor-div span.syntax-comment {
+    color: #7ED321 !important;
+    font-weight: bold !important;
+    background-color: rgba(126, 211, 33, 0.1) !important;
+}
+
+.editor-container .syntax-number,
+[contenteditable] .syntax-number,
+#expression-editor .syntax-number,
+.expression-editor-div .syntax-number,
+div.expression-editor-div span.syntax-number {
+    color: #FFFFFF !important;
+    background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.editor-container .syntax-operator,
+[contenteditable] .syntax-operator,
+#expression-editor .syntax-operator {
+    color: #BB8FCE !important;
+    background-color: rgba(187, 143, 206, 0.1) !important;
+}
+
+.editor-container .syntax-function,
+[contenteditable] .syntax-function,
+#expression-editor .syntax-function {
+    color: #BB8FCE !important;
+    background-color: rgba(187, 143, 206, 0.1) !important;
+}
+
+.editor-container .syntax-paren,
+[contenteditable] .syntax-paren,
+#expression-editor .syntax-paren {
+    color: #7ED321 !important;
+    background-color: rgba(126, 211, 33, 0.1) !important;
+}
+
+.editor-container .syntax-unmatched,
+[contenteditable] .syntax-unmatched,
+#expression-editor .syntax-unmatched {
+    color: #FF6B6B !important;
+    background-color: rgba(248, 81, 73, 0.2) !important;
+}
+
+.editor-container .syntax-ln-ref,
+[contenteditable] .syntax-ln-ref,
+#expression-editor .syntax-ln-ref {
+    color: #FF6B6B !important;
+    font-weight: bold !important;
+    background-color: rgba(255, 107, 107, 0.1) !important;
+}
+
+.editor-container .syntax-sheet-ref,
+[contenteditable] .syntax-sheet-ref,
+#expression-editor .syntax-sheet-ref {
+    color: #4ECDC4 !important;
+    font-weight: bold !important;
+    background-color: rgba(78, 205, 196, 0.1) !important;
+}
+
+.editor-container .syntax-sheet-name,
+[contenteditable] .syntax-sheet-name,
+#expression-editor .syntax-sheet-name {
+    color: #4ECDC4 !important;
+    background-color: rgba(78, 205, 196, 0.1) !important;
+}
+
+.syntax-error {
+    color: #FF6B6B;
+}
+
+/* LN variable colors - rotating through different colors */
+.syntax-ln-1 { color: #FF6B6B; font-weight: bold; }
+.syntax-ln-2 { color: #4ECDC4; font-weight: bold; }
+.syntax-ln-3 { color: #96CEB4; font-weight: bold; }
+.syntax-ln-4 { color: #FFEAA7; font-weight: bold; }
+.syntax-ln-5 { color: #45B7D1; font-weight: bold; }
+.syntax-ln-6 { color: #DDA0DD; font-weight: bold; }
+.syntax-ln-7 { color: #F8C471; font-weight: bold; }
+.syntax-ln-8 { color: #85C1E9; font-weight: bold; }
+
+/* Default syntax class (fallback) */
+.syntax-default {
+    color: #FFFFFF;
+}
+
+/* Syntax highlighting for contenteditable - plain text colors only */
+/* Force ALL spans to have transparent backgrounds */
+#expression-editor span {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+#expression-editor span.syntax-comment {
+    color: #7ED321 !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-number {
+    color: #FFFFFF !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-operator {
+    color: #FF8C00 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-function {
+    color: #BB8FCE !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-paren {
+    color: #7ED321 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-unmatched {
+    color: #FF6B6B !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-sheet-ref {
+    color: #4ECDC4 !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-sheet-name {
+    color: #4ECDC4 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* LN variable color rotation - 8 different colors */
+#expression-editor span.syntax-ln-1 {
+    color: #FF6B6B !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-ln-2 {
+    color: #4ECDC4 !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-ln-3 {
+    color: #45B7D1 !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-ln-4 {
+    color: #96CEB4 !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-ln-5 {
+    color: #FFEAA7 !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-ln-6 {
+    color: #DDA0DD !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-ln-7 {
+    color: #98D8C8 !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+#expression-editor span.syntax-ln-8 {
+    color: #F7DC6F !important;
+    font-weight: bold !important;
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
 /* Status Bar */
 .status-bar {
     background-color: var(--bg-secondary);

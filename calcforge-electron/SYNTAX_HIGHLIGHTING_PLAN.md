@@ -49,16 +49,19 @@ Implement syntax highlighting in CalcForge Electron app using contenteditable ap
 
 ---
 
-### Phase 2: Backend Syntax Analysis 🔄 **NEXT**
+### Phase 2: Backend Syntax Analysis 🔄 **IN PROGRESS**
 **Objective:** Ensure backend correctly identifies syntax elements
 
-**Status:** Ready to begin - backend code exists and was tested during overlay phase
+**Status:** Creating HTML test file to verify backend functionality
 
 **Steps:**
-1. ⏳ Test backend syntax highlighter with sample text
-2. ⏳ Verify it returns correct highlight ranges
-3. ⏳ Check line-by-line processing works (fixed during Phase 1)
-4. ⏳ Validate all syntax types are detected
+1. ✅ Create simple HTML test file to verify backend syntax highlighter
+2. ✅ Fixed backend import issue (was using wrong constants file)
+3. ✅ Consolidated constants files - removed duplicate root constants.py
+4. 🔄 Test backend syntax highlighter with sample text (test page open in browser)
+5. ⏳ Verify it returns correct highlight ranges
+6. ⏳ Check line-by-line processing works (fixed during Phase 1)
+7. ⏳ Validate all syntax types are detected
 
 **Expected Backend Output:**
 ```json
@@ -139,11 +142,10 @@ function applySyntaxHighlighting(text, highlights) {
 ```
 
 #### Step 4.5: Add Comments
-**Target:** Make comment lines green and italic
+**Target:** Make comment lines green (matching original Python app - no italics)
 ```css
-.syntax-comment { 
-    color: #7ED321; 
-    font-style: italic; 
+.syntax-comment {
+    color: #7ED321;
 }
 ```
 

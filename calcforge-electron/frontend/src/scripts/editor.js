@@ -68,7 +68,10 @@ class EditorManager {
         // Initialize with empty content
         this.updateLineNumbers();
         this.updateResults([]);
-        
+
+        // Fix any broken content from previous sessions
+        this.fixBrokenContent();
+
         return true;
     }
     
@@ -345,57 +348,271 @@ class EditorManager {
     }
     
     /**
-     * Update syntax highlighting - PHASE 1: DISABLED
+     * Update syntax highlighting using CSS classes (safe approach)
      */
     async updateSyntaxHighlighting() {
-        console.log('Phase 1: Syntax highlighting disabled - plain white text only');
-        // Phase 1: No highlighting, just plain white text
-        // This will be implemented in later phases
-        return;
-    }
-    
-    /**
-     * Apply syntax highlights to overlay
-     */
-    applySyntaxHighlights(highlights, text) {
-        console.log('applySyntaxHighlights called with:', highlights.length, 'highlights');
-        if (!this.syntaxOverlay) {
-            console.error('Syntax overlay not found in applySyntaxHighlights!');
+        console.log('CSS-based syntax highlighting enabled');
+
+        if (!this.editor || this.isApplyingHighlights) {
             return;
         }
 
-        // Create highlighted version of text
-        let highlightedText = '';
+        const text = this.getEditorText();
+        if (!text.trim()) {
+            return;
+        }
+
+        try {
+            // Get highlights from API
+            const highlights = await this.api.getSyntaxHighlighting(text);
+            if (highlights && highlights.length > 0) {
+                this.applySyntaxHighlightsWithCSS(highlights, text);
+            }
+        } catch (error) {
+            console.error('Syntax highlighting failed:', error);
+            // Don't break the editor if highlighting fails
+        }
+    }
+
+    /**
+     * Fix broken editor content by converting to plain text
+     */
+    fixBrokenContent() {
+        if (!this.editor) return;
+
+        // Only fix content if it contains broken HTML, not if it has valid syntax highlighting
+        const innerHTML = this.editor.innerHTML;
+
+        // Check if content has syntax highlighting spans - if so, don't strip them
+        if (innerHTML.includes('<span class="syntax-')) {
+            console.log('Content has syntax highlighting, skipping fixBrokenContent');
+            return;
+        }
+
+        // Get the plain text content (strips all HTML)
+        let plainText = this.editor.textContent || '';
+
+        // Clean up any extra whitespace that might be causing spacing issues
+        plainText = plainText
+            .replace(/\u00A0/g, ' ')  // Replace non-breaking spaces with regular spaces
+            .replace(/\s+$/gm, '')    // Remove trailing whitespace from each line
+            .replace(/^\s+/gm, '')    // Remove leading whitespace from each line
+            .replace(/\n\s*\n\s*\n/g, '\n\n'); // Replace multiple empty lines with just one
+
+        // Clear and reset with cleaned plain text
+        this.editor.innerHTML = '';
+        this.editor.textContent = plainText;
+
+        console.log('Fixed broken editor content, restored clean plain text');
+    }
+
+    /**
+     * Apply syntax highlights using CSS classes (safer approach)
+     */
+    applySyntaxHighlightsWithCSS(highlights, text) {
+        // console.log('applySyntaxHighlightsWithCSS called with:', highlights.length, 'highlights');
+
+        if (!this.editor) {
+            console.error('Editor element not found in applySyntaxHighlightsWithCSS!');
+            return;
+        }
+
+        // Set flag to prevent infinite loops
+        this.isApplyingHighlights = true;
+
+        // Save cursor position before modifying innerHTML
+        const selection = this.saveSelection();
+
+        // Create highlighted version of text using CSS classes
+        let highlightedHTML = '';
         let lastIndex = 0;
 
         // Sort highlights by start position
         highlights.sort((a, b) => a.start - b.start);
 
         for (const highlight of highlights) {
-            // Add text before highlight
-            highlightedText += this.escapeHtml(text.substring(lastIndex, highlight.start));
+            // Add text before highlight (escaped)
+            highlightedHTML += this.escapeHtml(text.substring(lastIndex, highlight.start));
 
-            // Add highlighted text
+            // Add highlighted text with CSS class
             const highlightedPart = text.substring(highlight.start, highlight.start + highlight.length);
-            const className = highlight.class || 'syntax-default';
-            const style = highlight.color ? `color: ${highlight.color};` : '';
+            const cssClass = this.getCSSClassForHighlight(highlight);
 
-            console.log('Highlighting:', highlightedPart, 'with class:', className, 'and style:', style);
-            highlightedText += `<span class="${className}" style="${style}">${this.escapeHtml(highlightedPart)}</span>`;
+            console.log(`Highlighting "${highlightedPart}" with class "${cssClass}" (type: ${highlight.type})`);
+            highlightedHTML += `<span class="${cssClass}">${this.escapeHtml(highlightedPart)}</span>`;
 
             lastIndex = highlight.start + highlight.length;
         }
 
-        // Add remaining text
-        highlightedText += this.escapeHtml(text.substring(lastIndex));
+        // Add remaining text (escaped)
+        highlightedHTML += this.escapeHtml(text.substring(lastIndex));
 
-        console.log('Final highlighted text:', highlightedText);
-        console.log('Syntax overlay element:', this.syntaxOverlay);
-        console.log('Setting overlay innerHTML...');
-        this.syntaxOverlay.innerHTML = highlightedText;
-        console.log('Overlay innerHTML after setting:', this.syntaxOverlay.innerHTML);
+        // Apply highlighting directly to contenteditable
+        this.editor.innerHTML = highlightedHTML;
+
+        console.log('Final highlighted HTML:', this.editor.innerHTML.substring(0, 200) + '...');
+
+        // Restore cursor position
+        this.restoreSelection(selection);
+
+        // Clear the flag after a short delay to allow DOM to settle
+        setTimeout(() => {
+            this.isApplyingHighlights = false;
+        }, 100);
+
+        console.log('Applied CSS-based syntax highlighting to contenteditable element');
     }
-    
+
+    /**
+     * Convert highlight data to appropriate CSS class
+     */
+    getCSSClassForHighlight(highlight) {
+        // console.log('getCSSClassForHighlight called with:', highlight);
+
+        // Handle LN variables with rotating colors
+        if (highlight.class === 'syntax-ln-ref' && highlight.ln_number) {
+            const colorIndex = ((highlight.ln_number - 1) % 8) + 1;
+            return `syntax-ln-${colorIndex}`;
+        }
+
+        // The backend returns a "class" property directly - use it!
+        if (highlight.class) {
+            // console.log(`Using backend class: "${highlight.class}"`);
+            return highlight.class;
+        }
+
+        // Fallback: Check different possible property names for type
+        const type = highlight.type || highlight.token_type || highlight.kind || highlight.category;
+
+        // Handle LN variables with specific colors
+        if (type === 'ln_variable' && highlight.ln_number) {
+            const colorIndex = ((highlight.ln_number - 1) % 8) + 1;
+            return `syntax-ln-${colorIndex}`;
+        }
+
+        // Handle other types
+        switch (type) {
+            case 'comment':
+                return 'syntax-comment';
+            case 'number':
+                return 'syntax-number';
+            case 'operator':
+                return 'syntax-operator';
+            case 'function':
+                return 'syntax-function';
+            case 'parenthesis':
+                return 'syntax-parenthesis';
+            case 'error':
+                return 'syntax-error';
+            default:
+                console.log(`Unknown highlight type: "${type}", using default`);
+                return 'syntax-default';
+        }
+    }
+
+    /**
+     * Apply syntax highlights directly to contenteditable (inline approach)
+     */
+    applySyntaxHighlights(highlights, text) {
+        console.log('applySyntaxHighlights called with:', highlights.length, 'highlights');
+
+        if (!this.editor) {
+            console.error('Editor element not found in applySyntaxHighlights!');
+            return;
+        }
+
+        // Set flag to prevent infinite loops
+        this.isApplyingHighlights = true;
+
+        // Save cursor position before modifying innerHTML
+        const selection = this.saveSelection();
+
+        // Create highlighted version of text using inline spans
+        let highlightedHTML = '';
+        let lastIndex = 0;
+
+        // Sort highlights by start position
+        highlights.sort((a, b) => a.start - b.start);
+
+        for (const highlight of highlights) {
+            // Add text before highlight (escaped)
+            highlightedHTML += this.escapeHtml(text.substring(lastIndex, highlight.start));
+
+            // Add highlighted text with inline styles
+            const highlightedPart = text.substring(highlight.start, highlight.start + highlight.length);
+            const className = highlight.class || 'syntax-default';
+
+            // Build style string with color and bold
+            let styleProps = [];
+            if (highlight.color) {
+                styleProps.push(`color: ${highlight.color}`);
+            }
+            if (highlight.bold) {
+                styleProps.push('font-weight: bold');
+            }
+            const style = styleProps.length > 0 ? `style="${styleProps.join('; ')};"` : '';
+
+            highlightedHTML += `<span class="${className}" ${style}>${this.escapeHtml(highlightedPart)}</span>`;
+
+            lastIndex = highlight.start + highlight.length;
+        }
+
+        // Add remaining text (escaped)
+        highlightedHTML += this.escapeHtml(text.substring(lastIndex));
+
+        // Apply highlighting directly to contenteditable
+        this.editor.innerHTML = highlightedHTML;
+
+        // Restore cursor position
+        this.restoreSelection(selection);
+
+        // Clear the flag after a short delay to allow DOM to settle
+        setTimeout(() => {
+            this.isApplyingHighlights = false;
+        }, 100);
+
+        console.log('Applied syntax highlighting to contenteditable element');
+    }
+
+    /**
+     * Save current cursor/selection position
+     */
+    saveSelection() {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            return {
+                start: this.getTextOffset(range.startContainer, range.startOffset),
+                end: this.getTextOffset(range.endContainer, range.endOffset)
+            };
+        }
+        return { start: 0, end: 0 };
+    }
+
+    /**
+     * Restore cursor/selection position
+     */
+    restoreSelection(savedSelection) {
+        if (!savedSelection) return;
+
+        try {
+            const range = document.createRange();
+            const selection = window.getSelection();
+
+            const startPos = this.getNodeAndOffset(savedSelection.start);
+            const endPos = this.getNodeAndOffset(savedSelection.end);
+
+            if (startPos && endPos) {
+                range.setStart(startPos.node, startPos.offset);
+                range.setEnd(endPos.node, endPos.offset);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        } catch (error) {
+            console.warn('Could not restore selection:', error);
+        }
+    }
+
     /**
      * Handle calculation result from WebSocket
      */
@@ -609,6 +826,10 @@ class EditorManager {
 
     setText(text) {
         this.setEditorText(text);
+
+        // Fix any broken content that might have been loaded
+        this.fixBrokenContent();
+
         this.updateLineNumbers();
         this.scheduleCalculation();
         this.updateSyntaxHighlighting();

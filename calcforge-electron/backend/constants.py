@@ -204,6 +204,9 @@ COLORS = {
     'error': '#F85149',           # Red for errors
 }
 
+# Debug: Print when this constants file is loaded
+print(f"DEBUG: Backend constants.py loaded - comment color: {COLORS['comment']}")
+
 # LN variable colors for syntax highlighting - Match original Python app
 LN_COLORS = [
     "#FF9999", "#99FF99", "#9999FF", "#FFFF99", "#FF99FF", "#99FFFF",
