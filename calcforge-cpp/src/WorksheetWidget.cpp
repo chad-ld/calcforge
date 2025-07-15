@@ -141,6 +141,9 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
     // Initialize calculation engine
     m_calculationEngine = new CalculationEngine();
 
+    // Set the worksheet widget reference for content access
+    m_calculationEngine->setWorksheetWidget(this);
+
     // Test the calculation engine
     QString testResult = m_calculationEngine->evaluateExpression("2 + 2", 1);
     LOG_INFO(QString("Calculation engine initialized - test: 2 + 2 = %1").arg(testResult));
@@ -650,25 +653,14 @@ void WorksheetWidget::updateCalculationEngineLineValues(const QStringList &oldLi
         return;
     }
 
-    // Find where the change occurred by comparing lines
-    int changePoint = 0;
-    for (int i = 0; i < std::min(oldCount, newCount); ++i) {
-        if (oldLines[i] != newLines[i]) {
-            changePoint = i + 1; // Convert to 1-based
-            break;
-        }
-    }
+    LOG_DEBUG(QString("Line count changed from %1 to %2, clearing all line values for clean recalculation").arg(oldCount).arg(newCount));
 
-    if (changePoint == 0) {
-        // Change at the end
-        changePoint = std::min(oldCount, newCount) + 1;
-    }
+    // When line count changes (insertions/deletions), clear all line values
+    // This ensures that statistical functions like count(below) work correctly
+    // and prevents stale values from persisting at incorrect line numbers
+    m_calculationEngine->clearLineValues();
 
-    int linesDelta = newCount - oldCount;
-
-
-
-    m_calculationEngine->updateLineValuesAfterChange(changePoint, linesDelta);
+    // The lines will be re-evaluated in the correct order by the dependency tracker
 }
 
 void WorksheetWidget::syncEditorToResults(int value)

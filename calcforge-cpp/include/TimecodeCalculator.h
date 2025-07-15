@@ -56,8 +56,21 @@ public:
     
     /**
      * Main TC function that handles both conversion and arithmetic
+     *
+     * IMPORTANT: Do NOT use quotes around timecode values!
+     *
+     * CORRECT SYNTAX:
+     *   TC(24, 100)                           // Convert 100 frames to timecode
+     *   TC(24, 00:00:10:00)                   // Convert timecode to frames
+     *   TC(24, 00:00:10:00 + 00:00:05:00)     // Add timecodes
+     *   TC(24, 00:00:10:00 - 00:00:05:00)     // Subtract timecodes
+     *
+     * INCORRECT SYNTAX (DO NOT USE):
+     *   TC(24, "00:00:10:00")                 // Wrong - no quotes needed
+     *   TC(24, "00:00:10:00" + "00:00:05:00") // Wrong - no quotes needed
+     *
      * @param fps Frame rate (24, 30, 29.97, 59.94, 23.976, etc.)
-     * @param expression Timecode expression or frame count
+     * @param expression Timecode expression or frame count (without quotes)
      * @return TimecodeResult with converted value or error
      */
     TimecodeResult TC(double fps, const QString &expression);

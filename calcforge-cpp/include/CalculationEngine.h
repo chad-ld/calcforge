@@ -73,6 +73,12 @@ public:
     void clearLineValues();
 
     /**
+     * Set the worksheet widget reference for accessing content
+     * @param widget Pointer to the worksheet widget
+     */
+    void setWorksheetWidget(WorksheetWidget *widget);
+
+    /**
      * Set the sheet lookup function for cross-sheet references
      * @param lookupFunction Function that takes a sheet name and returns the WorksheetWidget pointer
      */
@@ -241,6 +247,9 @@ private:
     // Cross-sheet reference support
     std::function<WorksheetWidget*(const QString&)> m_sheetLookupFunction;
     QString m_currentSheetName;
+
+    // Reference to the worksheet widget for accessing content
+    WorksheetWidget *m_worksheetWidget;
 };
 
 #endif // CALCULATIONENGINE_H

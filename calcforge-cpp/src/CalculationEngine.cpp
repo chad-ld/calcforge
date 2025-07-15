@@ -9,7 +9,7 @@
 #include <numeric>
 #include <stdexcept>
 
-CalculationEngine::CalculationEngine()
+CalculationEngine::CalculationEngine() : m_worksheetWidget(nullptr)
 {
     // Initialize mathematical constants
     m_constants["pi"] = M_PI;
@@ -81,15 +81,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
             return dateResult;
         }
 
-        // Check for currency conversion
-        QString currencyResult = handleCurrencyConversion(expr);
-        if (!currencyResult.isEmpty()) {
-            // For currency conversions, store 0 for LN references (currency amounts are strings)
-            m_lineValues[lineNumber] = 0.0;
-            return currencyResult;
-        }
-
-        // Check for unit conversion
+        // Check for unit conversion FIRST (more specific pattern)
         QString unitResult = handleUnitConversion(expr);
         if (!unitResult.isEmpty()) {
             // For unit conversions, we need to extract the numeric value for LN references
@@ -103,6 +95,14 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
                 }
             }
             return unitResult;
+        }
+
+        // Check for currency conversion AFTER unit conversion (broader pattern)
+        QString currencyResult = handleCurrencyConversion(expr);
+        if (!currencyResult.isEmpty()) {
+            // For currency conversions, store 0 for LN references (currency amounts are strings)
+            m_lineValues[lineNumber] = 0.0;
+            return currencyResult;
         }
 
         // Check for statistical functions
@@ -578,13 +578,16 @@ void CalculationEngine::clearLineValues()
     m_lineValues.clear();
 }
 
+void CalculationEngine::setWorksheetWidget(WorksheetWidget *widget)
+{
+    m_worksheetWidget = widget;
+}
+
 void CalculationEngine::updateLineValuesAfterChange(int insertionPoint, int linesDelta)
 {
     if (linesDelta == 0) {
         return; // No change
     }
-
-
 
     // Create a new map with updated line numbers
     QHash<int, double> updatedValues;
@@ -787,9 +790,44 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
 
     // Handle empty range - use all lines above current
     if (trimmedRange.isEmpty()) {
-        for (int i = 1; i < currentLine; ++i) {
-            if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
-                values.append(getLineValue(i));
+        // Use the same content-based approach as "above"
+        if (m_worksheetWidget) {
+            QString content = m_worksheetWidget->getContent();
+            QStringList lines = content.split('\n');
+
+            // Scan lines above the current line
+            for (int i = 0; i < currentLine - 1; ++i) {  // i is 0-based, currentLine is 1-based
+                QString line = lines[i].trimmed();
+
+                // Skip empty lines and comment lines
+                if (line.isEmpty() || line.startsWith(":::")) {
+                    continue;
+                }
+
+                int lineNumber = i + 1;  // Convert to 1-based line number
+
+                // Only count lines that contain actual numeric values, not expressions
+                // Check if the line content is a simple number (not an expression)
+                bool ok;
+                double numericValue = line.toDouble(&ok);
+                if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                    // This is a simple numeric value, count it
+                    if (m_lineValues.contains(lineNumber)) {
+                        // Use the calculated value if available (handles cases like 0292 -> 292)
+                        values.append(getLineValue(lineNumber));
+                    } else {
+                        // Use the parsed value
+                        values.append(numericValue);
+                    }
+                }
+                // Skip lines with expressions (like count(below), sum(), etc.) even if they have calculated values
+            }
+        } else {
+            // Fallback to old method if worksheet widget not available
+            for (int i = 1; i < currentLine; ++i) {
+                if (m_lineValues.contains(i)) {
+                    values.append(getLineValue(i));
+                }
             }
         }
         return values;
@@ -797,19 +835,85 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
 
     // Handle special keywords
     if (trimmedRange.toLower() == "above") {
-        for (int i = 1; i < currentLine; ++i) {
-            if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
-                values.append(getLineValue(i));
+        // Get all lines above current line by examining the actual worksheet content
+        // This approach is more reliable than checking the line values hash
+
+        if (m_worksheetWidget) {
+            QString content = m_worksheetWidget->getContent();
+            QStringList lines = content.split('\n');
+
+            // Scan lines above the current line
+            for (int i = 0; i < currentLine - 1; ++i) {  // i is 0-based, currentLine is 1-based
+                QString line = lines[i].trimmed();
+
+                // Skip empty lines and comment lines
+                if (line.isEmpty() || line.startsWith(":::")) {
+                    continue;
+                }
+
+                int lineNumber = i + 1;  // Convert to 1-based line number
+
+                // Only count lines that contain actual numeric values, not expressions
+                // Check if the line content is a simple number (not an expression)
+                bool ok;
+                double numericValue = line.toDouble(&ok);
+                if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                    // This is a simple numeric value, count it
+                    if (m_lineValues.contains(lineNumber)) {
+                        // Use the calculated value if available (handles cases like 0292 -> 292)
+                        values.append(getLineValue(lineNumber));
+                    } else {
+                        // Use the parsed value
+                        values.append(numericValue);
+                    }
+                }
+                // Skip lines with expressions (like count(below), sum(), etc.) even if they have calculated values
+            }
+        } else {
+            // Fallback to old method if worksheet widget not available
+            for (int i = 1; i < currentLine; ++i) {
+                if (m_lineValues.contains(i)) {
+                    values.append(getLineValue(i));
+                }
             }
         }
         return values;
     }
 
     if (trimmedRange.toLower() == "below") {
-        // Get all lines below current line (scan through all possible lines)
-        for (int i = currentLine + 1; i <= currentLine + 1000; ++i) {
-            if (m_lineValues.contains(i)) {
-                values.append(getLineValue(i));
+        // Get all lines below current line by examining the actual worksheet content
+        // This approach is more reliable than checking the line values hash
+
+        if (m_worksheetWidget) {
+            QString content = m_worksheetWidget->getContent();
+            QStringList lines = content.split('\n');
+
+            // Scan lines below the current line and evaluate them if they contain expressions
+            for (int i = currentLine; i < lines.size(); ++i) {  // i starts at currentLine (0-based)
+                QString line = lines[i].trimmed();
+
+                // Skip empty lines and comment lines
+                if (line.isEmpty() || line.startsWith(":::")) {
+                    continue;
+                }
+
+                int lineNumber = i + 1;  // Convert to 1-based line number
+
+                // Only count lines that contain actual numeric values, not expressions
+                // Check if the line content is a simple number (not an expression)
+                bool ok;
+                double numericValue = line.toDouble(&ok);
+                if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                    // This is a simple numeric value, count it
+                    if (m_lineValues.contains(lineNumber)) {
+                        // Use the calculated value if available (handles cases like 0292 -> 292)
+                        values.append(getLineValue(lineNumber));
+                    } else {
+                        // Use the parsed value
+                        values.append(numericValue);
+                    }
+                }
+                // Skip lines with expressions (like count(below), sum(), etc.) even if they have calculated values
             }
         }
         return values;
@@ -885,17 +989,19 @@ QString CalculationEngine::handleUnitConversion(const QString &expr)
         return QString("%1 %2").arg(formattedValue).arg(result.unit);
     }
 
-    if (!result.errorMessage.isEmpty()) {
-        // Return the error message for display
-        return result.errorMessage;
-    }
-
+    // If unit conversion failed, return empty string to allow currency conversion to try
+    // Only return error messages for actual unit conversion attempts with valid units
     return QString(); // Empty string indicates no unit conversion
 }
 
 QString CalculationEngine::handleTimecodeFunction(const QString &expr)
 {
-    // Pattern to match TC function calls like "TC(24, 100)" or "TC(30, '00:01:00:00')"
+    // TIMECODE FUNCTION SYNTAX NOTE:
+    // CORRECT:   TC(24, 00:00:10:00 + 00:00:05:00)
+    // INCORRECT: TC(24, "00:00:10:00" + "00:00:05:00")
+    // Do NOT use quotes around timecode values!
+
+    // Pattern to match TC function calls like "TC(24, 100)" or "TC(30, 00:01:00:00)"
     QRegularExpression tcPattern(R"(^TC\s*\(\s*([^,]+)\s*,\s*(.+)\s*\)$)", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatch match = tcPattern.match(expr.trimmed());
 
