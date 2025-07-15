@@ -103,6 +103,16 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
             return currencyResult;
         }
 
+        // Check for percentage calculations AFTER currency conversion
+        QString percentageResult = handlePercentageCalculation(expr);
+        if (!percentageResult.isEmpty()) {
+            // For percentage calculations, extract the numeric value for LN references
+            // Results can be raw numbers (250) or percentages (50%)
+            double numericValue = extractNumericValueFromResult(percentageResult);
+            m_lineValues[lineNumber] = numericValue;
+            return percentageResult;
+        }
+
         // Check for statistical functions
         double statResult = handleStatisticalFunctions(expr, lineNumber);
         if (!std::isnan(statResult)) {
@@ -1119,6 +1129,39 @@ QString CalculationEngine::handleCurrencyConversion(const QString &expr)
     }
 
     return QString(); // Empty string indicates no currency conversion
+}
+
+QString CalculationEngine::handlePercentageCalculation(const QString &expr)
+{
+    LOG_DEBUG(QString("Checking if '%1' is a percent() function call").arg(expr));
+
+    // Check if this looks like a percent() function call
+    if (!expr.trimmed().toLower().startsWith("percent(")) {
+        LOG_DEBUG(QString("Not a percent() function call: %1").arg(expr));
+        return QString(); // Empty string indicates no percentage calculation
+    }
+
+    // First, substitute any LN references in the expression
+    QString processedExpr = processLNReferences(expr);
+
+    // Check if the processed expression contains an error message
+    if (processedExpr.startsWith("Error:")) {
+        LOG_DEBUG(QString("Expression contains error after LN processing: %1").arg(processedExpr));
+        return processedExpr; // Return error message directly
+    }
+
+    // Pass to percentage calculator
+    PercentageResult result = m_percentageCalculator.calculateExpression(processedExpr);
+
+    if (result.isValid) {
+        QString formattedResult = m_percentageCalculator.formatResult(result);
+        LOG_DEBUG(QString("Percentage calculation successful: %1").arg(formattedResult));
+        return formattedResult;
+    } else {
+        LOG_DEBUG(QString("Percentage calculation failed: %1").arg(result.errorMessage));
+        // Return error for failed percent() function calls since they were explicitly requested
+        return QString("Error: %1").arg(result.errorMessage);
+    }
 }
 
 void CalculationEngine::setSheetLookupFunction(std::function<WorksheetWidget*(const QString&)> lookupFunction)

@@ -12,6 +12,7 @@
 #include "AspectRatioCalculator.h"
 #include "DateCalculator.h"
 #include "CurrencyConverter.h"
+#include "PercentageCalculator.h"
 
 // Forward declarations
 class WorksheetWidget;
@@ -124,6 +125,13 @@ public:
      * @return Currency conversion result string, or empty string if not a currency conversion
      */
     QString handleCurrencyConversion(const QString &expr);
+
+    /**
+     * Handle percentage calculation expressions like "25% of 1000" or "1000 is % of 2000"
+     * @param expr The expression to check and evaluate
+     * @return Percentage calculation result string, or empty string if not a percentage calculation
+     */
+    QString handlePercentageCalculation(const QString &expr);
 
     /**
      * Get the stored value for a specific line number
@@ -251,6 +259,9 @@ private:
 
     // Currency converter for handling currency conversions
     CurrencyConverter m_currencyConverter;
+
+    // Percentage calculator for handling percentage calculations
+    PercentageCalculator m_percentageCalculator;
 
     // Cross-sheet reference support
     std::function<WorksheetWidget*(const QString&)> m_sheetLookupFunction;

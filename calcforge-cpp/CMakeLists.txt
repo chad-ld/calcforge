@@ -56,6 +56,7 @@ set(SOURCES
     src/AspectRatioCalculator.cpp
     src/DateCalculator.cpp
     src/CurrencyConverter.cpp
+    src/PercentageCalculator.cpp
 )
 
 # Header files
@@ -76,6 +77,7 @@ set(HEADERS
     include/AspectRatioCalculator.h
     include/DateCalculator.h
     include/CurrencyConverter.h
+    include/PercentageCalculator.h
 )
 
 # Create executable
