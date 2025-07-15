@@ -76,32 +76,30 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         // Check for date function
         QString dateResult = handleDateFunction(expr);
         if (!dateResult.isEmpty()) {
-            // For date functions, store 0 for LN references (dates are strings)
-            m_lineValues[lineNumber] = 0.0;
+            // For date functions, try to extract numeric value for LN references
+            // Date range calculations return "X Days" or "X Business Days"
+            double numericValue = extractNumericValueFromResult(dateResult);
+            m_lineValues[lineNumber] = numericValue;
             return dateResult;
         }
 
         // Check for unit conversion FIRST (more specific pattern)
         QString unitResult = handleUnitConversion(expr);
         if (!unitResult.isEmpty()) {
-            // For unit conversions, we need to extract the numeric value for LN references
+            // For unit conversions, extract the numeric value for LN references
             // The result format is "value unit", so we extract the numeric part
-            QStringList parts = unitResult.split(' ');
-            if (!parts.isEmpty()) {
-                bool ok;
-                double numericValue = parts[0].toDouble(&ok);
-                if (ok) {
-                    m_lineValues[lineNumber] = numericValue;
-                }
-            }
+            double numericValue = extractNumericValueFromResult(unitResult);
+            m_lineValues[lineNumber] = numericValue;
             return unitResult;
         }
 
         // Check for currency conversion AFTER unit conversion (broader pattern)
         QString currencyResult = handleCurrencyConversion(expr);
         if (!currencyResult.isEmpty()) {
-            // For currency conversions, store 0 for LN references (currency amounts are strings)
-            m_lineValues[lineNumber] = 0.0;
+            // For currency conversions, extract the numeric value for LN references
+            // The result format is "value currency", so we extract the numeric part
+            double numericValue = extractNumericValueFromResult(currencyResult);
+            m_lineValues[lineNumber] = numericValue;
             return currencyResult;
         }
 
@@ -1176,6 +1174,39 @@ QString CalculationEngine::getCrossSheetValue(const QString &sheetName, int line
     LOG_DEBUG(QString("Retrieved value %1 for line %2 from sheet '%3'").arg(value).arg(lineNumber).arg(sheetName));
 
     return QString::number(value, 'g', 15);
+}
+
+double CalculationEngine::extractNumericValueFromResult(const QString &result)
+{
+    if (result.isEmpty()) {
+        return 0.0;
+    }
+
+    // Split the result by spaces and try to parse the first part as a number
+    QStringList parts = result.split(' ', Qt::SkipEmptyParts);
+    if (!parts.isEmpty()) {
+        bool ok;
+        double numericValue = parts[0].toDouble(&ok);
+        if (ok) {
+            LOG_DEBUG(QString("Extracted numeric value %1 from result '%2'").arg(numericValue).arg(result));
+            return numericValue;
+        }
+    }
+
+    // If we can't extract a number, try to find the first number in the string using regex
+    QRegularExpression numberRegex(R"([-+]?\d*\.?\d+)");
+    QRegularExpressionMatch match = numberRegex.match(result);
+    if (match.hasMatch()) {
+        bool ok;
+        double numericValue = match.captured(0).toDouble(&ok);
+        if (ok) {
+            LOG_DEBUG(QString("Extracted numeric value %1 from result '%2' using regex").arg(numericValue).arg(result));
+            return numericValue;
+        }
+    }
+
+    LOG_DEBUG(QString("Could not extract numeric value from result '%1', returning 0.0").arg(result));
+    return 0.0;
 }
 
 

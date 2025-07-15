@@ -222,6 +222,14 @@ private:
      */
     QList<double> getValuesFromRange(const QString &rangeExpr, int currentLine);
 
+    /**
+     * Extract numeric value from formatted result strings
+     * Used for LN references to strip text endings from conversion results
+     * @param result Formatted result string like "129 miles" or "85.63 Euros"
+     * @return Numeric value extracted from the beginning of the string
+     */
+    double extractNumericValueFromResult(const QString &result);
+
     // Mathematical constants and functions
     QHash<QString, double> m_constants;
     QHash<QString, std::function<double(double)>> m_functions;
