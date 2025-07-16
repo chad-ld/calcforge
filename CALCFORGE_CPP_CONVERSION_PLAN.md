@@ -52,6 +52,32 @@ The LN Reference Auto-Update System represents a significant technical achieveme
 - **Batch Updates**: Updates multiple references in a single operation
 - **Dependency Caching**: Optimized dependency tracking with minimal recalculation
 
+### **🎯 CRITICAL BUG FIX - Line Highlighting Jumping Issue**
+
+**Date**: July 16, 2025
+**Status**: ✅ **RESOLVED**
+
+**Problem**: Line highlighting (both current line and LN variable highlighting) was jumping to the bottom of the results column when adding or removing lines.
+
+**Root Cause**: When document structure changed, `ResultsDisplay::updateContentForced()` called `setPlainText()` which completely rebuilt the document and cleared all highlighting. The highlighting system then tried to restore highlighting but only had stale state information.
+
+**Solution Implemented**:
+1. **Added `m_lastCurrentLineText` member** to store current line text alongside line number
+2. **Modified `updateContentForced()`** to save both highlighted line number AND line text before rebuilding
+3. **Used complete restoration** with `highlightCurrentLineWithLNReferences()` instead of basic `highlightCurrentLine()`
+4. **Ensured both types of highlighting persist** - current line highlighting AND LN variable background highlighting
+
+**Files Modified**:
+- `calcforge-cpp/src/ResultsDisplay.cpp` - Core fix implementation
+- `calcforge-cpp/include/ResultsDisplay.h` - Added member variable
+- `calcforge-cpp/src/WorksheetWidget.cpp` - Improved focus-based highlighting detection
+
+**Key Technical Insight**: The issue was that `setPlainText()` clears ALL `ExtraSelections` (highlighting), so both the current line highlighting AND LN variable background highlighting needed to be saved and restored together. Simply restoring the line number wasn't enough - the line text was needed to recreate the LN reference highlighting.
+
+**Result**: ✅ Both current line highlighting and LN variable highlighting now maintain their correct positions when adding/removing lines, providing smooth user experience matching the expression side behavior.
+
+**⚠️ Important Note**: If similar highlighting jumping issues occur in the future, check for any code that calls `setPlainText()`, `clear()`, or `setDocument()` on QTextEdit widgets, as these operations clear all highlighting state and require explicit restoration.
+
 ## �📋 Project Structure
 ```
 calcforge/
