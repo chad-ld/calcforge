@@ -216,7 +216,8 @@ void LineNumberArea::paintLineNumbers(QPainter &painter, const QRect &rect)
 
             if (isComment) {
                 painter.setPen(m_commentLineColor);  // Green for comment lines
-                currentFont.setBold(false);  // Comments are not bold
+                // Bold comment lines if they are the current line
+                currentFont.setBold(blockNumber == currentLineNumber);
             } else if (blockNumber == currentLineNumber) {
                 painter.setPen(m_currentLineColor);  // White for current line
                 currentFont.setBold(true);   // Bold for current line

@@ -280,6 +280,11 @@ void WorksheetWidget::setupConnections()
     connect(m_editor, &QTextEdit::cursorPositionChanged, this, [this]() {
         int currentLine = m_editor->getCurrentLineNumber();
         m_results->highlightCurrentLine(currentLine);
+
+        // Also update the results line number area to show current line styling
+        if (m_results->getLineNumberArea()) {
+            m_results->getLineNumberArea()->update();
+        }
     });
 
     // Connect splitter changes to emit signal for global synchronization

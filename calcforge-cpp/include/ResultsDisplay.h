@@ -20,6 +20,7 @@ public:
 
     // Line number area management (same as ExpressionEditor)
     void setLineNumberArea(LineNumberArea *lineNumberArea);
+    LineNumberArea* getLineNumberArea() const { return m_lineNumberArea; }
     void updateLineNumberAreaWidth();
     void updateLineNumberArea(const QRect &rect, int dy);
     void updateLineNumberArea(); // Overload for signal connections
