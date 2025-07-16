@@ -2,6 +2,8 @@
 #include "LineNumberArea.h"
 #include "SyntaxHighlighter.h"
 #include "Logger.h"
+#include "MainWindow.h"
+#include "WorksheetWidget.h"
 #include <QTextBlock>
 #include <QScrollBar>
 #include <QApplication>
@@ -380,6 +382,21 @@ void ExpressionEditor::keyPressEvent(QKeyEvent *event)
 {
     // Font size shortcuts are now handled by MainWindow, so we don't need detailed logging here
     // Just handle normal text editing
+
+    // Handle cross-sheet navigation shortcuts first
+    if (event->modifiers() & Qt::ShiftModifier) {
+        if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+            // Shift+Enter: Navigate to cross-sheet reference
+            handleCrossSheetNavigation();
+            event->accept();
+            return;
+        } else if (event->key() == Qt::Key_Backspace) {
+            // Shift+Backspace: Return to previous cross-sheet reference
+            handleCrossSheetReturn();
+            event->accept();
+            return;
+        }
+    }
 
     // TEMPORARILY DISABLED: Let MainWindow QShortcut system handle font size shortcuts
     // Handle special key combinations first
@@ -1085,4 +1102,133 @@ void ExpressionEditor::setCurrentLineHighlightingEnabled(bool enabled)
 bool ExpressionEditor::isCurrentLineHighlightingEnabled() const noexcept
 {
     return m_currentLineHighlightingEnabled;
+}
+
+void ExpressionEditor::handleCrossSheetNavigation()
+{
+    LOG_DEBUG("=== ExpressionEditor::handleCrossSheetNavigation ===");
+
+    // Get current cursor position and line text
+    QTextCursor cursor = textCursor();
+    int cursorPosition = cursor.positionInBlock();
+    QString lineText = cursor.block().text();
+    int lineNumber = getCurrentLineNumber();
+
+    LOG_DEBUG(QString("  Current line %1: '%2'").arg(lineNumber).arg(lineText));
+    LOG_DEBUG(QString("  Cursor position in line: %1").arg(cursorPosition));
+
+    // Find cross-sheet references in the current line
+    QRegularExpression crossSheetPattern(R"(\bS\.([^.]+)\.LN(\d+)\b)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator iterator = crossSheetPattern.globalMatch(lineText);
+
+    // Find the cross-sheet reference at or near the cursor position
+    QString targetSheetName;
+    int targetLineNumber = -1;
+    int referenceStart = -1;
+
+    while (iterator.hasNext()) {
+        QRegularExpressionMatch match = iterator.next();
+        int matchStart = match.capturedStart();
+        int matchEnd = match.capturedEnd();
+
+        LOG_DEBUG(QString("  Found cross-sheet reference: '%1' at positions %2-%3")
+                  .arg(match.captured(0)).arg(matchStart).arg(matchEnd));
+
+        // Check if cursor is within this cross-sheet reference
+        if (cursorPosition >= matchStart && cursorPosition <= matchEnd) {
+            targetSheetName = match.captured(1);
+            targetLineNumber = match.captured(2).toInt();
+            referenceStart = matchStart;
+
+            LOG_DEBUG(QString("  Cursor is within cross-sheet reference: S.%1.LN%2")
+                      .arg(targetSheetName).arg(targetLineNumber));
+            break;
+        }
+    }
+
+    if (targetSheetName.isEmpty() || targetLineNumber <= 0) {
+        LOG_DEBUG("  No cross-sheet reference found at cursor position");
+        return;
+    }
+
+    // Save current position for return navigation
+    // Get the current sheet name from the parent WorksheetWidget
+    QWidget *parent = parentWidget();
+    while (parent && !qobject_cast<class WorksheetWidget*>(parent)) {
+        parent = parent->parentWidget();
+    }
+
+    if (!parent) {
+        LOG_DEBUG("  Could not find parent WorksheetWidget");
+        return;
+    }
+
+    // Get the current sheet name from MainWindow
+    QWidget *mainWindowWidget = parent;
+    while (mainWindowWidget && !qobject_cast<QMainWindow*>(mainWindowWidget)) {
+        mainWindowWidget = mainWindowWidget->parentWidget();
+    }
+
+    class MainWindow *mainWindow = qobject_cast<class MainWindow*>(mainWindowWidget);
+    if (!mainWindow) {
+        LOG_DEBUG("  Could not find MainWindow");
+        return;
+    }
+
+    // Get current sheet name (we'll need to add a method to get this)
+    QString currentSheetName = getCurrentSheetName(mainWindow);
+
+    // Save navigation history in MainWindow (global)
+    mainWindow->saveNavigationHistory(currentSheetName, lineNumber, referenceStart);
+
+    LOG_DEBUG(QString("  Saved navigation history in MainWindow: sheet='%1', line=%2, position=%3")
+              .arg(currentSheetName).arg(lineNumber).arg(referenceStart));
+
+    // Navigate to target sheet and line
+    navigateToSheet(mainWindow, targetSheetName, targetLineNumber);
+
+    LOG_DEBUG("=== END ExpressionEditor::handleCrossSheetNavigation ===");
+}
+
+void ExpressionEditor::handleCrossSheetReturn()
+{
+    LOG_DEBUG("=== ExpressionEditor::handleCrossSheetReturn ===");
+
+    // Get MainWindow
+    QWidget *parent = parentWidget();
+    while (parent && !qobject_cast<QMainWindow*>(parent)) {
+        parent = parent->parentWidget();
+    }
+
+    class MainWindow *mainWindow = qobject_cast<class MainWindow*>(parent);
+    if (!mainWindow) {
+        LOG_DEBUG("  Could not find MainWindow");
+        return;
+    }
+
+    // Check if MainWindow has navigation history
+    if (!mainWindow->hasNavigationHistory()) {
+        LOG_DEBUG("  No navigation history available in MainWindow");
+        return;
+    }
+
+    // Use MainWindow's return method
+    mainWindow->returnToPreviousLocation();
+
+    LOG_DEBUG("=== END ExpressionEditor::handleCrossSheetReturn ===");
+}
+
+QString ExpressionEditor::getCurrentSheetName(class MainWindow *mainWindow) const
+{
+    if (mainWindow) {
+        return mainWindow->getCurrentSheetName();
+    }
+    return QString();
+}
+
+void ExpressionEditor::navigateToSheet(class MainWindow *mainWindow, const QString &sheetName, int lineNumber, int cursorPosition)
+{
+    if (mainWindow) {
+        mainWindow->navigateToSheet(sheetName, lineNumber, cursorPosition);
+    }
 }

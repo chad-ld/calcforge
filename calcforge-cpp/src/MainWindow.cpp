@@ -79,6 +79,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_dragging(false)
     , m_resizing(false)
     , m_resizeEdges(Qt::Edges())
+    , m_hasNavigationHistory(false)
 {
     // Initialize settings
     m_settings = new QSettings("CalcForge", "CalcForge", this);
@@ -646,22 +647,23 @@ void MainWindow::onTabChanged(int index)
                 // Highlight local LN references on the current tab
                 worksheet->getResults()->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
 
-                // Handle outgoing cross-sheet references (from current tab to other tabs)
-                worksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
+                // NOTE: Cross-sheet background highlighting is now disabled for automatic tab changes
+                // It's only triggered by Shift+Enter navigation, not automatic cursor movement
+                // worksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
 
-                LOG_DEBUG(QString("onTabChanged: Triggered outgoing cross-sheet highlighting for line %1: '%2'")
+                LOG_DEBUG(QString("onTabChanged: Skipped automatic cross-sheet highlighting for line %1: '%2'")
                           .arg(currentLine).arg(currentLineText));
             }
         });
 
-        // Handle incoming cross-sheet references (from other tabs to current tab)
-        // This needs to be outside the QTimer::singleShot to access 'this'
-        QTimer::singleShot(10, [this, worksheet]() {
-            if (worksheet) {  // Check if worksheet is still valid
-                highlightIncomingCrossSheetReferences(worksheet);
-                LOG_DEBUG("onTabChanged: Triggered incoming cross-sheet highlighting");
-            }
-        });
+        // NOTE: Incoming cross-sheet highlighting is now disabled for automatic tab changes
+        // It's only triggered by Shift+Enter navigation, not automatic cursor movement
+        // QTimer::singleShot(10, [this, worksheet]() {
+        //     if (worksheet) {
+        //         highlightIncomingCrossSheetReferences(worksheet);
+        //         LOG_DEBUG("onTabChanged: Triggered incoming cross-sheet highlighting");
+        //     }
+        // });
     }
 }
 
@@ -886,9 +888,10 @@ void MainWindow::loadWorksheets()
 
                     // Trigger the same highlighting logic as cursor position changes
                     firstWorksheet->getResults()->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
-                    firstWorksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
+                    // NOTE: Cross-sheet background highlighting is now disabled for automatic startup
+                    // firstWorksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
 
-                    LOG_DEBUG(QString("App startup: Triggered initial cross-sheet highlighting for line %1: '%2'")
+                    LOG_DEBUG(QString("App startup: Triggered initial highlighting for line %1: '%2' (cross-sheet disabled)")
                               .arg(currentLine).arg(currentLineText));
                 }
             });
@@ -1590,6 +1593,110 @@ WorksheetWidget* MainWindow::getSheetByName(const QString &sheetName) const
         }
     }
     return nullptr; // Sheet not found
+}
+
+QString MainWindow::getCurrentSheetName() const
+{
+    int currentIndex = m_tabWidget->currentIndex();
+    if (currentIndex >= 0 && currentIndex < m_tabWidget->count()) {
+        return m_tabWidget->tabText(currentIndex);
+    }
+    return QString(); // No current sheet
+}
+
+void MainWindow::navigateToSheet(const QString &sheetName, int lineNumber, int cursorPosition)
+{
+    LOG_DEBUG(QString("=== MainWindow::navigateToSheet ==="));
+    LOG_DEBUG(QString("  Target: sheet='%1', line=%2, position=%3")
+              .arg(sheetName).arg(lineNumber).arg(cursorPosition));
+
+    // Find the target sheet
+    WorksheetWidget *targetSheet = getSheetByName(sheetName);
+    if (!targetSheet) {
+        LOG_DEBUG(QString("  Sheet '%1' not found").arg(sheetName));
+        return;
+    }
+
+    // Switch to the target tab
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        if (m_tabWidget->widget(i) == targetSheet) {
+            LOG_DEBUG(QString("  Switching to tab %1").arg(i));
+            m_tabWidget->setCurrentIndex(i);
+            break;
+        }
+    }
+
+    // Position the cursor at the specified line and position
+    class ExpressionEditor *editor = targetSheet->getEditor();
+    if (editor) {
+        // Move to the specified line
+        QTextCursor cursor = editor->textCursor();
+        QTextBlock targetBlock = editor->document()->findBlockByNumber(lineNumber - 1); // Convert 1-based to 0-based
+
+        if (targetBlock.isValid()) {
+            cursor.setPosition(targetBlock.position());
+
+            // If a specific cursor position is specified, move to that position within the line
+            if (cursorPosition >= 0) {
+                int blockPosition = targetBlock.position();
+                int targetPosition = blockPosition + qMin(cursorPosition, targetBlock.length() - 1);
+                cursor.setPosition(targetPosition);
+                LOG_DEBUG(QString("  Positioned cursor at line %1, position %2 (absolute position %3)")
+                          .arg(lineNumber).arg(cursorPosition).arg(targetPosition));
+            } else {
+                LOG_DEBUG(QString("  Positioned cursor at line %1, start of line").arg(lineNumber));
+            }
+
+            editor->setTextCursor(cursor);
+            editor->setFocus(); // Give focus to the editor so highlighting works
+        } else {
+            LOG_DEBUG(QString("  Line %1 not found in target sheet").arg(lineNumber));
+        }
+    }
+
+    LOG_DEBUG(QString("=== END MainWindow::navigateToSheet ==="));
+}
+
+void MainWindow::saveNavigationHistory(const QString &sheetName, int lineNumber, int cursorPosition)
+{
+    LOG_DEBUG(QString("=== MainWindow::saveNavigationHistory ==="));
+    LOG_DEBUG(QString("  Saving: sheet='%1', line=%2, position=%3")
+              .arg(sheetName).arg(lineNumber).arg(cursorPosition));
+
+    m_navigationHistory.sheetName = sheetName;
+    m_navigationHistory.lineNumber = lineNumber;
+    m_navigationHistory.cursorPosition = cursorPosition;
+    m_hasNavigationHistory = true;
+
+    LOG_DEBUG(QString("=== END MainWindow::saveNavigationHistory ==="));
+}
+
+bool MainWindow::hasNavigationHistory() const
+{
+    return m_hasNavigationHistory;
+}
+
+void MainWindow::returnToPreviousLocation()
+{
+    LOG_DEBUG(QString("=== MainWindow::returnToPreviousLocation ==="));
+
+    if (!m_hasNavigationHistory) {
+        LOG_DEBUG("  No navigation history available");
+        return;
+    }
+
+    LOG_DEBUG(QString("  Returning to: sheet='%1', line=%2, position=%3")
+              .arg(m_navigationHistory.sheetName)
+              .arg(m_navigationHistory.lineNumber)
+              .arg(m_navigationHistory.cursorPosition));
+
+    // Navigate back to the saved location
+    navigateToSheet(m_navigationHistory.sheetName, m_navigationHistory.lineNumber, m_navigationHistory.cursorPosition);
+
+    // Clear navigation history after use
+    m_hasNavigationHistory = false;
+
+    LOG_DEBUG(QString("=== END MainWindow::returnToPreviousLocation ==="));
 }
 
 void MainWindow::setupCrossSheetSupport(WorksheetWidget *worksheet)

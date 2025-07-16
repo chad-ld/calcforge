@@ -50,6 +50,10 @@ public:
     void jumpToPreviousNumberOrLN();
     void jumpToNextNumberOrLN();
 
+    // Cross-sheet navigation
+    void handleCrossSheetNavigation();
+    void handleCrossSheetReturn();
+
     // Copy functionality
     void handleCopyShortcut();
 
@@ -93,6 +97,10 @@ private:
     void setupEditor();
     void setupConnections();
     void updateViewport();
+
+    // Cross-sheet navigation helper methods
+    QString getCurrentSheetName(class MainWindow *mainWindow) const;
+    void navigateToSheet(class MainWindow *mainWindow, const QString &sheetName, int lineNumber, int cursorPosition = -1);
     
     // Line number area
     LineNumberArea *m_lineNumberArea;

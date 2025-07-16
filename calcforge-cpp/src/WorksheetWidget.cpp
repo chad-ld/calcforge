@@ -313,8 +313,9 @@ void WorksheetWidget::setupConnections()
             // This ensures it always highlights the correct line, even after document changes
             m_results->highlightCurrentLineFromEditor(m_editor);
 
-            // Handle cross-sheet background highlighting
-            handleCrossSheetBackgroundHighlighting(currentLineText);
+            // NOTE: Cross-sheet background highlighting is now disabled
+            // It's only triggered by Shift+Enter navigation, not automatic cursor movement
+            // handleCrossSheetBackgroundHighlighting(currentLineText);
 
             // Also update the results line number area to show current line styling
             if (m_results->getLineNumberArea()) {

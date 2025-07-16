@@ -93,6 +93,14 @@ private:
     // Cross-sheet reference support
     WorksheetWidget* getSheetByName(const QString &sheetName) const;
     void highlightIncomingCrossSheetReferences(WorksheetWidget *targetSheet);
+
+public:
+    // Cross-sheet navigation support
+    QString getCurrentSheetName() const;
+    void navigateToSheet(const QString &sheetName, int lineNumber, int cursorPosition = -1);
+    void saveNavigationHistory(const QString &sheetName, int lineNumber, int cursorPosition);
+    bool hasNavigationHistory() const;
+    void returnToPreviousLocation();
     void triggerCrossSheetRecalculation();
     void recalculateAllWorksheets();
     bool updateCrossSheetReferences(WorksheetWidget *worksheet, const QString &changedSheetName, const QList<LineChange> &changes);
@@ -149,6 +157,15 @@ private:
     bool m_dragging;
     bool m_resizing;
     Qt::Edges m_resizeEdges;
+
+    // Cross-sheet navigation history (global)
+    struct NavigationHistory {
+        QString sheetName;
+        int lineNumber;
+        int cursorPosition;
+    };
+    NavigationHistory m_navigationHistory;
+    bool m_hasNavigationHistory;
 };
 
 #endif // MAINWINDOW_H
