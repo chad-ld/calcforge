@@ -9,6 +9,7 @@
 #include <QRegularExpression>
 
 class LineNumberArea;
+class SyntaxHighlighter;
 
 /**
  * Expression editor widget for entering mathematical expressions
@@ -52,6 +53,12 @@ public:
     // Copy functionality
     void handleCopyShortcut();
 
+    // Syntax highlighting
+    void setSyntaxHighlightingEnabled(bool enabled);
+    bool isSyntaxHighlightingEnabled() const;
+    void setColorBlindMode(bool enabled);
+    bool isColorBlindMode() const;
+
     // Line number area support (expose protected methods)
     QTextBlock getFirstVisibleBlock() const;
     QRectF getBlockBoundingGeometry(const QTextBlock &block) const;
@@ -81,11 +88,15 @@ private:
     
     // Line number area
     LineNumberArea *m_lineNumberArea;
-    
+
+    // Syntax highlighting
+    SyntaxHighlighter *m_syntaxHighlighter;
+    bool m_syntaxHighlightingEnabled;
+
     // Font management
     QFont m_defaultFont;
     int m_baseFontSize;
-    
+
     // State tracking
     int m_lastLineCount;
     bool m_isUpdating;

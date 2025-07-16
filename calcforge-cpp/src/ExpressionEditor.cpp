@@ -1,5 +1,6 @@
 #include "ExpressionEditor.h"
 #include "LineNumberArea.h"
+#include "SyntaxHighlighter.h"
 #include <QTextBlock>
 #include <QScrollBar>
 #include <QApplication>
@@ -40,6 +41,8 @@ void logEditorDebug(const QString &message) {
 ExpressionEditor::ExpressionEditor(QWidget *parent)
     : QTextEdit(parent)
     , m_lineNumberArea(nullptr)
+    , m_syntaxHighlighter(nullptr)
+    , m_syntaxHighlightingEnabled(true)
     , m_baseFontSize(15)  // Increased from 10 to 15 (5 steps larger)
     , m_lastLineCount(0)
     , m_isUpdating(false)
@@ -50,6 +53,7 @@ ExpressionEditor::ExpressionEditor(QWidget *parent)
 
 ExpressionEditor::~ExpressionEditor()
 {
+    // Syntax highlighter is automatically deleted by Qt when document is destroyed
 }
 
 void ExpressionEditor::setupEditor()
@@ -135,9 +139,13 @@ void ExpressionEditor::setupEditor()
     
     // Configure cursor
     setCursorWidth(2);
-    
+
     // Set margins
     setViewportMargins(0, 0, 0, 0);
+
+    // Initialize syntax highlighting
+    m_syntaxHighlighter = new SyntaxHighlighter(document());
+    setSyntaxHighlightingEnabled(m_syntaxHighlightingEnabled);
 }
 
 void ExpressionEditor::setupConnections()
@@ -844,4 +852,41 @@ void ExpressionEditor::smartParenthesesSelection()
     } else {
         logEditorDebug("No parentheses found around cursor within current line");
     }
+}
+
+// Syntax highlighting methods
+void ExpressionEditor::setSyntaxHighlightingEnabled(bool enabled)
+{
+    m_syntaxHighlightingEnabled = enabled;
+
+    if (m_syntaxHighlighter) {
+        if (enabled) {
+            // Re-enable highlighting by triggering a rehighlight
+            m_syntaxHighlighter->rehighlight();
+        } else {
+            // Disable highlighting by setting a null highlighter
+            // Note: We keep the object but disconnect it from the document
+            m_syntaxHighlighter->setDocument(nullptr);
+        }
+    }
+}
+
+bool ExpressionEditor::isSyntaxHighlightingEnabled() const
+{
+    return m_syntaxHighlightingEnabled;
+}
+
+void ExpressionEditor::setColorBlindMode(bool enabled)
+{
+    if (m_syntaxHighlighter) {
+        m_syntaxHighlighter->setColorBlindMode(enabled);
+    }
+}
+
+bool ExpressionEditor::isColorBlindMode() const
+{
+    if (m_syntaxHighlighter) {
+        return m_syntaxHighlighter->isColorBlindMode();
+    }
+    return false;
 }

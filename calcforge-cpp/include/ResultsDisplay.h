@@ -50,6 +50,9 @@ public:
     void updateLineCount(int lineCount);
     void setLineHeight(int height);
 
+    // Comment line detection (for line number coloring)
+    bool isCommentLine(int lineNumber) const;
+
 signals:
     void scrollRequested(int value);
 

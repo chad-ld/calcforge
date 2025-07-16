@@ -294,6 +294,23 @@ void ResultsDisplay::formatResults()
     // This would include coloring numbers, errors, comments, etc.
 }
 
+bool ResultsDisplay::isCommentLine(int lineNumber) const
+{
+    // Check if the corresponding line in results is a comment
+    // Comment lines show empty results and correspond to expression lines starting with ":::"
+    if (lineNumber < 1 || lineNumber > m_results.size()) {
+        return false;
+    }
+
+    // Get the result for this line (1-based to 0-based conversion)
+    QString result = m_results[lineNumber - 1];
+
+    // Comment lines typically show empty results or specific comment indicators
+    // We'll need to coordinate with the expression editor to determine if a line is a comment
+    // For now, we'll check if the result is empty (which is typical for comment lines)
+    return result.trimmed().isEmpty();
+}
+
 // Line number area management (same as ExpressionEditor)
 void ResultsDisplay::setLineNumberArea(LineNumberArea *lineNumberArea)
 {

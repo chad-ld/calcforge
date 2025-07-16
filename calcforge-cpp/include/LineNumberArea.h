@@ -54,6 +54,7 @@ private:
     QColor m_backgroundColor;
     QColor m_textColor;
     QColor m_currentLineColor;
+    QColor m_commentLineColor;
 };
 
 #endif // LINENUMBERAREA_H

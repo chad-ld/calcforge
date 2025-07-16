@@ -17,6 +17,7 @@ LineNumberArea::LineNumberArea(ExpressionEditor *editor)
     , m_backgroundColor(QColor(13, 17, 23))  // #0D1117
     , m_textColor(QColor(107, 114, 128))     // #6B7280 (gray-500)
     , m_currentLineColor(QColor(156, 163, 175)) // #9CA3AF (gray-400)
+    , m_commentLineColor(QColor(0, 255, 0))  // #00FF00 (bright green for comments)
 {
     setupWidget();
 }
@@ -30,6 +31,7 @@ LineNumberArea::LineNumberArea(QTextEdit *textEdit)
     , m_backgroundColor(QColor(13, 17, 23))  // #0D1117
     , m_textColor(QColor(107, 114, 128))     // #6B7280 (gray-500)
     , m_currentLineColor(QColor(156, 163, 175)) // #9CA3AF (gray-400)
+    , m_commentLineColor(QColor(0, 255, 0))  // #00FF00 (bright green for comments)
 {
     setupWidget();
 }
@@ -193,8 +195,26 @@ void LineNumberArea::paintLineNumbers(QPainter &painter, const QRect &rect)
         if (block.isVisible() && bottom >= rect.top()) {
             QString number = QString::number(blockNumber + 1);
             
-            // Set color based on whether this is the current line
-            if (blockNumber == currentLineNumber) {
+            // Set color based on line type and current line status
+            bool isComment = false;
+
+            // Check if this is a comment line
+            if (m_editor) {
+                // For expression editor, check if line starts with ":::"
+                QString lineText = block.text().trimmed();
+                isComment = lineText.startsWith(":::");
+            } else if (m_textEdit) {
+                // For results display, check if it's a comment line
+                ResultsDisplay* resultsDisplay = qobject_cast<ResultsDisplay*>(m_textEdit);
+                if (resultsDisplay) {
+                    isComment = resultsDisplay->isCommentLine(blockNumber + 1);
+                }
+            }
+
+            // Set color based on line type and current line status
+            if (isComment) {
+                painter.setPen(m_commentLineColor);  // Green for comment lines
+            } else if (blockNumber == currentLineNumber) {
                 painter.setPen(m_currentLineColor);
             } else {
                 painter.setPen(m_textColor);

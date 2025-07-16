@@ -57,6 +57,7 @@ set(SOURCES
     src/DateCalculator.cpp
     src/CurrencyConverter.cpp
     src/PercentageCalculator.cpp
+    src/SyntaxHighlighter.cpp
 )
 
 # Header files
@@ -78,6 +79,7 @@ set(HEADERS
     include/DateCalculator.h
     include/CurrencyConverter.h
     include/PercentageCalculator.h
+    include/SyntaxHighlighter.h
 )
 
 # Create executable
