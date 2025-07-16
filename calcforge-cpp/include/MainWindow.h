@@ -111,7 +111,11 @@ public:
     bool detectCircularReferencesRecursive(const QString &sheetName, QSet<QString> &visited, QSet<QString> &currentPath) const;
     QSet<QString> getReferencedSheets(const QString &sheetName) const;
     double getCrossSheetValue(const QString &sheetName, int lineNumber) const;
-    
+
+    // Tab management for autocomplete
+    int getTabCount() const;
+    QString getTabName(int index) const;
+
     // UI Components
     QWidget *m_centralWidget;
     QVBoxLayout *m_mainLayout;

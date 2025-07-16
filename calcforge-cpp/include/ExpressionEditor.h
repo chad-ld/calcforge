@@ -10,6 +10,9 @@
 #include <QRegularExpression>
 #include <QToolTip>
 
+// Forward declarations
+class AutoCompleteManager;
+
 class LineNumberArea;
 class SyntaxHighlighter;
 
@@ -77,6 +80,10 @@ public:
     void setTooltipsEnabled(bool enabled);
     bool areTooltipsEnabled() const;
 
+    // Autocomplete functionality
+    void setAutoCompleteEnabled(bool enabled);
+    bool isAutoCompleteEnabled() const;
+
     // Line number area support (expose protected methods)
     QTextBlock getFirstVisibleBlock() const;
     QRectF getBlockBoundingGeometry(const QTextBlock &block) const;
@@ -134,6 +141,10 @@ private:
 
     // Tooltip functionality
     bool m_tooltipsEnabled;
+
+    // Autocomplete functionality
+    AutoCompleteManager *m_autoCompleteManager;
+    bool m_autoCompleteEnabled;
 
     // Font management
     QFont m_defaultFont;

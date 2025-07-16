@@ -1614,6 +1614,19 @@ double MainWindow::getCrossSheetValue(const QString &sheetName, int lineNumber) 
     return std::numeric_limits<double>::quiet_NaN(); // Sheet not found
 }
 
+int MainWindow::getTabCount() const
+{
+    return m_tabWidget ? m_tabWidget->count() : 0;
+}
+
+QString MainWindow::getTabName(int index) const
+{
+    if (m_tabWidget && index >= 0 && index < m_tabWidget->count()) {
+        return m_tabWidget->tabText(index);
+    }
+    return QString();
+}
+
 void MainWindow::navigateToSheet(const QString &sheetName, int lineNumber, int cursorPosition)
 {
     LOG_DEBUG(QString("=== MainWindow::navigateToSheet ==="));

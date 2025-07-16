@@ -58,6 +58,7 @@ set(SOURCES
     src/CurrencyConverter.cpp
     src/PercentageCalculator.cpp
     src/SyntaxHighlighter.cpp
+    src/AutoCompleteWidget.cpp
 )
 
 # Header files
@@ -80,6 +81,7 @@ set(HEADERS
     include/CurrencyConverter.h
     include/PercentageCalculator.h
     include/SyntaxHighlighter.h
+    include/AutoCompleteWidget.h
 )
 
 # Create executable

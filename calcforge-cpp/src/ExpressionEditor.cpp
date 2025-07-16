@@ -3,6 +3,7 @@
 #include "SyntaxHighlighter.h"
 #include "Logger.h"
 #include "MainWindow.h"
+#include "AutoCompleteWidget.h"
 #include "WorksheetWidget.h"
 #include <QTextBlock>
 #include <QScrollBar>
@@ -57,13 +58,26 @@ ExpressionEditor::ExpressionEditor(QWidget *parent)
     , m_lastLineCount(0)
     , m_isUpdating(false)
     , m_tooltipsEnabled(true)
+    , m_autoCompleteManager(nullptr)
+    , m_autoCompleteEnabled(true)
 {
     setupEditor();
     setupConnections();
+
+    // Initialize autocomplete manager
+    LOG_DEBUG("ExpressionEditor: Creating AutoCompleteManager");
+    m_autoCompleteManager = new AutoCompleteManager(this, this);
+    LOG_DEBUG(QString("ExpressionEditor: AutoCompleteManager created successfully: %1").arg(m_autoCompleteManager != nullptr));
 }
 
 ExpressionEditor::~ExpressionEditor()
 {
+    // Cleanup autocomplete manager
+    if (m_autoCompleteManager) {
+        delete m_autoCompleteManager;
+        m_autoCompleteManager = nullptr;
+    }
+
     // Syntax highlighter is automatically deleted by Qt when document is destroyed
 }
 
@@ -384,6 +398,9 @@ void ExpressionEditor::keyPressEvent(QKeyEvent *event)
     // Font size shortcuts are now handled by MainWindow, so we don't need detailed logging here
     // Just handle normal text editing
 
+    LOG_DEBUG(QString("ExpressionEditor::keyPressEvent: key=%1, text='%2', printable=%3")
+              .arg(event->key()).arg(event->text()).arg(!event->text().isEmpty() && event->text().at(0).isPrint()));
+
     // Handle cross-sheet navigation shortcuts first
     if (event->modifiers() & Qt::ShiftModifier) {
         if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
@@ -461,8 +478,37 @@ void ExpressionEditor::keyPressEvent(QKeyEvent *event)
         */
     }
 
+    // Handle autocomplete key events
+    if (m_autoCompleteEnabled && m_autoCompleteManager) {
+        if (m_autoCompleteManager->isVisible()) {
+            // Autocomplete is visible - let it handle navigation keys
+            if (event->key() == Qt::Key_Up || event->key() == Qt::Key_Down ||
+                event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter ||
+                event->key() == Qt::Key_Tab || event->key() == Qt::Key_Escape) {
+                m_autoCompleteManager->handleKeyPress(event);
+                if (event->isAccepted()) {
+                    return;
+                }
+            }
+        }
+    }
+
     // Handle other key events
     QTextEdit::keyPressEvent(event);
+
+    // Trigger autocomplete after text changes (for typing)
+    if (m_autoCompleteEnabled && m_autoCompleteManager && !event->text().isEmpty()) {
+        // Only trigger for printable characters
+        if (event->text().at(0).isPrint()) {
+            LOG_DEBUG(QString("ExpressionEditor: Triggering autocomplete for text: '%1'").arg(event->text()));
+            m_autoCompleteManager->handleTextChanged();
+        } else {
+            LOG_DEBUG(QString("ExpressionEditor: Skipping autocomplete for non-printable character: %1").arg(event->key()));
+        }
+    } else {
+        LOG_DEBUG(QString("ExpressionEditor: Autocomplete not triggered - enabled: %1, manager: %2, text: '%3'")
+                  .arg(m_autoCompleteEnabled).arg(m_autoCompleteManager != nullptr).arg(event->text()));
+    }
 }
 
 void ExpressionEditor::wheelEvent(QWheelEvent *event)
@@ -518,18 +564,26 @@ void ExpressionEditor::onTextChanged()
     if (m_isUpdating) {
         return;
     }
-    
+
+    LOG_DEBUG("ExpressionEditor::onTextChanged() called");
+
+    // Trigger autocomplete for text changes (only if not updating programmatically)
+    if (m_autoCompleteEnabled && m_autoCompleteManager) {
+        LOG_DEBUG("ExpressionEditor: Triggering autocomplete from onTextChanged");
+        m_autoCompleteManager->handleTextChanged();
+    }
+
     int currentLineCount = getLineCount();
     if (currentLineCount != m_lastLineCount) {
         m_lastLineCount = currentLineCount;
         emit lineCountChanged();
-        
+
         if (m_lineNumberArea) {
             m_lineNumberArea->updateWidth();
             updateLineNumberAreaWidth();
         }
     }
-    
+
     emit contentChanged();
 }
 
@@ -1268,6 +1322,19 @@ void ExpressionEditor::setTooltipsEnabled(bool enabled)
 bool ExpressionEditor::areTooltipsEnabled() const
 {
     return m_tooltipsEnabled;
+}
+
+void ExpressionEditor::setAutoCompleteEnabled(bool enabled)
+{
+    m_autoCompleteEnabled = enabled;
+    if (!enabled && m_autoCompleteManager) {
+        m_autoCompleteManager->hideAutocomplete();
+    }
+}
+
+bool ExpressionEditor::isAutoCompleteEnabled() const
+{
+    return m_autoCompleteEnabled;
 }
 
 void ExpressionEditor::showTooltipForPosition(const QPoint &globalPos, int textPosition)
