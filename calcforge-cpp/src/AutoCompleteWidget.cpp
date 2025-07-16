@@ -205,6 +205,8 @@ void AutoCompleteWidget::showCompletions(const QStringList &completions, const Q
     m_descriptions = descriptions;
 
     LOG_DEBUG(QString("AutoCompleteWidget: Setting up list with %1 items: %2").arg(completions.size()).arg(completions.join(", ")));
+    LOG_DEBUG(QString("AutoCompleteWidget: Received %1 descriptions: %2").arg(descriptions.size()).arg(descriptions.join(" | ")));
+    LOG_DEBUG(QString("AutoCompleteWidget: Received %1 descriptions: %2").arg(descriptions.size()).arg(descriptions.join(" | ")));
 
     // Update list widget
     m_listWidget->clear();
@@ -413,9 +415,15 @@ void AutoCompleteWidget::positionWidget(const QPoint &position)
 
 void AutoCompleteWidget::updateDescriptionForCurrentItem()
 {
+    LOG_DEBUG(QString("AutoCompleteWidget::updateDescriptionForCurrentItem: selectedIndex=%1, descriptions.size()=%2")
+              .arg(m_selectedIndex).arg(m_descriptions.size()));
+
     if (m_selectedIndex >= 0 && m_selectedIndex < m_descriptions.size()) {
-        m_descriptionBox->updateDescription(m_descriptions[m_selectedIndex]);
+        QString description = m_descriptions[m_selectedIndex];
+        LOG_DEBUG(QString("AutoCompleteWidget: Setting description for index %1: '%2'").arg(m_selectedIndex).arg(description));
+        m_descriptionBox->updateDescription(description);
     } else {
+        LOG_DEBUG(QString("AutoCompleteWidget: No valid description - using fallback"));
         m_descriptionBox->updateDescription("No description available");
     }
 }
@@ -638,16 +646,16 @@ void AutoCompleteManager::showAutocomplete()
 
     // Enhanced conditions to prevent inappropriate autocomplete
     if (currentWord.isEmpty()) {
-        if (context != "function_param") {
-            LOG_DEBUG("AutoCompleteManager: Current word is empty and not in function_param context - hiding");
+        if (context != "function_param" && context != "rounding_options") {
+            LOG_DEBUG("AutoCompleteManager: Current word is empty and not in function_param or rounding_options context - hiding");
             hideAutocomplete();
             return;
         }
     }
 
     // Don't show autocomplete if current word is too short (less than 1 character)
-    // unless we're in a special context like function parameters
-    if (currentWord.length() < 1 && context != "function_param") {
+    // unless we're in a special context like function parameters or rounding options
+    if (currentWord.length() < 1 && context != "function_param" && context != "rounding_options") {
         LOG_DEBUG("AutoCompleteManager: Current word too short and not in special context - hiding");
         hideAutocomplete();
         return;
@@ -881,6 +889,16 @@ QString AutoCompleteManager::getContextType()
         return "function_param";
     }
 
+    // PRIORITY: Check for rounding options context (after statistical function completion)
+    QRegularExpression roundingPattern(R"((sum|mean|median|min|max|count|variance|stdev|mode|product|range|geomean|harmmean|sumsq|perc5|perc95)\s*\([^)]*\)\s*$)");
+    QRegularExpressionMatch roundingMatch = roundingPattern.match(textBeforeCursor);
+    if (roundingMatch.hasMatch()) {
+        QString functionName = roundingMatch.captured(1).toLower();
+        LOG_DEBUG(QString("AutoCompleteManager::getContextType: Rounding options context for '%1' - returning 'rounding_options'").arg(functionName));
+        m_currentContext = "rounding_options:" + functionName;
+        return "rounding_options";
+    }
+
     // PRIORITY: Check if we're after a number (for units/currencies) - this takes precedence
     if (isAfterNumber() || isAfterConversionTo()) {
         LOG_DEBUG("AutoCompleteManager::getContextType: After number or conversion 'to' - returning 'unit'");
@@ -1015,6 +1033,15 @@ QStringList AutoCompleteManager::filterCompletions(const QString &prefix, const 
             results = m_functionParameters[functionName];
         }
     }
+    else if (context == "rounding_options") {
+        // Rounding options completion - show rounding choices
+        QString functionName = m_currentContext.split(":").last();
+
+        LOG_DEBUG(QString("AutoCompleteManager: Rounding options completion for '%1'").arg(functionName));
+
+        // Offer rounding options
+        results << "no rounding" << "rounding";
+    }
 
     // Limit results to maximum 10 items for performance
     if (results.size() > 10) {
@@ -1029,6 +1056,27 @@ QStringList AutoCompleteManager::filterCompletions(const QString &prefix, const 
 QStringList AutoCompleteManager::getDescriptions(const QStringList &completions, const QString &context)
 {
     QStringList descriptions;
+
+    // Handle rounding options first to avoid fallback processing
+    if (context == "rounding_options") {
+        QString functionName = m_currentContext.split(":").last();
+
+        LOG_DEBUG(QString("AutoCompleteManager: Getting rounding descriptions for context='%1', completions=%2")
+                  .arg(context).arg(completions.join(", ")));
+
+        for (const QString &completion : completions) {
+            QString description;
+            if (completion == "no rounding") {
+                description = "does not include the rounding option";
+            } else if (completion == "rounding") {
+                description = "inserts variable to adjust rounding of the result";
+            }
+            LOG_DEBUG(QString("AutoCompleteManager: Rounding description - completion='%1', description='%2'")
+                      .arg(completion).arg(description));
+            descriptions << description;
+        }
+        return descriptions;
+    }
 
     for (const QString &completion : completions) {
         QString description;
@@ -1212,8 +1260,27 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
                 replaceCurrentWord(completion + ", ");
                 QTimer::singleShot(50, this, &AutoCompleteManager::handleTextChanged);
             } else {
-                // Single parameter function - close with parenthesis
-                replaceCurrentWord(completion + ")");
+                // Single parameter function - check if it's a statistical function that supports rounding
+                QStringList statFunctions = {"sum", "mean", "median", "min", "max", "count",
+                                           "variance", "stdev", "mode", "product", "range",
+                                           "geomean", "harmmean", "sumsq", "perc5", "perc95"};
+
+                LOG_DEBUG(QString("AutoCompleteManager: Function parameter completion - functionName='%1', completion='%2', isStatFunction=%3")
+                          .arg(functionName).arg(completion).arg(statFunctions.contains(functionName.toLower())));
+
+                if (statFunctions.contains(functionName.toLower())) {
+                    // Statistical function - trigger rounding options autocomplete
+                    replaceCurrentWord(completion + ")");
+                    LOG_DEBUG(QString("AutoCompleteManager: Statistical function '%1' completed, triggering rounding options").arg(functionName));
+
+                    // Set context for rounding options
+                    m_currentContext = "rounding_options:" + functionName.toLower();
+                    QTimer::singleShot(50, this, &AutoCompleteManager::handleTextChanged);
+                } else {
+                    // Non-statistical function - close with parenthesis
+                    LOG_DEBUG(QString("AutoCompleteManager: Non-statistical function '%1' - closing with parenthesis").arg(functionName));
+                    replaceCurrentWord(completion + ")");
+                }
             }
         }
     }
@@ -1238,6 +1305,44 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
             }
         } else {
             replaceCurrentWord(completion);
+        }
+    }
+    else if (context == "rounding_options") {
+        // Rounding options completion
+        QString functionName = m_currentContext.split(":").last();
+
+        LOG_DEBUG(QString("AutoCompleteManager: Rounding option selected: '%1' for function '%2'").arg(completion).arg(functionName));
+
+        // For both options, we need to position cursor after the closing parenthesis
+        QTextCursor cursor = m_editor->textCursor();
+        QString lineText = cursor.block().text();
+        int posInLine = cursor.positionInBlock();
+
+        if (completion == "no rounding") {
+            // Function is already complete - just move cursor after closing parenthesis
+            int closeParenPos = lineText.indexOf(')', posInLine);
+            if (closeParenPos != -1) {
+                cursor.setPosition(cursor.block().position() + closeParenPos + 1);
+                m_editor->setTextCursor(cursor);
+                LOG_DEBUG("AutoCompleteManager: No rounding selected - cursor positioned after closing parenthesis");
+            }
+        } else if (completion == "rounding") {
+            // Add rounding parameter: change "function(params)" to "function(params, .2)"
+            // Find the closing parenthesis and insert ", .2" before it
+            int closeParenPos = lineText.lastIndexOf(')', posInLine);
+            if (closeParenPos != -1) {
+                cursor.setPosition(cursor.block().position() + closeParenPos);
+                cursor.insertText(", .2");
+
+                // After insertion, find the new closing parenthesis position and move cursor after it
+                QString updatedLineText = cursor.block().text();
+                int newCloseParenPos = updatedLineText.indexOf(')', closeParenPos);
+                if (newCloseParenPos != -1) {
+                    cursor.setPosition(cursor.block().position() + newCloseParenPos + 1);
+                    m_editor->setTextCursor(cursor);
+                    LOG_DEBUG("AutoCompleteManager: Added .2 rounding parameter and positioned cursor after closing parenthesis");
+                }
+            }
         }
     }
     else {
