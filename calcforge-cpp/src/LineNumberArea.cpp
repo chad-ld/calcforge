@@ -16,7 +16,7 @@ LineNumberArea::LineNumberArea(ExpressionEditor *editor)
     , m_digitWidth(0)
     , m_backgroundColor(QColor(13, 17, 23))  // #0D1117
     , m_textColor(QColor(107, 114, 128))     // #6B7280 (gray-500)
-    , m_currentLineColor(QColor(156, 163, 175)) // #9CA3AF (gray-400)
+    , m_currentLineColor(QColor(255, 255, 255)) // #FFFFFF (white for current line)
     , m_commentLineColor(QColor(0, 255, 0))  // #00FF00 (bright green for comments)
 {
     setupWidget();
@@ -30,7 +30,7 @@ LineNumberArea::LineNumberArea(QTextEdit *textEdit)
     , m_digitWidth(0)
     , m_backgroundColor(QColor(13, 17, 23))  // #0D1117
     , m_textColor(QColor(107, 114, 128))     // #6B7280 (gray-500)
-    , m_currentLineColor(QColor(156, 163, 175)) // #9CA3AF (gray-400)
+    , m_currentLineColor(QColor(255, 255, 255)) // #FFFFFF (white for current line)
     , m_commentLineColor(QColor(0, 255, 0))  // #00FF00 (bright green for comments)
 {
     setupWidget();
@@ -211,14 +211,21 @@ void LineNumberArea::paintLineNumbers(QPainter &painter, const QRect &rect)
                 }
             }
 
-            // Set color based on line type and current line status
+            // Set color and font based on line type and current line status
+            QFont currentFont = painter.font();
+
             if (isComment) {
                 painter.setPen(m_commentLineColor);  // Green for comment lines
+                currentFont.setBold(false);  // Comments are not bold
             } else if (blockNumber == currentLineNumber) {
-                painter.setPen(m_currentLineColor);
+                painter.setPen(m_currentLineColor);  // White for current line
+                currentFont.setBold(true);   // Bold for current line
             } else {
-                painter.setPen(m_textColor);
+                painter.setPen(m_textColor);  // Normal gray for other lines
+                currentFont.setBold(false);  // Normal weight for other lines
             }
+
+            painter.setFont(currentFont);
             
             // Draw the line number
             int fontHeight;

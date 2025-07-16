@@ -393,7 +393,9 @@ QRectF ResultsDisplay::getBlockBoundingRect(const QTextBlock &block) const
 
 int ResultsDisplay::getCurrentLineNumber() const
 {
-    return textCursor().blockNumber() + 1;
+    // Return the currently highlighted line number (synchronized with ExpressionEditor)
+    // This is used for line number area highlighting, not cursor position
+    return m_currentHighlightedLine;
 }
 
 int ResultsDisplay::getLineCount() const
