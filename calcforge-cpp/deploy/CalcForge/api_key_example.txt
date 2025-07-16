@@ -1,0 +1,14 @@
+YOUR_API_KEY_HERE
+
+Instructions:
+1. Sign up for a free API key at: https://manage.exchangeratesapi.io/signup/free
+2. Copy your API key from the dashboard
+3. Rename this file to "api_key.txt" 
+4. Replace "YOUR_API_KEY_HERE" with your actual API key
+5. Place this file in the same folder as CalcForge.exe
+
+Example:
+If your API key is "abc123def456", the file should contain only:
+abc123def456
+
+Note: The API key should be on the first line with no extra spaces or characters.

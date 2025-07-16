@@ -890,7 +890,13 @@ QString AutoCompleteManager::getContextType()
     // Check if we're at start of line (for functions)
     // Functions should only appear at start of line, except S function which can appear anywhere
     QString currentWord = getCurrentWord();
-    if (isAtStartOfLine() || currentWord.toLower() == "s") {
+    bool atStartOfLine = isAtStartOfLine();
+    bool isSFunction = currentWord.toLower() == "s";
+
+    LOG_DEBUG(QString("AutoCompleteManager::getContextType: currentWord='%1', atStartOfLine=%2, isSFunction=%3")
+              .arg(currentWord).arg(atStartOfLine).arg(isSFunction));
+
+    if (atStartOfLine || isSFunction) {
         LOG_DEBUG("AutoCompleteManager::getContextType: At start of line or S function - returning 'function'");
         return "function";
     }
@@ -929,11 +935,19 @@ bool AutoCompleteManager::isAtStartOfLine()
 
     QTextCursor cursor = m_editor->textCursor();
     QString lineText = cursor.block().text();
-    int posInLine = cursor.positionInBlock();
 
-    // Check if everything before cursor is whitespace or empty
-    QString textBeforeCursor = lineText.left(posInLine);
-    return textBeforeCursor.trimmed().isEmpty();
+    // Check if the current word is the first non-whitespace content on the line
+    // This means we're typing a function at the start of the line
+    QString trimmedLine = lineText.trimmed();
+    QString currentWord = getCurrentWord();
+
+    // If the trimmed line is empty or equals the current word, we're at start of line
+    bool result = trimmedLine.isEmpty() || trimmedLine == currentWord;
+
+    LOG_DEBUG(QString("AutoCompleteManager::isAtStartOfLine: lineText='%1', currentWord='%2', result=%3")
+              .arg(lineText).arg(currentWord).arg(result));
+
+    return result;
 }
 
 bool AutoCompleteManager::isAfterConversionTo()
