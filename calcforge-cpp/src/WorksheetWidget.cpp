@@ -275,23 +275,56 @@ void WorksheetWidget::setupConnections()
 
     // Connect line count changes
     connect(m_editor, &ExpressionEditor::lineCountChanged,
-            [this]() { m_results->updateLineCount(m_editor->getLineCount()); });
+            [this]() {
+                int newLineCount = m_editor->getLineCount();
+                int oldResultsLineCount = m_results->document()->blockCount();
+                LOG_DEBUG(QString("=== LineCountChanged: Editor now has %1 lines, Results had %2 lines ===")
+                          .arg(newLineCount).arg(oldResultsLineCount));
+                m_results->updateLineCount(newLineCount);
+                int newResultsLineCount = m_results->document()->blockCount();
+                LOG_DEBUG(QString("=== LineCountChanged: Results now has %1 lines ===").arg(newResultsLineCount));
+            });
 
     // Connect cursor position changes for current line highlighting synchronization
     connect(m_editor, &QTextEdit::cursorPositionChanged, this, [this]() {
+        // Simple and reliable approach: only highlight if this editor has focus
+        // This ensures only the currently active worksheet gets highlighting updates
+        bool shouldHighlight = m_editor->hasFocus();
+
+        LOG_DEBUG(QString("=== WorksheetWidget::cursorPositionChanged ==="));
+        LOG_DEBUG(QString("  Editor has focus: %1").arg(shouldHighlight));
+
         int currentLine = m_editor->getCurrentLineNumber();
         QString currentLineText = m_editor->textCursor().block().text();
+        int editorLineCount = m_editor->getLineCount();
+        int resultsLineCount = m_results->document()->blockCount();
 
-        // Highlight current line and LN references in results (local sheet)
-        m_results->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
+        LOG_DEBUG(QString("  Editor current line: %1").arg(currentLine));
+        LOG_DEBUG(QString("  Editor line count: %1").arg(editorLineCount));
+        LOG_DEBUG(QString("  Results line count: %1").arg(resultsLineCount));
+        LOG_DEBUG(QString("  Current line text: '%1'").arg(currentLineText));
 
-        // Handle cross-sheet background highlighting
-        handleCrossSheetBackgroundHighlighting(currentLineText);
+        // Only highlight if this editor has focus (i.e., this is the active worksheet)
+        if (shouldHighlight) {
+            LOG_DEBUG("  PROCEEDING: Editor has focus, updating highlighting");
 
-        // Also update the results line number area to show current line styling
-        if (m_results->getLineNumberArea()) {
-            m_results->getLineNumberArea()->update();
+            // Instead of passing a potentially stale line number, make ResultsDisplay
+            // get the current line directly from the ExpressionEditor's cursor
+            // This ensures it always highlights the correct line, even after document changes
+            m_results->highlightCurrentLineFromEditor(m_editor);
+
+            // Handle cross-sheet background highlighting
+            handleCrossSheetBackgroundHighlighting(currentLineText);
+
+            // Also update the results line number area to show current line styling
+            if (m_results->getLineNumberArea()) {
+                m_results->getLineNumberArea()->update();
+            }
+        } else {
+            LOG_DEBUG("  SKIPPING: Editor does not have focus");
         }
+
+        LOG_DEBUG(QString("=== END WorksheetWidget::cursorPositionChanged ==="));
     });
 
     // Connect splitter changes to emit signal for global synchronization

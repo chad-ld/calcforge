@@ -1,12 +1,15 @@
 #include "ResultsDisplay.h"
+#include "ExpressionEditor.h"
 #include "LineNumberArea.h"
 #include "Logger.h"
 #include "Logger.h"
 #include <QScrollBar>
 #include <QWheelEvent>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QAbstractTextDocumentLayout>
 #include <QRegularExpression>
+#include <QTabWidget>
 
 // Static color definition for current line highlighting (matches Python version)
 const QColor ResultsDisplay::s_currentLineBackgroundColor = QColor(65, 65, 66);
@@ -19,6 +22,7 @@ ResultsDisplay::ResultsDisplay(QWidget *parent)
     , m_isUpdating(false)
     , m_currentLineHighlightingEnabled(true)
     , m_currentHighlightedLine(-1)
+    , m_lastCurrentLineText("")
     , m_crossSheetHighlightedLine(-1)
     , m_crossSheetHighlightColor()
 {
@@ -246,21 +250,41 @@ void ResultsDisplay::synchronizeFontWith(const QFont &font)
 
 void ResultsDisplay::updateLineCount(int lineCount)
 {
+    int oldLineCount = m_lineCount;
+    int oldResultsSize = m_results.size();
+    int oldDocumentLineCount = document()->blockCount();
+
+    LOG_DEBUG(QString("=== ResultsDisplay::updateLineCount ==="));
+    LOG_DEBUG(QString("  Input lineCount: %1").arg(lineCount));
+    LOG_DEBUG(QString("  Old m_lineCount: %1").arg(oldLineCount));
+    LOG_DEBUG(QString("  Old results size: %1").arg(oldResultsSize));
+    LOG_DEBUG(QString("  Old document blockCount: %1").arg(oldDocumentLineCount));
+
     if (m_lineCount != lineCount) {
         m_lineCount = lineCount;
-        
+        LOG_DEBUG(QString("  Line count changed, updating from %1 to %2").arg(oldLineCount).arg(lineCount));
+
         // Ensure we have enough results for all lines
         while (m_results.size() < lineCount) {
             m_results.append("");
+            LOG_DEBUG(QString("    Added empty result, size now: %1").arg(m_results.size()));
         }
-        
+
         // Remove excess results
         while (m_results.size() > lineCount) {
             m_results.removeLast();
+            LOG_DEBUG(QString("    Removed excess result, size now: %1").arg(m_results.size()));
         }
-        
+
+        LOG_DEBUG(QString("  Calling updateContent() with %1 results").arg(m_results.size()));
         updateContent();
+
+        int newDocumentLineCount = document()->blockCount();
+        LOG_DEBUG(QString("  After updateContent: document blockCount: %1").arg(newDocumentLineCount));
+    } else {
+        LOG_DEBUG(QString("  No change needed, lineCount already %1").arg(lineCount));
     }
+    LOG_DEBUG(QString("=== END ResultsDisplay::updateLineCount ==="));
 }
 
 void ResultsDisplay::setLineHeight(int height)
@@ -282,19 +306,37 @@ void ResultsDisplay::updateContentForced()
 {
     m_isUpdating = true;
 
-    // Save current scroll position
+    // Save current scroll position and highlighting state
     int scrollPosition = verticalScrollBar()->value();
+    int savedHighlightedLine = m_currentHighlightedLine;
+    QString savedCurrentLineText = m_lastCurrentLineText; // Save the line text for LN reference highlighting
+
+    LOG_DEBUG(QString("=== ResultsDisplay::updateContentForced ==="));
+    LOG_DEBUG(QString("  Saving highlighted line: %1").arg(savedHighlightedLine));
+    LOG_DEBUG(QString("  Saving current line text: '%1'").arg(savedCurrentLineText));
 
     // Build content string
     QString content = m_results.join('\n');
 
-    // Set the content
+    // Set the content (this clears all highlighting)
     setPlainText(content);
 
     // Restore scroll position
     verticalScrollBar()->setValue(scrollPosition);
 
+    // Restore full highlighting (including LN references) if we had a valid highlighted line
+    if (savedHighlightedLine > 0 && savedHighlightedLine <= document()->blockCount()) {
+        LOG_DEBUG(QString("  Restoring full highlighting to line: %1 with text: '%2'")
+                  .arg(savedHighlightedLine).arg(savedCurrentLineText));
+        // Use the full highlighting method to restore both current line and LN reference highlighting
+        highlightCurrentLineWithLNReferences(savedHighlightedLine, savedCurrentLineText);
+    } else {
+        LOG_DEBUG(QString("  Not restoring highlighting (line %1 invalid for %2 blocks)")
+                  .arg(savedHighlightedLine).arg(document()->blockCount()));
+    }
+
     m_isUpdating = false;
+    LOG_DEBUG(QString("=== END ResultsDisplay::updateContentForced ==="));
 }
 
 void ResultsDisplay::formatResults()
@@ -451,6 +493,17 @@ void ResultsDisplay::highlightCurrentLine(int lineNumber)
         return;
     }
 
+    // Check if the line number is beyond our document's line count
+    int documentLineCount = document()->blockCount();
+    if (lineNumber > documentLineCount) {
+        LOG_DEBUG(QString("ResultsDisplay: Line number %1 exceeds document line count %2, skipping highlighting")
+                  .arg(lineNumber).arg(documentLineCount));
+        // Clear highlighting since we can't highlight a line that doesn't exist
+        setExtraSelections({});
+        m_currentHighlightedLine = -1;
+        return;
+    }
+
     // Only update if the line has changed
     if (m_currentHighlightedLine == lineNumber) {
         return;
@@ -477,15 +530,41 @@ void ResultsDisplay::highlightCurrentLine(int lineNumber)
 
 void ResultsDisplay::highlightCurrentLineWithLNReferences(int lineNumber, const QString &currentLineText)
 {
+    // Comprehensive logging for debugging
+    int documentLineCount = document()->blockCount();
+    int resultsCount = m_results.size();
+    int storedLineCount = m_lineCount;
+
+    LOG_DEBUG(QString("=== ResultsDisplay::highlightCurrentLineWithLNReferences ==="));
+    LOG_DEBUG(QString("  Input lineNumber: %1").arg(lineNumber));
+    LOG_DEBUG(QString("  Input currentLineText: '%1'").arg(currentLineText));
+    LOG_DEBUG(QString("  Document blockCount: %1").arg(documentLineCount));
+    LOG_DEBUG(QString("  Results array size: %1").arg(resultsCount));
+    LOG_DEBUG(QString("  Stored m_lineCount: %1").arg(storedLineCount));
+    LOG_DEBUG(QString("  Current highlighted line: %1").arg(m_currentHighlightedLine));
+    LOG_DEBUG(QString("  Highlighting enabled: %1").arg(m_currentLineHighlightingEnabled));
 
     if (!m_currentLineHighlightingEnabled || lineNumber < 1) {
+        LOG_DEBUG("  RESULT: Clearing selections (highlighting disabled or invalid line)");
         // Clear any existing extra selections if highlighting is disabled or invalid line
         setExtraSelections({});
         m_currentHighlightedLine = -1;
         return;
     }
 
+    // Check if the line number is beyond our document's line count
+    if (lineNumber > documentLineCount) {
+        LOG_DEBUG(QString("  RESULT: Line number %1 exceeds document line count %2, clearing highlighting")
+                  .arg(lineNumber).arg(documentLineCount));
+        // Clear highlighting since we can't highlight a line that doesn't exist
+        setExtraSelections({});
+        m_currentHighlightedLine = -1;
+        return;
+    }
+
+    LOG_DEBUG(QString("  PROCEEDING: Setting m_currentHighlightedLine to %1").arg(lineNumber));
     m_currentHighlightedLine = lineNumber;
+    m_lastCurrentLineText = currentLineText; // Save the current line text for restoration after document rebuilds
 
     QList<QTextEdit::ExtraSelection> extraSelections;
 
@@ -518,13 +597,20 @@ void ResultsDisplay::highlightCurrentLineWithLNReferences(int lineNumber, const 
         }
     }
 
+    LOG_DEBUG(QString("  Found %1 LN references: %2").arg(referencedLNs.size())
+              .arg(referencedLNs.empty() ? "none" : QString::number(referencedLNs[0])));
+
     if (!referencedLNs.empty()) {
         // Highlight referenced LN lines with darker shades of their LN colors
         for (int lnNumber : referencedLNs) {
+            LOG_DEBUG(QString("  Processing LN reference: LN%1").arg(lnNumber));
 
             // Find the line with this LN number (1-based line numbers)
             QTextBlock targetBlock = document()->findBlockByNumber(lnNumber - 1);
-            if (targetBlock.isValid()) {
+            bool blockValid = targetBlock.isValid();
+            LOG_DEBUG(QString("    Target block for line %1: %2").arg(lnNumber).arg(blockValid ? "VALID" : "INVALID"));
+
+            if (blockValid) {
                 // Calculate LN color (same logic as syntax highlighter)
                 const QStringList colors = {
                     "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
@@ -565,22 +651,60 @@ void ResultsDisplay::highlightCurrentLineWithLNReferences(int lineNumber, const 
 
     // Add current line highlight (always on top)
     QTextBlock currentBlock = document()->findBlockByNumber(lineNumber - 1);
-    if (currentBlock.isValid()) {
+    bool currentBlockValid = currentBlock.isValid();
+    LOG_DEBUG(QString("  Current line block for line %1: %2").arg(lineNumber).arg(currentBlockValid ? "VALID" : "INVALID"));
+
+    if (currentBlockValid) {
         QTextEdit::ExtraSelection currentLineSelection;
         currentLineSelection.format.setBackground(s_currentLineBackgroundColor);
         currentLineSelection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
         currentLineSelection.cursor = QTextCursor(currentBlock);
 
         extraSelections.append(currentLineSelection);
+        LOG_DEBUG(QString("  Added current line selection for line %1").arg(lineNumber));
+    } else {
+        LOG_DEBUG(QString("  FAILED to add current line selection - block invalid for line %1").arg(lineNumber));
     }
 
+    LOG_DEBUG(QString("  FINAL: Setting %1 extra selections").arg(extraSelections.size()));
     setExtraSelections(extraSelections);
+    LOG_DEBUG(QString("=== END highlightCurrentLineWithLNReferences ==="));
+}
+
+void ResultsDisplay::highlightCurrentLineFromEditor(ExpressionEditor* editor)
+{
+    if (!editor) {
+        LOG_DEBUG("ResultsDisplay::highlightCurrentLineFromEditor: No editor provided");
+        return;
+    }
+
+    // Get the current line number and text directly from the editor's cursor
+    // This ensures we always highlight the correct line, even after document changes
+    int currentLine = editor->getCurrentLineNumber();
+    QString currentLineText = editor->textCursor().block().text();
+
+    LOG_DEBUG(QString("=== ResultsDisplay::highlightCurrentLineFromEditor ==="));
+    LOG_DEBUG(QString("  Editor current line: %1").arg(currentLine));
+    LOG_DEBUG(QString("  Editor current line text: '%1'").arg(currentLineText));
+
+    // Use the existing method with the fresh line number and text
+    highlightCurrentLineWithLNReferences(currentLine, currentLineText);
+
+    LOG_DEBUG(QString("=== END highlightCurrentLineFromEditor ==="));
 }
 
 void ResultsDisplay::highlightSpecificLine(int lineNumber, const QColor &lnColor)
 {
     // Simple method to highlight a specific line (for cross-sheet highlighting)
     if (lineNumber < 1) {
+        return;
+    }
+
+    // Check if the line number is beyond our document's line count
+    int documentLineCount = document()->blockCount();
+    if (lineNumber > documentLineCount) {
+        LOG_DEBUG(QString("ResultsDisplay: Cross-sheet line number %1 exceeds document line count %2, skipping highlighting")
+                  .arg(lineNumber).arg(documentLineCount));
         return;
     }
 
