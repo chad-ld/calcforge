@@ -1162,9 +1162,30 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
         QString functionName = m_currentContext.split(":").last();
 
         if (functionName.toLower() == "s") {
-            // Cross-sheet completion: insert S.SheetName.LN1
+            // Cross-sheet completion: replace S. with S.SheetName.LN1
             QString insertion = QString("S.%1.LN1").arg(completion);
-            replaceCurrentWord(insertion);
+
+            // Special handling: replace the entire "S." prefix, not just current word
+            QTextCursor cursor = m_editor->textCursor();
+            QString lineText = cursor.block().text();
+            int posInLine = cursor.positionInBlock();
+
+            // Find the "S." or "s." pattern before cursor
+            int dotPos = lineText.lastIndexOf('.', posInLine - 1);
+            if (dotPos > 0) {
+                int sPos = dotPos - 1;
+                if (sPos >= 0 && (lineText[sPos] == 'S' || lineText[sPos] == 's')) {
+                    // Replace from 'S' to current position
+                    cursor.setPosition(cursor.block().position() + sPos);
+                    cursor.setPosition(cursor.block().position() + posInLine, QTextCursor::KeepAnchor);
+                    cursor.insertText(insertion);
+                    m_editor->setTextCursor(cursor);
+                } else {
+                    replaceCurrentWord(insertion);
+                }
+            } else {
+                replaceCurrentWord(insertion);
+            }
         } else {
             // Check if this is a multi-parameter function that needs a comma instead of closing
             if (functionName == "tc" || functionName == "TC") {
