@@ -45,6 +45,9 @@ public:
     CalculationEngine* getCalculationEngine() const { return m_calculationEngine; }
     bool hasCrossSheetReferences() const;
     QString getCurrentSheetName() const;
+
+    // Expression evaluation for tooltips
+    QString evaluateExpression(const QString &expression) const;
     
     // Splitter state
     QByteArray getSplitterState() const;

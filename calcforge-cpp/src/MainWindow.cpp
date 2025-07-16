@@ -9,6 +9,7 @@
 #include "LineChangeDetector.h"
 #include "Logger.h"
 #include <QApplication>
+#include <limits>
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QJsonDocument>
@@ -1602,6 +1603,15 @@ QString MainWindow::getCurrentSheetName() const
         return m_tabWidget->tabText(currentIndex);
     }
     return QString(); // No current sheet
+}
+
+double MainWindow::getCrossSheetValue(const QString &sheetName, int lineNumber) const
+{
+    WorksheetWidget *targetSheet = getSheetByName(sheetName);
+    if (targetSheet) {
+        return targetSheet->getLineValue(lineNumber);
+    }
+    return std::numeric_limits<double>::quiet_NaN(); // Sheet not found
 }
 
 void MainWindow::navigateToSheet(const QString &sheetName, int lineNumber, int cursorPosition)

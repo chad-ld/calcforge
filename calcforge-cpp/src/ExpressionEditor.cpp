@@ -56,6 +56,7 @@ ExpressionEditor::ExpressionEditor(QWidget *parent)
     , m_baseFontSize(15)  // Increased from 10 to 15 (5 steps larger)
     , m_lastLineCount(0)
     , m_isUpdating(false)
+    , m_tooltipsEnabled(true)
 {
     setupEditor();
     setupConnections();
@@ -483,11 +484,33 @@ void ExpressionEditor::wheelEvent(QWheelEvent *event)
 void ExpressionEditor::resizeEvent(QResizeEvent *event)
 {
     QTextEdit::resizeEvent(event);
-    
+
     if (m_lineNumberArea) {
         QRect cr = contentsRect();
         m_lineNumberArea->setGeometry(QRect(cr.left(), cr.top(), m_lineNumberArea->getWidth(), cr.height()));
     }
+}
+
+void ExpressionEditor::mouseMoveEvent(QMouseEvent *event)
+{
+    if (m_tooltipsEnabled) {
+        // Get the text position under the mouse cursor
+        QTextCursor cursor = cursorForPosition(event->pos());
+        int textPosition = cursor.position();
+
+        // Show tooltip for the position
+        showTooltipForPosition(event->globalPosition().toPoint(), textPosition);
+    }
+
+    // Call parent implementation for normal mouse handling
+    QTextEdit::mouseMoveEvent(event);
+}
+
+void ExpressionEditor::leaveEvent(QEvent *event)
+{
+    // Hide tooltip when mouse leaves the editor
+    QToolTip::hideText();
+    QTextEdit::leaveEvent(event);
 }
 
 void ExpressionEditor::onTextChanged()
@@ -1231,4 +1254,385 @@ void ExpressionEditor::navigateToSheet(class MainWindow *mainWindow, const QStri
     if (mainWindow) {
         mainWindow->navigateToSheet(sheetName, lineNumber, cursorPosition);
     }
+}
+
+// Tooltip functionality methods
+void ExpressionEditor::setTooltipsEnabled(bool enabled)
+{
+    m_tooltipsEnabled = enabled;
+    if (!enabled) {
+        QToolTip::hideText();
+    }
+}
+
+bool ExpressionEditor::areTooltipsEnabled() const
+{
+    return m_tooltipsEnabled;
+}
+
+void ExpressionEditor::showTooltipForPosition(const QPoint &globalPos, int textPosition)
+{
+    // Get the current line text
+    QTextCursor cursor = textCursor();
+    cursor.setPosition(textPosition);
+    QTextBlock block = cursor.block();
+    QString lineText = block.text();
+    int positionInLine = textPosition - block.position();
+
+    // Check for LN variable tooltip first
+    QString lnTooltip = getLNVariableTooltip(lineText, positionInLine);
+    if (!lnTooltip.isEmpty()) {
+        QToolTip::showText(globalPos, lnTooltip, this);
+        return;
+    }
+
+    // Check for operator tooltip
+    QString operatorTooltip = getOperatorTooltip(lineText, positionInLine);
+    if (!operatorTooltip.isEmpty()) {
+        QToolTip::showText(globalPos, operatorTooltip, this);
+        return;
+    }
+
+    // No tooltip to show, hide any existing tooltip
+    QToolTip::hideText();
+}
+
+QString ExpressionEditor::getLNVariableTooltip(const QString &text, int position)
+{
+    // Check for cross-sheet references first: S.SheetName.LN2
+    QRegularExpression crossSheetRegex(R"(\bS\.([^.]+)\.LN(\d+)\b)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator crossSheetIterator = crossSheetRegex.globalMatch(text);
+
+    while (crossSheetIterator.hasNext()) {
+        QRegularExpressionMatch match = crossSheetIterator.next();
+        int start = match.capturedStart();
+        int end = match.capturedEnd();
+
+        if (position >= start && position < end) {
+            QString sheetName = match.captured(1);
+            int lineNumber = match.captured(2).toInt();
+
+            // Get the value from the cross-sheet reference
+            // We need to access the MainWindow to get cross-sheet values
+            QWidget *mainWindowWidget = this;
+            while (mainWindowWidget && !qobject_cast<class MainWindow*>(mainWindowWidget)) {
+                mainWindowWidget = mainWindowWidget->parentWidget();
+            }
+
+            if (mainWindowWidget) {
+                class MainWindow *mainWindow = qobject_cast<class MainWindow*>(mainWindowWidget);
+                if (mainWindow) {
+                    double value = mainWindow->getCrossSheetValue(sheetName, lineNumber);
+                    if (!std::isnan(value)) {
+                        return QString::number(value);
+                    } else {
+                        return QString("not found");
+                    }
+                }
+            }
+
+            return QString("?");
+        }
+    }
+
+    // Check for regular LN references: LN1, LN2, etc.
+    QRegularExpression lnRegex(R"(\bLN(\d+)\b)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator lnIterator = lnRegex.globalMatch(text);
+
+    while (lnIterator.hasNext()) {
+        QRegularExpressionMatch match = lnIterator.next();
+        int start = match.capturedStart();
+        int end = match.capturedEnd();
+
+        if (position >= start && position < end) {
+            int lineNumber = match.captured(1).toInt();
+
+            // Get the value from the calculation engine
+            // We need to access the WorksheetWidget to get the calculation engine
+            QWidget *worksheetWidget = this;
+            while (worksheetWidget && !qobject_cast<class WorksheetWidget*>(worksheetWidget)) {
+                worksheetWidget = worksheetWidget->parentWidget();
+            }
+
+            if (worksheetWidget) {
+                class WorksheetWidget *worksheet = qobject_cast<class WorksheetWidget*>(worksheetWidget);
+                if (worksheet) {
+                    double value = worksheet->getLineValue(lineNumber);
+                    if (!std::isnan(value)) {
+                        return QString::number(value);
+                    } else {
+                        return QString("not found");
+                    }
+                }
+            }
+
+            return QString("?");
+        }
+    }
+
+    return QString(); // No LN variable found at this position
+}
+
+QString ExpressionEditor::getOperatorTooltip(const QString &text, int position)
+{
+    // Check if we're hovering over an operator
+    if (position >= text.length()) {
+        return QString();
+    }
+
+    QChar ch = text[position];
+    if (ch != '+' && ch != '-' && ch != '*' && ch != '/') {
+        return QString(); // Not an operator
+    }
+
+    // Find the sub-expression around this operator
+    QString subExprResult = evaluateSubExpression(text, position);
+    if (!subExprResult.isEmpty()) {
+        return subExprResult;
+    }
+
+    return QString();
+}
+
+QString ExpressionEditor::evaluateSubExpression(const QString &expression, int operatorPos)
+{
+    // For complex expressions like "20-(5*(10-8))", we want to show the result of the specific operation
+    // the user is hovering over. This requires a more sophisticated approach.
+
+    QChar op = expression[operatorPos];
+
+    // Find the immediate left and right operands for this specific operator
+    QString leftOperand = extractLeftOperand(expression, operatorPos);
+    QString rightOperand = extractRightOperand(expression, operatorPos);
+
+    if (leftOperand.isEmpty() || rightOperand.isEmpty()) {
+        return QString(); // Could not determine operands
+    }
+
+    // Create a simple expression with just these operands and the operator
+    QString simpleExpr = QString("%1%2%3").arg(leftOperand).arg(op).arg(rightOperand);
+
+    // Get the calculation engine to evaluate the simple expression
+    QWidget *worksheetWidget = this;
+    while (worksheetWidget && !qobject_cast<class WorksheetWidget*>(worksheetWidget)) {
+        worksheetWidget = worksheetWidget->parentWidget();
+    }
+
+    if (worksheetWidget) {
+        class WorksheetWidget *worksheet = qobject_cast<class WorksheetWidget*>(worksheetWidget);
+        if (worksheet) {
+            // Use the calculation engine to evaluate the simple expression
+            QString result = worksheet->evaluateExpression(simpleExpr);
+
+            // Extract numeric value from result
+            bool ok;
+            double numericValue = result.toDouble(&ok);
+            if (ok) {
+                return QString::number(numericValue);
+            } else {
+                // Try to extract number from result string (e.g., "123 miles" -> "123")
+                QRegularExpression numberRegex(R"([-+]?\d*\.?\d+)");
+                QRegularExpressionMatch match = numberRegex.match(result);
+                if (match.hasMatch()) {
+                    return match.captured(0);
+                }
+            }
+        }
+    }
+
+    return QString();
+}
+
+QString ExpressionEditor::extractLeftOperand(const QString &expression, int operatorPos)
+{
+    int pos = operatorPos - 1;
+
+    // Skip whitespace
+    while (pos >= 0 && expression[pos].isSpace()) {
+        pos--;
+    }
+
+    if (pos < 0) return QString();
+
+    // Check if we have a closing parenthesis - need to find matching opening parenthesis
+    if (expression[pos] == ')') {
+        int parenLevel = 1;
+        int endPos = pos;
+        pos--;
+
+        while (pos >= 0 && parenLevel > 0) {
+            if (expression[pos] == ')') {
+                parenLevel++;
+            } else if (expression[pos] == '(') {
+                parenLevel--;
+            }
+            pos--;
+        }
+
+        if (parenLevel == 0) {
+            return expression.mid(pos + 1, endPos - pos);
+        } else {
+            return QString(); // Unmatched parentheses
+        }
+    }
+
+    // Extract a simple number or identifier
+    int endPos = pos;
+    while (pos >= 0 && (expression[pos].isDigit() || expression[pos] == '.' ||
+                        expression[pos].isLetter() || expression[pos] == '_')) {
+        pos--;
+    }
+
+    return expression.mid(pos + 1, endPos - pos);
+}
+
+QString ExpressionEditor::extractRightOperand(const QString &expression, int operatorPos)
+{
+    int pos = operatorPos + 1;
+
+    // Skip whitespace
+    while (pos < expression.length() && expression[pos].isSpace()) {
+        pos++;
+    }
+
+    if (pos >= expression.length()) return QString();
+
+    int startPos = pos;
+
+    // Check if we have an opening parenthesis - need to find matching closing parenthesis
+    if (expression[pos] == '(') {
+        int parenLevel = 1;
+        pos++;
+
+        while (pos < expression.length() && parenLevel > 0) {
+            if (expression[pos] == '(') {
+                parenLevel++;
+            } else if (expression[pos] == ')') {
+                parenLevel--;
+            }
+            pos++;
+        }
+
+        if (parenLevel == 0) {
+            return expression.mid(startPos, pos - startPos);
+        } else {
+            return QString(); // Unmatched parentheses
+        }
+    }
+
+    // Extract a simple number or identifier
+    while (pos < expression.length() && (expression[pos].isDigit() || expression[pos] == '.' ||
+                                         expression[pos].isLetter() || expression[pos] == '_')) {
+        pos++;
+    }
+
+    return expression.mid(startPos, pos - startPos);
+}
+
+QPair<int, int> ExpressionEditor::findSubExpressionBounds(const QString &text, int operatorPos)
+{
+    // This is a simplified approach - find the immediate operands around the operator
+    // For a more sophisticated approach, we would need to parse the full expression tree
+
+    int leftStart = operatorPos - 1;
+    int rightEnd = operatorPos + 1;
+
+    // Find the left operand (scan backwards)
+    while (leftStart >= 0) {
+        QChar ch = text[leftStart];
+        if (ch.isDigit() || ch == '.' || ch == ')') {
+            leftStart--;
+        } else if (ch == '(') {
+            // Found opening parenthesis, this is our left bound
+            break;
+        } else if (ch.isSpace()) {
+            leftStart--;
+        } else {
+            // Found another operator or invalid character, stop here
+            leftStart++;
+            break;
+        }
+    }
+
+    if (leftStart < 0) leftStart = 0;
+
+    // Find the right operand (scan forwards)
+    while (rightEnd < text.length()) {
+        QChar ch = text[rightEnd];
+        if (ch.isDigit() || ch == '.' || ch == '(') {
+            rightEnd++;
+        } else if (ch == ')') {
+            // Found closing parenthesis, include it and stop
+            break;
+        } else if (ch.isSpace()) {
+            rightEnd++;
+        } else {
+            // Found another operator or invalid character, stop here
+            rightEnd--;
+            break;
+        }
+    }
+
+    if (rightEnd >= text.length()) rightEnd = text.length() - 1;
+
+    // Handle parentheses properly
+    int parenCount = 0;
+    int adjustedLeftStart = leftStart;
+    int adjustedRightEnd = rightEnd;
+
+    // Scan for balanced parentheses around our operator
+    for (int i = leftStart; i <= rightEnd; i++) {
+        if (text[i] == '(') {
+            parenCount++;
+            if (i < operatorPos) adjustedLeftStart = i;
+        } else if (text[i] == ')') {
+            parenCount--;
+            if (i > operatorPos) adjustedRightEnd = i;
+        }
+    }
+
+    // For complex expressions like "20-(5*(10-8))", we want to find the immediate operation
+    // around the operator we're hovering over
+
+    // Simple case: just find the immediate operands
+    int simpleLeft = operatorPos - 1;
+    int simpleRight = operatorPos + 1;
+
+    // Skip whitespace
+    while (simpleLeft >= 0 && text[simpleLeft].isSpace()) simpleLeft--;
+    while (simpleRight < text.length() && text[simpleRight].isSpace()) simpleRight++;
+
+    // Expand to include full numbers/expressions
+    while (simpleLeft >= 0 && (text[simpleLeft].isDigit() || text[simpleLeft] == '.')) simpleLeft--;
+    while (simpleRight < text.length() && (text[simpleRight].isDigit() || text[simpleRight] == '.')) simpleRight++;
+
+    // Handle parentheses
+    if (simpleLeft >= 0 && text[simpleLeft] == ')') {
+        // Find matching opening parenthesis
+        int parenLevel = 1;
+        simpleLeft--;
+        while (simpleLeft >= 0 && parenLevel > 0) {
+            if (text[simpleLeft] == ')') parenLevel++;
+            else if (text[simpleLeft] == '(') parenLevel--;
+            simpleLeft--;
+        }
+        simpleLeft++; // Include the opening parenthesis
+    }
+
+    if (simpleRight < text.length() && text[simpleRight] == '(') {
+        // Find matching closing parenthesis
+        int parenLevel = 1;
+        simpleRight++;
+        while (simpleRight < text.length() && parenLevel > 0) {
+            if (text[simpleRight] == '(') parenLevel++;
+            else if (text[simpleRight] == ')') parenLevel--;
+            simpleRight++;
+        }
+        simpleRight--; // Include the closing parenthesis
+    }
+
+    simpleLeft++; // Adjust to include the first character
+    simpleRight--; // Adjust to include the last character
+
+    return QPair<int, int>(simpleLeft, simpleRight);
 }

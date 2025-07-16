@@ -801,6 +801,15 @@ bool WorksheetWidget::hasLineValue(int lineNumber) const
     return false;
 }
 
+QString WorksheetWidget::evaluateExpression(const QString &expression) const
+{
+    if (m_calculationEngine) {
+        // Use a temporary line number for tooltip evaluation
+        return m_calculationEngine->evaluateExpression(expression, 0);
+    }
+    return QString();
+}
+
 bool WorksheetWidget::hasCrossSheetReferences() const
 {
     if (!m_dependencyTracker) {

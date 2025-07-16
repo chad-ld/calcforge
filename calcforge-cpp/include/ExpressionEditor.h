@@ -5,8 +5,10 @@
 #include <QTextCursor>
 #include <QKeyEvent>
 #include <QWheelEvent>
+#include <QMouseEvent>
 #include <QScrollBar>
 #include <QRegularExpression>
+#include <QToolTip>
 
 class LineNumberArea;
 class SyntaxHighlighter;
@@ -71,6 +73,10 @@ public:
     void setCurrentLineHighlightingEnabled(bool enabled);
     bool isCurrentLineHighlightingEnabled() const noexcept;
 
+    // Tooltip functionality
+    void setTooltipsEnabled(bool enabled);
+    bool areTooltipsEnabled() const;
+
     // Line number area support (expose protected methods)
     QTextBlock getFirstVisibleBlock() const;
     QRectF getBlockBoundingGeometry(const QTextBlock &block) const;
@@ -88,6 +94,8 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void leaveEvent(QEvent *event) override;
 
 private slots:
     void onTextChanged();
@@ -101,6 +109,15 @@ private:
     // Cross-sheet navigation helper methods
     QString getCurrentSheetName(class MainWindow *mainWindow) const;
     void navigateToSheet(class MainWindow *mainWindow, const QString &sheetName, int lineNumber, int cursorPosition = -1);
+
+    // Tooltip helper methods
+    void showTooltipForPosition(const QPoint &globalPos, int textPosition);
+    QString getLNVariableTooltip(const QString &text, int position);
+    QString getOperatorTooltip(const QString &text, int position);
+    QString evaluateSubExpression(const QString &expression, int operatorPos);
+    QPair<int, int> findSubExpressionBounds(const QString &text, int operatorPos);
+    QString extractLeftOperand(const QString &expression, int operatorPos);
+    QString extractRightOperand(const QString &expression, int operatorPos);
     
     // Line number area
     LineNumberArea *m_lineNumberArea;
@@ -114,6 +131,9 @@ private:
     int m_crossSheetHighlightedLine; // For cross-sheet highlighting persistence
     QColor m_crossSheetHighlightColor; // Store the LN color for cross-sheet highlighting
     static const QColor s_currentLineBackgroundColor;
+
+    // Tooltip functionality
+    bool m_tooltipsEnabled;
 
     // Font management
     QFont m_defaultFont;

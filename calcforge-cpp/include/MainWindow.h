@@ -110,6 +110,7 @@ public:
     bool detectSimpleCircularReferences(const QString &startSheet) const;
     bool detectCircularReferencesRecursive(const QString &sheetName, QSet<QString> &visited, QSet<QString> &currentPath) const;
     QSet<QString> getReferencedSheets(const QString &sheetName) const;
+    double getCrossSheetValue(const QString &sheetName, int lineNumber) const;
     
     // UI Components
     QWidget *m_centralWidget;
