@@ -478,9 +478,6 @@ void AutoCompleteManager::setupFunctions()
     m_functions["sin"] = AutoCompleteFunction("sin", "Sine function (radians)", {"angle"});
     m_functions["cos"] = AutoCompleteFunction("cos", "Cosine function (radians)", {"angle"});
     m_functions["tan"] = AutoCompleteFunction("tan", "Tangent function (radians)", {"angle"});
-    m_functions["asin"] = AutoCompleteFunction("asin", "Arcsine function", {"value"});
-    m_functions["acos"] = AutoCompleteFunction("acos", "Arccosine function", {"value"});
-    m_functions["atan"] = AutoCompleteFunction("atan", "Arctangent function", {"value"});
     m_functions["log"] = AutoCompleteFunction("log", "Natural logarithm", {"value"});
     m_functions["log10"] = AutoCompleteFunction("log10", "Base-10 logarithm", {"value"});
     m_functions["exp"] = AutoCompleteFunction("exp", "Exponential function (e^x)", {"value"});
@@ -551,9 +548,7 @@ void AutoCompleteManager::setupFunctions()
         "July 4, 2023 - 30",
         "July 4, 2023 W+ 5",
         "July 4, 2023 W- 5",
-        "July 4, 2023 - January 1, 2023",
-        "today",
-        "yesterday"
+        "July 4, 2023 - January 1, 2023"
     };
     m_functionParameters["d"] = {
         "July 4, 2023",
@@ -561,9 +556,7 @@ void AutoCompleteManager::setupFunctions()
         "July 4, 2023 - 30",
         "July 4, 2023 W+ 5",
         "July 4, 2023 W- 5",
-        "July 4, 2023 - January 1, 2023",
-        "today",
-        "yesterday"
+        "July 4, 2023 - January 1, 2023"
     };
 
     // Setup parameter templates for other functions
@@ -890,7 +883,7 @@ QString AutoCompleteManager::getContextType()
     }
 
     // PRIORITY: Check for rounding options context (after statistical function completion)
-    QRegularExpression roundingPattern(R"((sum|mean|median|min|max|count|variance|stdev|mode|product|range|geomean|harmmean|sumsq|perc5|perc95)\s*\([^)]*\)\s*$)");
+    QRegularExpression roundingPattern(R"((sum|mean|median|min|max|count|variance|stdev|product|range|geomean|harmmean|sumsq)\s*\([^)]*\)\s*$)");
     QRegularExpressionMatch roundingMatch = roundingPattern.match(textBeforeCursor);
     if (roundingMatch.hasMatch()) {
         QString functionName = roundingMatch.captured(1).toLower();
@@ -1130,10 +1123,6 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
                     description = "Add business days (skip weekends)\nSupported formats:\nJuly 4, 2023\n07/04/2023\n2023-07-04\n04.07.2023";
                 } else if (completion.contains(" W- ")) {
                     description = "Subtract business days or calculate business days between dates\nSupported formats:\nJuly 4, 2023\n07/04/2023\n2023-07-04\n04.07.2023";
-                } else if (completion == "today") {
-                    description = "Current date";
-                } else if (completion == "yesterday") {
-                    description = "Yesterday's date";
                 } else {
                     description = "Date expression\nSupported formats:\nJuly 4, 2023\n07/04/2023\n2023-07-04\n04.07.2023";
                 }
@@ -1262,8 +1251,8 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
             } else {
                 // Single parameter function - check if it's a statistical function that supports rounding
                 QStringList statFunctions = {"sum", "mean", "median", "min", "max", "count",
-                                           "variance", "stdev", "mode", "product", "range",
-                                           "geomean", "harmmean", "sumsq", "perc5", "perc95"};
+                                           "variance", "stdev", "product", "range",
+                                           "geomean", "harmmean", "sumsq"};
 
                 LOG_DEBUG(QString("AutoCompleteManager: Function parameter completion - functionName='%1', completion='%2', isStatFunction=%3")
                           .arg(functionName).arg(completion).arg(statFunctions.contains(functionName.toLower())));

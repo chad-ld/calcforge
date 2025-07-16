@@ -59,6 +59,7 @@ set(SOURCES
     src/PercentageCalculator.cpp
     src/SyntaxHighlighter.cpp
     src/AutoCompleteWidget.cpp
+    src/HelpDialog.cpp
 )
 
 # Header files
@@ -82,10 +83,16 @@ set(HEADERS
     include/PercentageCalculator.h
     include/SyntaxHighlighter.h
     include/AutoCompleteWidget.h
+    include/HelpDialog.h
 )
 
+# Windows resource file for icon
+if(WIN32)
+    set(RESOURCE_FILES calcforge.rc)
+endif()
+
 # Create executable
-qt6_add_executable(CalcForge ${SOURCES} ${HEADERS})
+qt6_add_executable(CalcForge ${SOURCES} ${HEADERS} ${RESOURCE_FILES})
 
 # Link Qt6 libraries (minimal for hello world)
 target_link_libraries(CalcForge PRIVATE

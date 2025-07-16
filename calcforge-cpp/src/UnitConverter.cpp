@@ -225,6 +225,10 @@ void UnitConverter::initializeVolumeUnits()
     m_unitAbbreviations["milliliters"] = "mL";
     m_unitAbbreviations["ml"] = "mL";
     m_unitAbbreviations["mL"] = "mL";
+    m_unitAbbreviations["fluid ounce"] = "fl oz";
+    m_unitAbbreviations["fluid ounces"] = "fl oz";
+    m_unitAbbreviations["fl oz"] = "fl oz";
+    m_unitAbbreviations["floz"] = "fl oz";
     
     // Display names
     m_displayNames["L"] = "liters";
@@ -233,6 +237,7 @@ void UnitConverter::initializeVolumeUnits()
     m_displayNames["pt"] = "pints";
     m_displayNames["cup"] = "cups";
     m_displayNames["mL"] = "milliliters";
+    m_displayNames["fl oz"] = "fluid ounces";
     
     // Categories
     m_unitCategories["L"] = "volume";
@@ -241,6 +246,7 @@ void UnitConverter::initializeVolumeUnits()
     m_unitCategories["pt"] = "volume";
     m_unitCategories["cup"] = "volume";
     m_unitCategories["mL"] = "volume";
+    m_unitCategories["fl oz"] = "volume";
     
     // Conversion factors to liters
     m_volumeFactors["L"] = 1.0;
@@ -249,6 +255,7 @@ void UnitConverter::initializeVolumeUnits()
     m_volumeFactors["pt"] = 0.473176;  // US pint
     m_volumeFactors["cup"] = 0.236588; // US cup
     m_volumeFactors["mL"] = 0.001;
+    m_volumeFactors["fl oz"] = 0.0295735; // US fluid ounce
 }
 
 void UnitConverter::initializeTemperatureUnits()

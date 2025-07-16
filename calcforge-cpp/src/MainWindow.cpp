@@ -7,6 +7,7 @@
 #include "LineNumberArea.h"
 #include "CurrencyConverter.h"
 #include "LineChangeDetector.h"
+#include "HelpDialog.h"
 #include "Logger.h"
 #include <QApplication>
 #include <limits>
@@ -687,23 +688,9 @@ void MainWindow::onSplitterMoved(const QByteArray &newState)
 
 void MainWindow::showHelp()
 {
-    QMessageBox::information(this, "CalcForge Help",
-                           "CalcForge v4.0 - Advanced Calculator\n\n"
-                           "Features:\n"
-                           "• Mathematical expressions\n"
-                           "• Unit conversions\n"
-                           "• Currency conversions\n"
-                           "• Cross-sheet references\n"
-                           "• Line number variables (LN1, LN2, etc.)\n\n"
-                           "Keyboard Shortcuts:\n"
-                           "• Ctrl+Plus: Increase font size\n"
-                           "• Ctrl+Minus: Decrease font size\n"
-                           "• Ctrl+N: New file\n"
-                           "• Ctrl+O: Open file\n"
-                           "• Ctrl+S: Save file\n\n"
-                           "Currency Conversions:\n"
-                           "• Use format: '100 dollars to euros'\n"
-                           "• Click $ button to update exchange rates");
+    HelpDialog *helpDialog = new HelpDialog(this);
+    helpDialog->exec();
+    helpDialog->deleteLater();
 }
 
 void MainWindow::updateCurrencyRates()
@@ -798,7 +785,8 @@ void MainWindow::loadWorksheets()
 
     QFile file(worksheetsPath);
     if (!file.exists()) {
-        // No saved worksheets, keep the default tab
+        // No saved worksheets, try to load example worksheets
+        loadExampleWorksheets();
         return;
     }
 
@@ -983,6 +971,71 @@ void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &cont
 
     // Connect value changes for cross-sheet recalculation
     connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+}
+
+void MainWindow::loadExampleWorksheets()
+{
+    // Get the path to example_worksheets.json in the same directory as the executable
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString exampleWorksheetsPath = QDir(appDir).absoluteFilePath("example_worksheets.json");
+
+    QFile file(exampleWorksheetsPath);
+    if (!file.exists()) {
+        // No example worksheets, this is fine
+        return;
+    }
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open example_worksheets.json for reading:" << file.errorString();
+        return;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        qWarning() << "Failed to parse example_worksheets.json:" << parseError.errorString();
+        return;
+    }
+
+    if (!doc.isObject()) {
+        qWarning() << "Invalid example_worksheets.json format: not an object";
+        return;
+    }
+
+    QJsonObject root = doc.object();
+    if (root.isEmpty()) {
+        return;
+    }
+
+    // Load example worksheets using the same format as regular worksheets
+    if (root.contains("version") && root.contains("tabs") && root["tabs"].isArray()) {
+        QJsonArray tabsArray = root["tabs"].toArray();
+
+        for (const QJsonValue &tabValue : tabsArray) {
+            if (!tabValue.isObject()) {
+                continue;
+            }
+
+            QJsonObject tabObject = tabValue.toObject();
+            if (!tabObject.contains("name") || !tabObject.contains("content")) {
+                continue;
+            }
+
+            QString tabName = tabObject["name"].toString();
+            QString content = tabObject["content"].toString();
+
+            loadSingleWorksheet(tabName, content);
+        }
+
+        // After loading example worksheets, trigger cross-sheet calculation
+        if (m_tabWidget->count() > 0) {
+            recalculateAllWorksheets();
+        }
+    }
 }
 
 void MainWindow::saveWorksheets()

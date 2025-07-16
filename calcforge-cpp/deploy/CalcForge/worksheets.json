@@ -1,60 +1,8 @@
 {
     "tabs": [
         {
-            "content": "AR(1920x1080, ?x720)\n::: Calculate width for 720p: 1280x720\n\nAR(1920x1080, 1280x?)\n::: Calculate height for 1280 width: 1280x720\n\nAR(16x9, ?x1080)\n::: Calculate width from aspect ratio: 1920x1080\n\nAR(16x9, 3840x?)\n::: Calculate height for 4K width: 3840x2160\n\nAR(4x3, ?x1080)\n::: Calculate width for 4:3 at 1080 height: 1440x1080\n\nAR(1920x1080, ?x480)\n::: Calculate width for 480p: 854x480",
-            "name": "Aspect Ratio"
-        },
-        {
-            "content": "5 + 3\n::: Addition: 8\n\n10 - 4\n::: Subtraction: 6\n\n7 * 6\n::: Multiplication: 42\n\n15 / 3\n::: Division: 5\n\n2^3\n::: Exponentiation: 8\n\n17 % 5\n::: Modulo: 2\n\n(2 + 3) * 4\n::: Parentheses: 20\n\n2 + 3 * 4\n::: Precedence: 14\n\n-5\n::: Unary minus: -5\n\n+7\n::: Unary plus: 7",
-            "name": "Basic Math"
-        },
-        {
-            "content": "sqrt(LN1^2 + LN2^2)\n::: Pythagorean theorem with LN refs\n\nsin(pi/4) * cos(pi/4)\n::: Trigonometric product: 0.5\n\nsum(1, 2, 3) + mean(4, 5, 6)\n::: Statistical functions combined: 11\n\nmax(S.Basic Math.LN1, S.Mathematical Functions.LN1) * 2\n::: Cross-sheet max with operation\n\nround(sqrt(50), 2)\n::: Nested functions with precision\n\n(LN1 + LN2) / (LN3 - LN4)\n::: Complex LN reference expression\n\nabs(sin(pi)) + floor(e)\n::: Multiple math functions: 2\n\nTC(24, 100) + TC(24, 200)\n::: Timecode arithmetic (if supported)\n\n100 USD to EUR * 1.1\n::: Currency conversion with operation",
-            "name": "Complex Expressions"
-        },
-        {
-            "content": "count(below)\n::: Should count lines below this one\n\n28382\n::: First value\n\n23920\n::: Second value\n\n21\n::: Third value\n\n0292\n::: Fourth value (will be 292)\n\n902\n::: Fifth value\n\n::: Test: Insert lines above count(below) and verify count stays correct",
-            "name": "Count Below Test"
-        },
-        {
-            "content": "S.Basic Math.LN1\n::: Cross-sheet reference: 8\n\nS.Mathematical Functions.LN1\n::: Another cross-sheet: 4\n\nS.LN References.LN1 * 3\n::: Cross-sheet with operation: 300\n\nS.Statistical Functions.LN1\n::: Cross-sheet statistical result: 15\n\nLN1 + S.Basic Math.LN2\n::: Mix local and cross-sheet\n\nS.LN References.LN7 + S.LN References.LN8\n::: Cross-sheet calculated values",
-            "name": "Cross-Sheet Basic"
-        },
-        {
-            "content": "sum(S.LN References.LN1, S.LN References.LN2, S.LN References.LN3)\n::: Cross-sheet sum: 600\n\nmax(S.Basic Math.LN1, S.Mathematical Functions.LN1, 10)\n::: Cross-sheet max with literal\n\nmean(S.LN References.LN1, S.LN References.LN2, S.LN References.LN3)\n::: Cross-sheet mean: 200\n\nmin(S.Statistical Functions.LN4, S.Statistical Functions.LN5)\n::: Cross-sheet min\n\ncount(S.LN References.LN1, S.LN References.LN2, S.Cross-Sheet Basic.LN1)\n::: Cross-sheet count: 3",
-            "name": "Cross-Sheet Statistical"
-        },
-        {
-            "content": "100 USD to EUR\n::: US Dollars to Euros\n\n50 GBP to USD\n::: British Pounds to US Dollars\n\n1000 JPY to USD\n::: Japanese Yen to US Dollars\n\n75 CAD to USD\n::: Canadian Dollars to US Dollars\n\n200 AUD to USD\n::: Australian Dollars to US Dollars\n\n100 dollars to euros\n::: Natural language format\n\n50 pounds to yen\n::: Natural language format\n\n25 euros to dollars\n::: Natural language format",
-            "name": "Currency Exchange"
-        },
-        {
-            "content": "D(July 4, 2023)\n::: Format date: July 4, 2023\n\nD(7/4/2023)\n::: Parse MM/DD/YYYY: July 4, 2023\n\nD(2023.07.04)\n::: Parse YYYY.MM.DD: July 4, 2023\n\nD(07042023)\n::: Parse MMDDYYYY: July 4, 2023\n\nD(July 4, 2023 + 30)\n::: Add 30 days: August 3, 2023\n\nD(July 4, 2023 - 10)\n::: Subtract 10 days: June 24, 2023\n\nD(July 4, 2023 W+ 5)\n::: Add 5 business days (skip weekends)\n\nD(July 4, 2023 W- 3)\n::: Subtract 3 business days\n\nD(July 4, 2023 - June 1, 2023)\n::: Date range (inclusive): 34 days\n\nD(July 4, 2023 - June 1, 2023 E)\n::: Date range (exclusive): 33 days",
-            "name": "Date Functions"
-        },
-        {
-            "content": "1 / 0\n::: Division by zero error\n\nsqrt(-1)\n::: Square root of negative number\n\nlog(0)\n::: Logarithm of zero\n\nlog(-5)\n::: Logarithm of negative number\n\nS.NonExistent.LN1\n::: Reference to non-existent sheet\n\nS.Basic Math.LN999\n::: Reference to non-existent line\n\nLN999\n::: Reference to non-existent local line\n\ninvalid_function(5)\n::: Unknown function call\n\n5 + + 3\n::: Invalid syntax\n\n((2 + 3)\n::: Unmatched parentheses\n\n5 unknown_unit to meters\n::: Invalid unit conversion\n\n100 USD to INVALID\n::: Invalid currency conversion\n\nTC(invalid, 100)\n::: Invalid frame rate\n\nAR(invalid, ?x720)\n::: Invalid aspect ratio format",
-            "name": "Error Handling"
-        },
-        {
-            "content": "100\n::: Base value 1\n\n200\n::: Base value 2\n\n300\n::: Base value 3\n\nLN1\n::: Reference to line 1: 100\n\nLN2 * 2\n::: Reference with operation: 400\n\nLN1 + LN2 + LN3\n::: Multiple references: 600\n\nsum(LN1, LN2, LN3)\n::: Statistical with LN refs: 600\n\nLN7 / 2\n::: Reference to calculated line: 200\n\nLN1^2\n::: Reference with exponent: 10000",
-            "name": "LN References"
-        },
-        {
-            "content": "sqrt(16)\n::: Square root: 4\n\nabs(-7)\n::: Absolute value: 7\n\nround(3.7)\n::: Round: 4\n\nfloor(3.9)\n::: Floor: 3\n\nceil(3.1)\n::: Ceiling: 4\n\nsin(pi/2)\n::: Sine of π/2: 1\n\ncos(0)\n::: Cosine of 0: 1\n\ntan(pi/4)\n::: Tangent of π/4: 1\n\nlog(e)\n::: Natural log of e: 1\n\nlog10(100)\n::: Log base 10 of 100: 2\n\nexp(1)\n::: e^1: 2.718...\n\npi\n::: Pi constant: 3.14159...\n\ne\n::: Euler's number: 2.71828...",
-            "name": "Mathematical Functions"
-        },
-        {
-            "content": "sum(1, 2, 3, 4, 5)\n::: Sum: 15\n\nmean(10, 20, 30)\n::: Mean: 20\n\nmedian(1, 3, 2, 5, 4)\n::: Median: 3\n\nmin(5, 2, 8, 1, 9)\n::: Minimum: 1\n\nmax(5, 2, 8, 1, 9)\n::: Maximum: 9\n\ncount(1, 2, 3, 4, 5)\n::: Count: 5\n\nproduct(2, 3, 4)\n::: Product: 24\n\nrange(1, 5, 3, 9, 2)\n::: Range (max-min): 8\n\nvariance(2, 4, 6, 8)\n::: Variance\n\nstdev(2, 4, 6, 8)\n::: Standard deviation\n\ngeomean(1, 4, 9)\n::: Geometric mean\n\nharmmean(2, 4, 8)\n::: Harmonic mean\n\nsumsq(1, 2, 3)\n::: Sum of squares: 14",
-            "name": "Statistical Functions"
-        },
-        {
-            "content": "TC(24, 100)\n::: 100 frames at 24fps: 00:00:04:04\n\nTC(30, 1800)\n::: 1800 frames at 30fps: 00:01:00:00\n\nTC(29.97, 1800)\n::: 1800 frames at 29.97fps (drop frame): 00:01:00;00\n\nTC(24, 00:00:10:00)\n::: Convert 10 seconds at 24fps to frames: 240\n\nTC(30, 00:01:00:00)\n::: Convert 1 minute at 30fps to frames: 1800\n\nTC(29.97, 00:01:00;00)\n::: Convert 1 minute drop frame to frames: 1800\n\nTC(24, 00:00:10:00 + 00:00:05:00)\n::: Add timecodes: 00:00:15:00\n\nTC(24, 00:00:10:00 - 00:00:05:00)\n::: Subtract timecodes: 00:00:05:00\n\n::: NOTE: Do NOT use quotes around timecodes!\n::: CORRECT: TC(24, 00:00:10:00 + 00:00:05:00)\n::: WRONG: TC(24, \"00:00:10:00\" + \"00:00:05:00\")",
-            "name": "Timecode Functions"
-        },
-        {
-            "content": "12 inches to centimeters\n::: Inches to cm: 30.48\n\n5 feet to meters\n::: Feet to meters: 1.524\n\n100 pounds to kilograms\n::: Pounds to kg: 45.36\n\n32 fahrenheit to celsius\n::: F to C: 0\n\n100 celsius to fahrenheit\n::: C to F: 212\n\n1 gallon to liters\n::: Gallons to liters: 3.785\n\n1000 milliliters to fluid ounces\n::: ml to fl oz: 33.814\n\n60 seconds to minutes\n::: Seconds to minutes: 1\n\n2 hours to minutes\n::: Hours to minutes: 120\n\n1 kilometer to miles\n::: km to miles: 0.621",
-            "name": "Unit Conversions"
+            "content": "",
+            "name": "Sheet 1"
         }
     ],
     "version": "2.0"

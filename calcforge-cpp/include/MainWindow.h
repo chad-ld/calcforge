@@ -70,6 +70,7 @@ private:
     void updateEdgePositions();
     Qt::Edges getResizeEdges(const QPoint &pos) const;
     void loadWorksheets();
+    void loadExampleWorksheets();
     void loadSingleWorksheet(const QString &tabName, const QString &content);
     void saveWorksheets();
     void restoreWindowState();
