@@ -59,6 +59,11 @@ public:
     void setColorBlindMode(bool enabled);
     bool isColorBlindMode() const;
 
+    // Current line highlighting
+    void highlightCurrentLine();
+    void setCurrentLineHighlightingEnabled(bool enabled);
+    bool isCurrentLineHighlightingEnabled() const noexcept;
+
     // Line number area support (expose protected methods)
     QTextBlock getFirstVisibleBlock() const;
     QRectF getBlockBoundingGeometry(const QTextBlock &block) const;
@@ -92,6 +97,10 @@ private:
     // Syntax highlighting
     SyntaxHighlighter *m_syntaxHighlighter;
     bool m_syntaxHighlightingEnabled;
+
+    // Current line highlighting
+    bool m_currentLineHighlightingEnabled;
+    static const QColor s_currentLineBackgroundColor;
 
     // Font management
     QFont m_defaultFont;

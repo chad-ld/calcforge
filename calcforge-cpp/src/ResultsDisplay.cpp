@@ -6,12 +6,17 @@
 #include <QTextBlock>
 #include <QAbstractTextDocumentLayout>
 
+// Static color definition for current line highlighting (matches Python version)
+const QColor ResultsDisplay::s_currentLineBackgroundColor = QColor(65, 65, 66);
+
 ResultsDisplay::ResultsDisplay(QWidget *parent)
     : QTextEdit(parent)
     , m_lineNumberArea(nullptr)
     , m_lineCount(0)
     , m_baseFontSize(15)  // Increased from 10 to 15 (5 steps larger)
     , m_isUpdating(false)
+    , m_currentLineHighlightingEnabled(true)
+    , m_currentHighlightedLine(-1)
 {
     setupDisplay();
     setupConnections();
@@ -428,4 +433,57 @@ void ResultsDisplay::onVerticalScrollChanged(int value)
     if (!m_isUpdating) {
         emit scrollRequested(value);
     }
+}
+
+// Current line highlighting methods
+void ResultsDisplay::highlightCurrentLine(int lineNumber)
+{
+    if (!m_currentLineHighlightingEnabled || lineNumber < 1) {
+        // Clear any existing extra selections if highlighting is disabled or invalid line
+        setExtraSelections({});
+        m_currentHighlightedLine = -1;
+        return;
+    }
+
+    // Only update if the line has changed
+    if (m_currentHighlightedLine == lineNumber) {
+        return;
+    }
+
+    m_currentHighlightedLine = lineNumber;
+
+    // Create extra selection for current line highlighting
+    QList<QTextEdit::ExtraSelection> extraSelections;
+
+    // Find the block for the specified line number (1-based to 0-based conversion)
+    QTextBlock block = document()->findBlockByNumber(lineNumber - 1);
+    if (block.isValid()) {
+        QTextEdit::ExtraSelection selection;
+        selection.format.setBackground(s_currentLineBackgroundColor);
+        selection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
+        selection.cursor = QTextCursor(block);
+
+        extraSelections.append(selection);
+    }
+
+    setExtraSelections(extraSelections);
+}
+
+void ResultsDisplay::setCurrentLineHighlightingEnabled(bool enabled)
+{
+    if (m_currentLineHighlightingEnabled != enabled) {
+        m_currentLineHighlightingEnabled = enabled;
+
+        // Update highlighting immediately
+        if (enabled && m_currentHighlightedLine > 0) {
+            highlightCurrentLine(m_currentHighlightedLine);
+        } else {
+            setExtraSelections({});
+        }
+    }
+}
+
+bool ResultsDisplay::isCurrentLineHighlightingEnabled() const noexcept
+{
+    return m_currentLineHighlightingEnabled;
 }

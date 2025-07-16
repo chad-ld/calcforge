@@ -13,6 +13,9 @@
 #include <QDir>
 #include <QAbstractTextDocumentLayout>
 #include <QRegularExpression>
+
+// Static color definition for current line highlighting (matches Python version)
+const QColor ExpressionEditor::s_currentLineBackgroundColor = QColor(65, 65, 66);
 #include <algorithm>
 #include <QApplication>
 #include <QClipboard>
@@ -43,6 +46,7 @@ ExpressionEditor::ExpressionEditor(QWidget *parent)
     , m_lineNumberArea(nullptr)
     , m_syntaxHighlighter(nullptr)
     , m_syntaxHighlightingEnabled(true)
+    , m_currentLineHighlightingEnabled(true)
     , m_baseFontSize(15)  // Increased from 10 to 15 (5 steps larger)
     , m_lastLineCount(0)
     , m_isUpdating(false)
@@ -146,6 +150,12 @@ void ExpressionEditor::setupEditor()
     // Initialize syntax highlighting
     m_syntaxHighlighter = new SyntaxHighlighter(document());
     setSyntaxHighlightingEnabled(m_syntaxHighlightingEnabled);
+
+    // Connect cursor position changes to current line highlighting
+    connect(this, &QTextEdit::cursorPositionChanged, this, &ExpressionEditor::highlightCurrentLine);
+
+    // Initial current line highlighting
+    highlightCurrentLine();
 }
 
 void ExpressionEditor::setupConnections()
@@ -889,4 +899,45 @@ bool ExpressionEditor::isColorBlindMode() const
         return m_syntaxHighlighter->isColorBlindMode();
     }
     return false;
+}
+
+// Current line highlighting methods
+void ExpressionEditor::highlightCurrentLine()
+{
+    if (!m_currentLineHighlightingEnabled) {
+        // Clear any existing extra selections if highlighting is disabled
+        setExtraSelections({});
+        return;
+    }
+
+    // Create extra selection for current line highlighting
+    QList<QTextEdit::ExtraSelection> extraSelections;
+
+    QTextEdit::ExtraSelection selection;
+    selection.format.setBackground(s_currentLineBackgroundColor);
+    selection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
+    selection.cursor = textCursor();
+
+    // Clear selection to highlight the entire line
+    if (!selection.cursor.hasSelection()) {
+        selection.cursor.clearSelection();
+    }
+
+    extraSelections.append(selection);
+    setExtraSelections(extraSelections);
+}
+
+void ExpressionEditor::setCurrentLineHighlightingEnabled(bool enabled)
+{
+    if (m_currentLineHighlightingEnabled != enabled) {
+        m_currentLineHighlightingEnabled = enabled;
+
+        // Update highlighting immediately
+        highlightCurrentLine();
+    }
+}
+
+bool ExpressionEditor::isCurrentLineHighlightingEnabled() const noexcept
+{
+    return m_currentLineHighlightingEnabled;
 }

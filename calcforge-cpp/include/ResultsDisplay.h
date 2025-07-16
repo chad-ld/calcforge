@@ -53,6 +53,11 @@ public:
     // Comment line detection (for line number coloring)
     bool isCommentLine(int lineNumber) const;
 
+    // Current line highlighting
+    void highlightCurrentLine(int lineNumber);
+    void setCurrentLineHighlightingEnabled(bool enabled);
+    bool isCurrentLineHighlightingEnabled() const noexcept;
+
 signals:
     void scrollRequested(int value);
 
@@ -83,6 +88,11 @@ private:
 
     // Display state
     bool m_isUpdating;
+
+    // Current line highlighting
+    bool m_currentLineHighlightingEnabled;
+    int m_currentHighlightedLine;
+    static const QColor s_currentLineBackgroundColor;
 };
 
 #endif // RESULTSDISPLAY_H

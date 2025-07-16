@@ -276,6 +276,12 @@ void WorksheetWidget::setupConnections()
     connect(m_editor, &ExpressionEditor::lineCountChanged,
             [this]() { m_results->updateLineCount(m_editor->getLineCount()); });
 
+    // Connect cursor position changes for current line highlighting synchronization
+    connect(m_editor, &QTextEdit::cursorPositionChanged, this, [this]() {
+        int currentLine = m_editor->getCurrentLineNumber();
+        m_results->highlightCurrentLine(currentLine);
+    });
+
     // Connect splitter changes to emit signal for global synchronization
     connect(m_columnsSplitter, &QSplitter::splitterMoved, [this]() {
         if (m_splitterStateRestored) { // Only emit after initial restoration
