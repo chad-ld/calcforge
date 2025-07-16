@@ -1,6 +1,7 @@
 #include "ExpressionEditor.h"
 #include "LineNumberArea.h"
 #include "SyntaxHighlighter.h"
+#include "Logger.h"
 #include <QTextBlock>
 #include <QScrollBar>
 #include <QApplication>
@@ -17,7 +18,8 @@
 // Static color definition for current line highlighting (matches Python version)
 const QColor ExpressionEditor::s_currentLineBackgroundColor = QColor(65, 65, 66);
 #include <algorithm>
-#include <QApplication>
+#include <vector>
+#include <array>
 #include <QClipboard>
 
 // Simple logging function for debugging
@@ -47,6 +49,8 @@ ExpressionEditor::ExpressionEditor(QWidget *parent)
     , m_syntaxHighlighter(nullptr)
     , m_syntaxHighlightingEnabled(true)
     , m_currentLineHighlightingEnabled(true)
+    , m_crossSheetHighlightedLine(-1)
+    , m_crossSheetHighlightColor()
     , m_baseFontSize(15)  // Increased from 10 to 15 (5 steps larger)
     , m_lastLineCount(0)
     , m_isUpdating(false)
@@ -494,6 +498,9 @@ void ExpressionEditor::onCursorPositionChanged()
     if (m_lineNumberArea) {
         m_lineNumberArea->update();
     }
+
+    // Update current line highlighting including LN reference backgrounds
+    highlightCurrentLine();
 }
 
 void ExpressionEditor::updateViewport()
@@ -910,21 +917,159 @@ void ExpressionEditor::highlightCurrentLine()
         return;
     }
 
-    // Create extra selection for current line highlighting
     QList<QTextEdit::ExtraSelection> extraSelections;
 
-    QTextEdit::ExtraSelection selection;
-    selection.format.setBackground(s_currentLineBackgroundColor);
-    selection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
-    selection.cursor = textCursor();
-
-    // Clear selection to highlight the entire line
-    if (!selection.cursor.hasSelection()) {
-        selection.cursor.clearSelection();
+    // Add cross-sheet highlighting if present (before current line highlighting)
+    const int currentLineNumber = getCurrentLineNumber();
+    if (m_crossSheetHighlightedLine > 0 && m_crossSheetHighlightedLine != currentLineNumber) {
+        QTextBlock crossSheetBlock = document()->findBlockByNumber(m_crossSheetHighlightedLine - 1);
+        if (crossSheetBlock.isValid()) {
+            QTextEdit::ExtraSelection crossSheetSelection;
+            // Use the stored LN color with reduced alpha for cross-sheet highlighting
+            QColor crossSheetColor = m_crossSheetHighlightColor.isValid() ? m_crossSheetHighlightColor : s_currentLineBackgroundColor;
+            crossSheetColor.setAlpha(64); // Semi-transparent for cross-sheet
+            crossSheetSelection.format.setBackground(crossSheetColor);
+            crossSheetSelection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
+            crossSheetSelection.cursor = QTextCursor(crossSheetBlock);
+            extraSelections.append(crossSheetSelection);
+        }
     }
 
-    extraSelections.append(selection);
+    // Use C++ strengths: const correctness and efficient algorithms
+    const QString currentLineText = textCursor().block().text();
+
+    // Static regex for performance (compiled once)
+    static const QRegularExpression lnPattern(R"(\bLN(\d+)\b)",
+                                              QRegularExpression::CaseInsensitiveOption);
+
+    // Use STL-style container for efficient LN number collection
+    std::vector<int> referencedLNs;
+    referencedLNs.reserve(4); // Reserve space for typical number of references
+
+    // Collect all LN references efficiently
+    QRegularExpressionMatchIterator iterator = lnPattern.globalMatch(currentLineText);
+    while (iterator.hasNext()) {
+        const QRegularExpressionMatch match = iterator.next();
+        const int lnNumber = match.captured(1).toInt();
+
+        // Check if this LN is part of a cross-sheet reference (S.Sheet.LN1)
+        // Look backwards from the match position to see if there's "S.something."
+        bool isPartOfCrossSheet = false;
+        int startPos = match.capturedStart();
+        if (startPos >= 2) {
+            QString beforeMatch = currentLineText.left(startPos);
+            QRegularExpression crossSheetCheck(R"(S\.[^.]+\.$)", QRegularExpression::CaseInsensitiveOption);
+            if (crossSheetCheck.match(beforeMatch).hasMatch()) {
+                isPartOfCrossSheet = true;
+            }
+        }
+
+        if (!isPartOfCrossSheet) {
+            referencedLNs.push_back(lnNumber);
+        }
+    }
+
+    // Process LN references if any found
+    if (!referencedLNs.empty()) {
+
+        // Pre-allocate selections for better performance
+        extraSelections.reserve(extraSelections.size() + referencedLNs.size() + 1);
+
+        // Use range-based for loop (C++11 strength)
+        for (const int lnNumber : referencedLNs) {
+            // Find the line with this LN number (1-based line numbers)
+            const QTextBlock targetBlock = document()->findBlockByNumber(lnNumber - 1);
+            if (!targetBlock.isValid()) {
+                continue; // Skip invalid blocks
+            }
+
+            // Get the LN color efficiently
+            QColor lnColor;
+            if (m_syntaxHighlighter) {
+                lnColor = m_syntaxHighlighter->getLNColor(lnNumber);
+            } else {
+                // Fallback with static const array for performance
+                static const std::array<QColor, 17> fallbackColors = {{
+                    QColor("#FF6B6B"), QColor("#4ECDC4"), QColor("#45B7D1"), QColor("#96CEB4"),
+                    QColor("#FFEAA7"), QColor("#DDA0DD"), QColor("#98D8C8"), QColor("#F7DC6F"),
+                    QColor("#BB8FCE"), QColor("#85C1E9"), QColor("#F8C471"), QColor("#82E0AA"),
+                    QColor("#F1948A"), QColor("#85CDFD"), QColor("#D7BDE2"), QColor("#A9DFBF"),
+                    QColor("#F9E79F")
+                }};
+                const int colorIndex = (lnNumber - 1) % fallbackColors.size();
+                lnColor = fallbackColors[colorIndex];
+            }
+
+            // Create darker background color using efficient color manipulation
+            QColor bgColor = lnColor.darker(250); // Make it darker
+            bgColor.setAlpha(80); // Make it semi-transparent
+
+            // Create selection with move semantics for efficiency
+            QTextEdit::ExtraSelection lnSelection;
+            lnSelection.format.setBackground(bgColor);
+            lnSelection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
+            lnSelection.cursor = QTextCursor(targetBlock);
+            extraSelections.append(std::move(lnSelection));
+        }
+    }
+
+    // Add current line highlight (always on top)
+    QTextEdit::ExtraSelection currentLineSelection;
+    currentLineSelection.format.setBackground(s_currentLineBackgroundColor);
+    currentLineSelection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
+    currentLineSelection.cursor = textCursor();
+
+    // Clear selection to highlight the entire line
+    if (!currentLineSelection.cursor.hasSelection()) {
+        currentLineSelection.cursor.clearSelection();
+    }
+
+    extraSelections.append(currentLineSelection);
     setExtraSelections(extraSelections);
+}
+
+void ExpressionEditor::highlightSpecificLine(int lineNumber, const QColor &lnColor)
+{
+    // Simple method to highlight a specific line (for cross-sheet highlighting)
+    if (lineNumber < 1) {
+        return;
+    }
+
+    // Store the cross-sheet highlighted line and color for persistence
+    m_crossSheetHighlightedLine = lineNumber;
+    m_crossSheetHighlightColor = lnColor;
+
+    // Get current extra selections and add cross-sheet highlighting
+    QList<QTextEdit::ExtraSelection> extraSelections = this->extraSelections();
+
+    // Find the block for the specified line number (1-based to 0-based conversion)
+    QTextBlock targetBlock = document()->findBlockByNumber(lineNumber - 1);
+    if (targetBlock.isValid()) {
+        QTextEdit::ExtraSelection selection;
+
+        // Use the LN color with reduced alpha for cross-sheet highlighting
+        QColor crossSheetColor = lnColor.isValid() ? lnColor : s_currentLineBackgroundColor;
+        crossSheetColor.setAlpha(64); // Semi-transparent background highlighting
+        selection.format.setBackground(crossSheetColor);
+        selection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
+        selection.cursor = QTextCursor(targetBlock);
+
+        extraSelections.append(selection);
+    }
+
+    setExtraSelections(extraSelections);
+}
+
+void ExpressionEditor::clearCrossSheetHighlighting()
+{
+    // Clear cross-sheet highlighting and refresh current highlighting
+    m_crossSheetHighlightedLine = -1;
+    m_crossSheetHighlightColor = QColor(); // Clear the stored color
+
+    // Refresh current highlighting to remove cross-sheet highlights
+    if (m_currentLineHighlightingEnabled) {
+        highlightCurrentLine();
+    }
 }
 
 void ExpressionEditor::setCurrentLineHighlightingEnabled(bool enabled)
