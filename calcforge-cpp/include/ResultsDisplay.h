@@ -56,6 +56,9 @@ public:
 
     // Current line highlighting
     void highlightCurrentLine(int lineNumber);
+    void highlightCurrentLineWithLNReferences(int lineNumber, const QString &currentLineText);
+    void highlightSpecificLine(int lineNumber, const QColor &lnColor = QColor()); // For cross-sheet highlighting
+    void clearCrossSheetHighlighting(); // Clear cross-sheet highlighting
     void setCurrentLineHighlightingEnabled(bool enabled);
     bool isCurrentLineHighlightingEnabled() const noexcept;
 
@@ -93,6 +96,8 @@ private:
     // Current line highlighting
     bool m_currentLineHighlightingEnabled;
     int m_currentHighlightedLine;
+    int m_crossSheetHighlightedLine; // For cross-sheet highlighting persistence
+    QColor m_crossSheetHighlightColor; // Store the LN color for cross-sheet highlighting
     static const QColor s_currentLineBackgroundColor;
 };
 

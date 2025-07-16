@@ -6,6 +6,7 @@
 #include "DependencyTracker.h"
 #include "LNReferenceAutoUpdater.h"
 #include "LineChangeDetector.h"
+#include "SyntaxHighlighter.h"
 #include "Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -279,7 +280,13 @@ void WorksheetWidget::setupConnections()
     // Connect cursor position changes for current line highlighting synchronization
     connect(m_editor, &QTextEdit::cursorPositionChanged, this, [this]() {
         int currentLine = m_editor->getCurrentLineNumber();
-        m_results->highlightCurrentLine(currentLine);
+        QString currentLineText = m_editor->textCursor().block().text();
+
+        // Highlight current line and LN references in results (local sheet)
+        m_results->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
+
+        // Handle cross-sheet background highlighting
+        handleCrossSheetBackgroundHighlighting(currentLineText);
 
         // Also update the results line number area to show current line styling
         if (m_results->getLineNumberArea()) {
@@ -791,6 +798,118 @@ QString WorksheetWidget::getCurrentSheetName() const
     }
 
     return QString("Unknown");
+}
+
+void WorksheetWidget::handleCrossSheetBackgroundHighlighting(const QString &currentLineText)
+{
+    LOG_DEBUG(QString("handleCrossSheetBackgroundHighlighting called with text: '%1'").arg(currentLineText));
+
+    // First, clear any existing cross-sheet highlighting on all sheets
+    clearAllCrossSheetHighlighting();
+
+    // Find cross-sheet references in the current line
+    QRegularExpression crossSheetPattern(R"(\bS\.([^.]+)\.LN(\d+)\b)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator iterator = crossSheetPattern.globalMatch(currentLineText);
+
+    // Get the MainWindow to access other sheets
+    QWidget *parent = parentWidget();
+    while (parent && !qobject_cast<QMainWindow*>(parent)) {
+        parent = parent->parentWidget();
+    }
+
+    if (!parent) {
+        return; // Can't find MainWindow
+    }
+
+    // Look for a QTabWidget in the parent
+    QTabWidget *tabWidget = parent->findChild<QTabWidget*>();
+    if (!tabWidget) {
+        LOG_DEBUG("Could not find QTabWidget in parent");
+        return; // Can't find tab widget
+    }
+
+    LOG_DEBUG(QString("Found QTabWidget with %1 tabs").arg(tabWidget->count()));
+
+    // Process each cross-sheet reference
+    while (iterator.hasNext()) {
+        QRegularExpressionMatch match = iterator.next();
+        QString sheetName = match.captured(1).trimmed();
+        int lineNumber = match.captured(2).toInt();
+
+        LOG_DEBUG(QString("Found cross-sheet reference: S.%1.LN%2").arg(sheetName).arg(lineNumber));
+
+        // Find the target sheet
+        WorksheetWidget *targetSheet = nullptr;
+        LOG_DEBUG(QString("Looking for sheet '%1' among %2 tabs").arg(sheetName).arg(tabWidget->count()));
+
+        // Log all tab names for debugging
+        QStringList allTabNames;
+        for (int i = 0; i < tabWidget->count(); ++i) {
+            allTabNames << QString("'%1'").arg(tabWidget->tabText(i));
+        }
+        LOG_DEBUG(QString("All tabs: %1").arg(allTabNames.join(", ")));
+
+        for (int i = 0; i < tabWidget->count(); ++i) {
+            QString tabName = tabWidget->tabText(i);
+            LOG_DEBUG(QString("Tab %1: '%2' (comparing with '%3')").arg(i).arg(tabName).arg(sheetName));
+            if (tabName.compare(sheetName, Qt::CaseInsensitive) == 0) {
+                targetSheet = qobject_cast<WorksheetWidget*>(tabWidget->widget(i));
+                LOG_DEBUG(QString("Found matching sheet: '%1'").arg(tabName));
+                break;
+            }
+        }
+
+        if (targetSheet && targetSheet != this) {
+            LOG_DEBUG(QString("Found target sheet '%1', highlighting line %2").arg(sheetName).arg(lineNumber));
+
+            // Get the LN color for this line number
+            QColor lnColor = m_editor->getSyntaxHighlighter()->getLNColor(lineNumber);
+
+            // Highlight on both expression and results sides with the correct LN color
+            targetSheet->getResults()->highlightSpecificLine(lineNumber, lnColor);
+            targetSheet->getEditor()->highlightSpecificLine(lineNumber, lnColor);
+
+            // Also update the target sheet's line number area
+            if (targetSheet->getResults()->getLineNumberArea()) {
+                targetSheet->getResults()->getLineNumberArea()->update();
+            }
+        } else {
+            LOG_DEBUG(QString("Target sheet '%1' not found or is current sheet").arg(sheetName));
+        }
+    }
+}
+
+void WorksheetWidget::clearAllCrossSheetHighlighting()
+{
+    // Get the MainWindow to access other sheets
+    QWidget *parent = parentWidget();
+    while (parent && !qobject_cast<QMainWindow*>(parent)) {
+        parent = parent->parentWidget();
+    }
+
+    if (!parent) {
+        return; // Can't find MainWindow
+    }
+
+    // Look for a QTabWidget in the parent
+    QTabWidget *tabWidget = parent->findChild<QTabWidget*>();
+    if (!tabWidget) {
+        return; // Can't find tab widget
+    }
+
+    // Clear cross-sheet highlighting on all sheets
+    for (int i = 0; i < tabWidget->count(); ++i) {
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(tabWidget->widget(i));
+        if (worksheet) {
+            // Clear highlighting on both results and expression sides
+            if (worksheet->getResults()) {
+                worksheet->getResults()->clearCrossSheetHighlighting();
+            }
+            if (worksheet->getEditor()) {
+                worksheet->getEditor()->clearCrossSheetHighlighting();
+            }
+        }
+    }
 }
 
 void WorksheetWidget::evaluateLines(const QStringList &currentLines, const QSet<int> &changedLines)

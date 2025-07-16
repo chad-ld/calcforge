@@ -37,6 +37,9 @@ public:
     void setColorBlindMode(bool enabled);
     bool isColorBlindMode() const;
 
+    // LN color access (for background highlighting)
+    QColor getLNColor(int lnNumber);
+
 protected:
     void highlightBlock(const QString &text) override;
 
@@ -50,8 +53,7 @@ private:
     void highlightCrossSheetReferences(const QString &text);
     void highlightComments(const QString &text);
 
-    // LN color management
-    QColor getLNColor(int lnNumber);
+    // LN color management (moved to public)
     void initializeLNColors();
 
     // Format creation helpers

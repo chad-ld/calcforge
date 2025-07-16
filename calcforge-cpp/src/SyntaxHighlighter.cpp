@@ -1,5 +1,7 @@
 #include "SyntaxHighlighter.h"
 #include "Logger.h"
+#include <vector>
+#include <algorithm>
 
 // Static color definitions (exact match to Electron version)
 const QColor SyntaxHighlighter::COLOR_NUMBER = QColor("#FFFFFF");
@@ -53,7 +55,7 @@ SyntaxHighlighter::SyntaxHighlighter(QTextDocument *parent)
     // Compile regex patterns for performance
     m_numberPattern = QRegularExpression(R"(\b\d+(?:\.\d+)?\b)");
     m_operatorPattern = QRegularExpression(R"(\bto\b|[+\-*/%^=])");
-    m_lnPattern = QRegularExpression(R"((?<!S\.[^.]*\.)LN(\d+)\b)", QRegularExpression::CaseInsensitiveOption);
+    m_lnPattern = QRegularExpression(R"(\bLN(\d+)\b)", QRegularExpression::CaseInsensitiveOption);
     m_crossSheetPattern = QRegularExpression(R"(S\.[^.]+\.LN\d+\b)", QRegularExpression::CaseInsensitiveOption);
     m_commentPattern = QRegularExpression(R"(^:::.*$)");
 
@@ -90,13 +92,13 @@ void SyntaxHighlighter::highlightBlock(const QString &text)
         return;
     }
 
-    // Apply all highlighting in order of precedence
+    // Apply highlighting in order of precedence (LN variables have high priority)
     highlightNumbers(text);
     highlightOperators(text);
     highlightFunctions(text);
     highlightParentheses(text);
+    highlightLNReferences(text);        // Higher priority than cross-sheet
     highlightCrossSheetReferences(text);
-    highlightLNReferences(text);
 }
 
 void SyntaxHighlighter::highlightNumbers(const QString &text)
@@ -137,32 +139,71 @@ void SyntaxHighlighter::highlightParentheses(const QString &text)
 
 void SyntaxHighlighter::highlightLNReferences(const QString &text)
 {
+    // Use C++ strengths: efficient iteration and strong typing
     QRegularExpressionMatchIterator iterator = m_lnPattern.globalMatch(text);
+
+    // Pre-allocate vector for better performance with known capacity
+    std::vector<std::pair<int, int>> lnMatches;
+    lnMatches.reserve(8); // Reserve space for typical number of LN refs per line
+
+    // First pass: collect all LN matches for efficient processing
     while (iterator.hasNext()) {
-        QRegularExpressionMatch match = iterator.next();
-        int lnNumber = match.captured(1).toInt();
-        
-        // Get or create format for this LN number
+        const QRegularExpressionMatch match = iterator.next();
+        const int lnNumber = match.captured(1).toInt();
+        const int startPos = match.capturedStart();
+        const int length = match.capturedLength();
+
+        // Always color LN variables, even in cross-sheet references
+        // This ensures s.data.LN1 shows LN1 in the proper color
+
+        // Get or create format for this LN number using efficient caching
         QTextCharFormat format;
-        if (m_lnFormatCache.contains(lnNumber)) {
-            format = m_lnFormatCache[lnNumber];
+        auto cacheIt = m_lnFormatCache.constFind(lnNumber);
+        if (cacheIt != m_lnFormatCache.constEnd()) {
+            format = cacheIt.value();
         } else {
-            QColor color = getLNColor(lnNumber);
+            const QColor color = getLNColor(lnNumber);
             format = createFormat(color, true); // Very bold for LN variables
             format.setFontWeight(QFont::Black); // Extra bold (900 weight)
-            m_lnFormatCache[lnNumber] = format;
+
+            // Use efficient insert for caching
+            m_lnFormatCache.insert(lnNumber, format);
         }
-        
-        applyFormat(match.capturedStart(), match.capturedLength(), format);
+
+        // Apply format immediately for better visual feedback
+        applyFormat(startPos, length, format);
+
+        // Store for potential background highlighting
+        lnMatches.emplace_back(lnNumber, startPos);
     }
+
+
 }
 
 void SyntaxHighlighter::highlightCrossSheetReferences(const QString &text)
 {
-    QRegularExpressionMatchIterator iterator = m_crossSheetPattern.globalMatch(text);
+    // Pattern to match cross-sheet references and capture parts separately
+    QRegularExpression detailedPattern(R"(\b(S\.)([^.]+)(\.)LN(\d+)\b)", QRegularExpression::CaseInsensitiveOption);
+    QRegularExpressionMatchIterator iterator = detailedPattern.globalMatch(text);
+
     while (iterator.hasNext()) {
         QRegularExpressionMatch match = iterator.next();
-        applyFormat(match.capturedStart(), match.capturedLength(), m_crossSheetFormat);
+
+        // Only highlight the "S.sheetname." part, leave "LN1" with its LN color
+        int sPartStart = match.capturedStart(1); // "S."
+        int sheetNameStart = match.capturedStart(2); // sheet name
+        int dotStart = match.capturedStart(3); // "."
+
+        // Highlight "S." part
+        applyFormat(sPartStart, match.capturedLength(1), m_crossSheetFormat);
+
+        // Highlight sheet name part
+        applyFormat(sheetNameStart, match.capturedLength(2), m_crossSheetFormat);
+
+        // Highlight "." part
+        applyFormat(dotStart, match.capturedLength(3), m_crossSheetFormat);
+
+        // Don't highlight the LN part - it's already colored by highlightLNReferences
     }
 }
 
@@ -174,19 +215,26 @@ void SyntaxHighlighter::highlightComments(const QString &text)
 
 QColor SyntaxHighlighter::getLNColor(int lnNumber)
 {
-    // Check cache first
-    if (m_lnColorCache.contains(lnNumber)) {
-        return m_lnColorCache[lnNumber];
+    // Use C++ strengths: efficient const lookup with iterators
+    auto cacheIt = m_lnColorCache.constFind(lnNumber);
+    if (cacheIt != m_lnColorCache.constEnd()) {
+        return cacheIt.value();
     }
 
-    // Calculate color index (0-based)
+    // Assign color based on the order of appearance (like Python version)
+    // Use const reference for efficiency and strong typing
     const QStringList &colors = m_colorBlindMode ? LN_COLORS_COLORBLIND : LN_COLORS_NORMAL;
-    int colorIndex = (lnNumber - 1) % colors.size();
-    QColor color(colors[colorIndex]);
-    
-    // Cache the color
-    m_lnColorCache[lnNumber] = color;
-    
+    const int colorIndex = m_lnColorCache.size() % colors.size();
+
+    // Ensure we have valid colors array
+    Q_ASSERT(!colors.isEmpty());
+    Q_ASSERT(colorIndex >= 0 && colorIndex < colors.size());
+
+    const QColor color(colors.at(colorIndex)); // Use at() for bounds checking in debug
+
+    // Cache the color using efficient insert
+    m_lnColorCache.insert(lnNumber, color);
+
     return color;
 }
 
