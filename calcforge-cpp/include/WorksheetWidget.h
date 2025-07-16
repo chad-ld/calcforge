@@ -63,10 +63,14 @@ public slots:
 
 public:
     void forceRecalculation();
+    void handleCrossSheetBackgroundHighlighting(const QString &currentLineText);
 
 private slots:
     void syncEditorToResults(int value);
     void syncResultsToEditor(int value);
+
+private:
+    void clearAllCrossSheetHighlighting();
 
 protected:
     void showEvent(QShowEvent *event) override;

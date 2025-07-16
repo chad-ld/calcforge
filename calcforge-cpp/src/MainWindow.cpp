@@ -18,6 +18,7 @@
 #include <QIcon>
 #include <QMouseEvent>
 #include <QKeyEvent>
+#include <QTextBlock>
 #include <QInputDialog>
 #include <QLineEdit>
 #include <QTabBar>
@@ -635,6 +636,18 @@ void MainWindow::onTabChanged(int index)
             if (worksheet) {  // Check if worksheet is still valid
                 worksheet->getEditor()->horizontalScrollBar()->setValue(0);
                 worksheet->getResults()->horizontalScrollBar()->setValue(0);
+
+                // Trigger initial cross-sheet highlighting for current cursor position
+                // This ensures cross-sheet references are highlighted immediately on tab switch
+                int currentLine = worksheet->getEditor()->getCurrentLineNumber();
+                QString currentLineText = worksheet->getEditor()->textCursor().block().text();
+
+                // Trigger the same highlighting logic as cursor position changes
+                worksheet->getResults()->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
+                worksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
+
+                LOG_DEBUG(QString("onTabChanged: Triggered initial cross-sheet highlighting for line %1: '%2'")
+                          .arg(currentLine).arg(currentLineText));
             }
         });
     }
@@ -853,6 +866,18 @@ void MainWindow::loadWorksheets()
                 if (firstWorksheet) {  // Check if worksheet is still valid
                     firstWorksheet->getEditor()->horizontalScrollBar()->setValue(0);
                     firstWorksheet->getResults()->horizontalScrollBar()->setValue(0);
+
+                    // Trigger initial cross-sheet highlighting for current cursor position on app startup
+                    // This ensures cross-sheet references are highlighted immediately when app loads
+                    int currentLine = firstWorksheet->getEditor()->getCurrentLineNumber();
+                    QString currentLineText = firstWorksheet->getEditor()->textCursor().block().text();
+
+                    // Trigger the same highlighting logic as cursor position changes
+                    firstWorksheet->getResults()->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
+                    firstWorksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
+
+                    LOG_DEBUG(QString("App startup: Triggered initial cross-sheet highlighting for line %1: '%2'")
+                              .arg(currentLine).arg(currentLineText));
                 }
             });
         }
