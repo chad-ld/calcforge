@@ -588,24 +588,35 @@ void ResultsDisplay::highlightSpecificLine(int lineNumber, const QColor &lnColor
     m_crossSheetHighlightedLine = lineNumber;
     m_crossSheetHighlightColor = lnColor;
 
-    // Create extra selection for the specified line
-    QList<QTextEdit::ExtraSelection> extraSelections = this->extraSelections();
+    // Refresh the current highlighting to include the cross-sheet highlight
+    // This ensures proper coordination with existing highlights
+    if (m_currentLineHighlightingEnabled && m_currentHighlightedLine > 0) {
+        // Get current line text to refresh all highlighting properly
+        QTextBlock currentBlock = document()->findBlockByNumber(m_currentHighlightedLine - 1);
+        if (currentBlock.isValid()) {
+            QString currentLineText = currentBlock.text();
+            highlightCurrentLineWithLNReferences(m_currentHighlightedLine, currentLineText);
+        }
+    } else {
+        // No current line highlighting, just show the cross-sheet highlight
+        QList<QTextEdit::ExtraSelection> extraSelections;
 
-    // Find the block for the specified line number (1-based to 0-based conversion)
-    QTextBlock targetBlock = document()->findBlockByNumber(lineNumber - 1);
-    if (targetBlock.isValid()) {
-        QTextEdit::ExtraSelection selection;
-        // Use the LN color with reduced alpha for cross-sheet highlighting
-        QColor crossSheetColor = lnColor;
-        crossSheetColor.setAlpha(64); // Semi-transparent background highlighting
-        selection.format.setBackground(crossSheetColor);
-        selection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
-        selection.cursor = QTextCursor(targetBlock);
+        // Find the block for the specified line number (1-based to 0-based conversion)
+        QTextBlock targetBlock = document()->findBlockByNumber(lineNumber - 1);
+        if (targetBlock.isValid()) {
+            QTextEdit::ExtraSelection selection;
+            // Use the LN color with reduced alpha for cross-sheet highlighting
+            QColor crossSheetColor = lnColor;
+            crossSheetColor.setAlpha(64); // Semi-transparent background highlighting
+            selection.format.setBackground(crossSheetColor);
+            selection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
+            selection.cursor = QTextCursor(targetBlock);
 
-        extraSelections.append(selection);
+            extraSelections.append(selection);
+        }
+
+        setExtraSelections(extraSelections);
     }
-
-    setExtraSelections(extraSelections);
 }
 
 void ResultsDisplay::clearCrossSheetHighlighting()
