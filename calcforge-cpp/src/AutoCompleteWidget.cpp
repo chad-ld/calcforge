@@ -874,6 +874,13 @@ QString AutoCompleteManager::getContextType()
         LOG_DEBUG("AutoCompleteManager::getContextType: Regex did not match");
     }
 
+    // PRIORITY: Check for cross-sheet function context (S.)
+    if (textBeforeCursor.endsWith("S.") || textBeforeCursor.endsWith("s.")) {
+        LOG_DEBUG("AutoCompleteManager::getContextType: Cross-sheet function context (S.) - returning 'function_param'");
+        m_currentContext = "function_param:S";
+        return "function_param";
+    }
+
     // PRIORITY: Check if we're after a number (for units/currencies) - this takes precedence
     if (isAfterNumber() || isAfterConversionTo()) {
         LOG_DEBUG("AutoCompleteManager::getContextType: After number or conversion 'to' - returning 'unit'");
@@ -985,7 +992,7 @@ QStringList AutoCompleteManager::filterCompletions(const QString &prefix, const 
 
         LOG_DEBUG(QString("AutoCompleteManager: Function parameter completion for '%1'").arg(functionName));
 
-        if (functionName == "s") {
+        if (functionName.toLower() == "s") {
             // Cross-sheet completion - show available sheets
             results = getAvailableSheets();
         }
@@ -1154,7 +1161,7 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
     if (context == "function_param") {
         QString functionName = m_currentContext.split(":").last();
 
-        if (functionName == "s") {
+        if (functionName.toLower() == "s") {
             // Cross-sheet completion: insert S.SheetName.LN1
             QString insertion = QString("S.%1.LN1").arg(completion);
             replaceCurrentWord(insertion);
