@@ -11,6 +11,8 @@
 #include <QFileDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
+#include <QJsonValue>
 #include <QStandardPaths>
 #include <QDir>
 #include <QIcon>
@@ -793,8 +795,8 @@ void MainWindow::loadWorksheets()
         return;
     }
 
-    QJsonObject worksheets = doc.object();
-    if (worksheets.isEmpty()) {
+    QJsonObject root = doc.object();
+    if (root.isEmpty()) {
         // Empty file, keep default tab
         return;
     }
@@ -804,92 +806,34 @@ void MainWindow::loadWorksheets()
         m_tabWidget->removeTab(0);
     }
 
-    // Load worksheets from JSON
-    for (auto it = worksheets.begin(); it != worksheets.end(); ++it) {
-        QString tabName = it.key();
-        QString content = it.value().toString();
+    // Check if this is the new format (version 2.0 with tabs array)
+    if (root.contains("version") && root.contains("tabs") && root["tabs"].isArray()) {
+        // New format: load tabs in order from array
+        QJsonArray tabsArray = root["tabs"].toArray();
 
-        // Create new worksheet
-        WorksheetWidget *worksheet = new WorksheetWidget(this);
-        worksheet->setContent(content);
+        for (const QJsonValue &tabValue : tabsArray) {
+            if (!tabValue.isObject()) {
+                continue; // Skip invalid entries
+            }
 
-        // Apply current global font size to loaded tab
-        QFont editorFont = worksheet->getEditor()->font();
-        QFont resultsFont = worksheet->getResults()->font();
-        editorFont.setPixelSize(m_globalFontSize);
-        resultsFont.setPixelSize(m_globalFontSize);
-        worksheet->getEditor()->setFont(editorFont);
-        worksheet->getResults()->setFont(resultsFont);
+            QJsonObject tabObject = tabValue.toObject();
+            if (!tabObject.contains("name") || !tabObject.contains("content")) {
+                continue; // Skip incomplete entries
+            }
 
-        int index = m_tabWidget->addTab(worksheet, tabName);
+            QString tabName = tabObject["name"].toString();
+            QString content = tabObject["content"].toString();
 
-        // Connect font size signals from the expression editor
-        connect(worksheet->getEditor(), &ExpressionEditor::fontSizeIncreaseRequested,
-                this, &MainWindow::increaseFontSize);
-        connect(worksheet->getEditor(), &ExpressionEditor::fontSizeDecreaseRequested,
-                this, &MainWindow::decreaseFontSize);
-        connect(worksheet->getEditor(), &ExpressionEditor::fontSizeResetRequested,
-                this, &MainWindow::resetFontSize);
-
-        // Create custom close button for this tab (same as addTab method)
-        QTabBar *tabBar = m_tabWidget->tabBar();
-        if (tabBar) {
-            QWidget *buttonContainer = new QWidget(this);
-            buttonContainer->setFixedSize(26, 20);
-
-            QHBoxLayout *buttonLayout = new QHBoxLayout(buttonContainer);
-            buttonLayout->setContentsMargins(0, 0, 8, 0);
-            buttonLayout->setSpacing(0);
-            buttonLayout->addStretch();
-
-            QPushButton *closeButton = new QPushButton("×", buttonContainer);
-            closeButton->setFixedSize(12, 12);
-            closeButton->setStyleSheet(
-                "QPushButton {"
-                "  background-color: transparent;"
-                "  color: #9CA3AF;"
-                "  border: none;"
-                "  font-size: 10px;"
-                "  font-weight: bold;"
-                "  border-radius: 2px;"
-                "}"
-                "QPushButton:hover {"
-                "  background-color: #da3633;"
-                "  color: #ffffff;"
-                "}"
-            );
-            closeButton->setToolTip("Close tab");
-
-            connect(closeButton, &QPushButton::clicked, [this, buttonContainer]() {
-                QTabBar *tabBar = m_tabWidget->tabBar();
-                for (int i = 0; i < tabBar->count(); ++i) {
-                    if (tabBar->tabButton(i, QTabBar::RightSide) == buttonContainer) {
-                        closeTab(i);
-                        break;
-                    }
-                }
-            });
-
-            buttonLayout->addWidget(closeButton);
-            tabBar->setTabButton(index, QTabBar::RightSide, buttonContainer);
+            loadSingleWorksheet(tabName, content);
         }
+    } else {
+        // Legacy format: load tabs from object keys (order not preserved)
+        for (auto it = root.begin(); it != root.end(); ++it) {
+            QString tabName = it.key();
+            QString content = it.value().toString();
 
-        // Set up cross-sheet reference support
-        setupCrossSheetSupport(worksheet);
-
-        // Always set splitter state (either restored or default)
-        LOG_DEBUG(QString("Setting splitter state for loaded worksheet - state size: %1 bytes, content: '%2'")
-                  .arg(m_splitterState.size()).arg(QString::fromUtf8(m_splitterState)));
-        worksheet->setSplitterState(m_splitterState);
-
-        // Connect splitter changes to update global state and sync all tabs
-        connect(worksheet, &WorksheetWidget::splitterMoved, this, &MainWindow::onSplitterMoved);
-
-        // Connect line numbering changes for cross-sheet LN auto-updates
-        connect(worksheet, &WorksheetWidget::lineNumberingChanged, this, &MainWindow::onLineNumberingChanged);
-
-        // Connect value changes for cross-sheet recalculation
-        connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+            loadSingleWorksheet(tabName, content);
+        }
     }
 
     // After all worksheets are loaded, trigger coordinated cross-sheet calculation
@@ -915,27 +859,124 @@ void MainWindow::loadWorksheets()
     }
 }
 
+void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &content)
+{
+    // Create new worksheet
+    WorksheetWidget *worksheet = new WorksheetWidget(this);
+    worksheet->setContent(content);
+
+    // Apply current global font size to loaded tab
+    QFont editorFont = worksheet->getEditor()->font();
+    QFont resultsFont = worksheet->getResults()->font();
+    editorFont.setPixelSize(m_globalFontSize);
+    resultsFont.setPixelSize(m_globalFontSize);
+    worksheet->getEditor()->setFont(editorFont);
+    worksheet->getResults()->setFont(resultsFont);
+
+    int index = m_tabWidget->addTab(worksheet, tabName);
+
+    // Connect font size signals from the expression editor
+    connect(worksheet->getEditor(), &ExpressionEditor::fontSizeIncreaseRequested,
+            this, &MainWindow::increaseFontSize);
+    connect(worksheet->getEditor(), &ExpressionEditor::fontSizeDecreaseRequested,
+            this, &MainWindow::decreaseFontSize);
+    connect(worksheet->getEditor(), &ExpressionEditor::fontSizeResetRequested,
+            this, &MainWindow::resetFontSize);
+
+    // Create custom close button for this tab (same as addTab method)
+    QTabBar *tabBar = m_tabWidget->tabBar();
+    if (tabBar) {
+        QWidget *buttonContainer = new QWidget(this);
+        buttonContainer->setFixedSize(26, 20);
+
+        QHBoxLayout *buttonLayout = new QHBoxLayout(buttonContainer);
+        buttonLayout->setContentsMargins(0, 0, 8, 0);
+        buttonLayout->setSpacing(0);
+        buttonLayout->addStretch();
+
+        QPushButton *closeButton = new QPushButton("×", buttonContainer);
+        closeButton->setFixedSize(12, 12);
+        closeButton->setStyleSheet(
+            "QPushButton {"
+            "  background-color: transparent;"
+            "  color: #9CA3AF;"
+            "  border: none;"
+            "  font-size: 10px;"
+            "  font-weight: bold;"
+            "  border-radius: 2px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #da3633;"
+            "  color: #ffffff;"
+            "}"
+        );
+        closeButton->setToolTip("Close tab");
+
+        connect(closeButton, &QPushButton::clicked, [this, buttonContainer]() {
+            QTabBar *tabBar = m_tabWidget->tabBar();
+            for (int i = 0; i < tabBar->count(); ++i) {
+                if (tabBar->tabButton(i, QTabBar::RightSide) == buttonContainer) {
+                    closeTab(i);
+                    break;
+                }
+            }
+        });
+
+        buttonLayout->addWidget(closeButton);
+        tabBar->setTabButton(index, QTabBar::RightSide, buttonContainer);
+    }
+
+    // Set up cross-sheet reference support
+    setupCrossSheetSupport(worksheet);
+
+    // Always set splitter state (either restored or default)
+    LOG_DEBUG(QString("Setting splitter state for loaded worksheet - state size: %1 bytes, content: '%2'")
+              .arg(m_splitterState.size()).arg(QString::fromUtf8(m_splitterState)));
+    worksheet->setSplitterState(m_splitterState);
+
+    // Connect splitter changes to update global state and sync all tabs
+    connect(worksheet, &WorksheetWidget::splitterMoved, this, &MainWindow::onSplitterMoved);
+
+    // Connect line numbering changes for cross-sheet LN auto-updates
+    connect(worksheet, &WorksheetWidget::lineNumberingChanged, this, &MainWindow::onLineNumberingChanged);
+
+    // Connect value changes for cross-sheet recalculation
+    connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+}
+
 void MainWindow::saveWorksheets()
 {
     // Get the path to worksheets.json in the same directory as the executable
     QString appDir = QCoreApplication::applicationDirPath();
     QString worksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
 
-    QJsonObject worksheets;
+    // Create new format with version and ordered tabs array
+    QJsonObject root;
+    root["version"] = "2.0";
 
-    // Collect data from all tabs
+    QJsonArray tabsArray;
+
+    // Collect data from all tabs in their current order
     for (int i = 0; i < m_tabWidget->count(); ++i) {
         QString tabName = m_tabWidget->tabText(i);
         WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
 
         if (worksheet) {
             QString content = worksheet->getContent();
-            worksheets[tabName] = content;
+
+            // Create tab object with name and content
+            QJsonObject tabObject;
+            tabObject["name"] = tabName;
+            tabObject["content"] = content;
+
+            tabsArray.append(tabObject);
         }
     }
 
+    root["tabs"] = tabsArray;
+
     // Create JSON document
-    QJsonDocument doc(worksheets);
+    QJsonDocument doc(root);
 
     // Write to file
     QFile file(worksheetsPath);
