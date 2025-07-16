@@ -92,6 +92,7 @@ private:
 
     // Cross-sheet reference support
     WorksheetWidget* getSheetByName(const QString &sheetName) const;
+    void highlightIncomingCrossSheetReferences(WorksheetWidget *targetSheet);
     void triggerCrossSheetRecalculation();
     void recalculateAllWorksheets();
     bool updateCrossSheetReferences(WorksheetWidget *worksheet, const QString &changedSheetName, const QList<LineChange> &changes);

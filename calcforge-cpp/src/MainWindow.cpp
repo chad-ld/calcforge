@@ -3,6 +3,8 @@
 #include "ExpressionEditor.h"
 #include "ResultsDisplay.h"
 #include "CalculationEngine.h"
+#include "SyntaxHighlighter.h"
+#include "LineNumberArea.h"
 #include "CurrencyConverter.h"
 #include "LineChangeDetector.h"
 #include "Logger.h"
@@ -637,17 +639,27 @@ void MainWindow::onTabChanged(int index)
                 worksheet->getEditor()->horizontalScrollBar()->setValue(0);
                 worksheet->getResults()->horizontalScrollBar()->setValue(0);
 
-                // Trigger initial cross-sheet highlighting for current cursor position
-                // This ensures cross-sheet references are highlighted immediately on tab switch
+                // Trigger initial highlighting for the current tab
                 int currentLine = worksheet->getEditor()->getCurrentLineNumber();
                 QString currentLineText = worksheet->getEditor()->textCursor().block().text();
 
-                // Trigger the same highlighting logic as cursor position changes
+                // Highlight local LN references on the current tab
                 worksheet->getResults()->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
+
+                // Handle outgoing cross-sheet references (from current tab to other tabs)
                 worksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
 
-                LOG_DEBUG(QString("onTabChanged: Triggered initial cross-sheet highlighting for line %1: '%2'")
+                LOG_DEBUG(QString("onTabChanged: Triggered outgoing cross-sheet highlighting for line %1: '%2'")
                           .arg(currentLine).arg(currentLineText));
+            }
+        });
+
+        // Handle incoming cross-sheet references (from other tabs to current tab)
+        // This needs to be outside the QTimer::singleShot to access 'this'
+        QTimer::singleShot(10, [this, worksheet]() {
+            if (worksheet) {  // Check if worksheet is still valid
+                highlightIncomingCrossSheetReferences(worksheet);
+                LOG_DEBUG("onTabChanged: Triggered incoming cross-sheet highlighting");
             }
         });
     }
@@ -1611,6 +1623,75 @@ void MainWindow::setupCrossSheetSupport(WorksheetWidget *worksheet)
     }
 
     LOG_DEBUG(QString("setupCrossSheetSupport: Set up cross-sheet support for sheet: %1").arg(tabName));
+}
+
+void MainWindow::highlightIncomingCrossSheetReferences(WorksheetWidget *targetSheet)
+{
+    if (!targetSheet) {
+        return;
+    }
+
+    // Get the name of the target sheet
+    QString targetSheetName;
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        if (m_tabWidget->widget(i) == targetSheet) {
+            targetSheetName = m_tabWidget->tabText(i);
+            break;
+        }
+    }
+
+    if (targetSheetName.isEmpty()) {
+        LOG_DEBUG("highlightIncomingCrossSheetReferences: Could not find target sheet name");
+        return;
+    }
+
+    LOG_DEBUG(QString("highlightIncomingCrossSheetReferences: Looking for references to sheet '%1'").arg(targetSheetName));
+
+    // Clear any existing cross-sheet highlighting first
+    targetSheet->getResults()->clearCrossSheetHighlighting();
+    targetSheet->getEditor()->clearCrossSheetHighlighting();
+
+    // Pattern to find cross-sheet references to this target sheet
+    QRegularExpression crossSheetPattern(QString(R"(\bS\.%1\.LN(\d+)\b)").arg(QRegularExpression::escape(targetSheetName)),
+                                        QRegularExpression::CaseInsensitiveOption);
+
+    // Check all other tabs for references to the target sheet
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget *sourceSheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+        if (!sourceSheet || sourceSheet == targetSheet) {
+            continue; // Skip the target sheet itself
+        }
+
+        QString sourceSheetName = m_tabWidget->tabText(i);
+
+        // Get the current line from the source sheet
+        int currentLine = sourceSheet->getEditor()->getCurrentLineNumber();
+        QString currentLineText = sourceSheet->getEditor()->textCursor().block().text();
+
+        LOG_DEBUG(QString("Checking sheet '%1' line %2: '%3'").arg(sourceSheetName).arg(currentLine).arg(currentLineText));
+
+        // Find cross-sheet references in the current line of the source sheet
+        QRegularExpressionMatchIterator iterator = crossSheetPattern.globalMatch(currentLineText);
+        while (iterator.hasNext()) {
+            QRegularExpressionMatch match = iterator.next();
+            int referencedLineNumber = match.captured(1).toInt();
+
+            LOG_DEBUG(QString("Found reference from '%1' line %2 to '%3' line %4")
+                      .arg(sourceSheetName).arg(currentLine).arg(targetSheetName).arg(referencedLineNumber));
+
+            // Get the LN color for this line number from the source sheet
+            QColor lnColor = sourceSheet->getEditor()->getSyntaxHighlighter()->getLNColor(referencedLineNumber);
+
+            // Highlight the referenced line on the target sheet
+            targetSheet->getResults()->highlightSpecificLine(referencedLineNumber, lnColor);
+            targetSheet->getEditor()->highlightSpecificLine(referencedLineNumber, lnColor);
+
+            // Update the target sheet's line number area
+            if (targetSheet->getResults()->getLineNumberArea()) {
+                targetSheet->getResults()->getLineNumberArea()->update();
+            }
+        }
+    }
 }
 
 void MainWindow::triggerCrossSheetRecalculation()
