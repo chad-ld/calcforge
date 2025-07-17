@@ -12,6 +12,8 @@
 #include <QSplitter>
 #include <QListWidget>
 #include <QScrollBar>
+#include <QClipboard>
+#include <QTimer>
 
 class HelpDialog : public QDialog
 {
@@ -24,6 +26,7 @@ public:
 private slots:
     void onTopicSelected(int row);
     void closeDialog();
+    void copyFilePathToClipboard();
 
 private:
     void setupUI();
@@ -39,11 +42,15 @@ private:
     QListWidget *m_topicList;
     QTextEdit *m_contentArea;
     QPushButton *m_closeButton;
+    QPushButton *m_clipboardButton;
     QLabel *m_filePathLabel;
     
     // Content storage
     QStringList m_topicTitles;
     QStringList m_topicContents;
+
+    // File path storage for clipboard functionality
+    QString m_currentFilePath;
 };
 
 #endif // HELPDIALOG_H

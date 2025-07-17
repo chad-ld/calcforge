@@ -3,6 +3,9 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QFileInfo>
+#include <QApplication>
+#include <QClipboard>
+#include <QTimer>
 
 HelpDialog::HelpDialog(QWidget *parent)
     : QDialog(parent)
@@ -12,6 +15,7 @@ HelpDialog::HelpDialog(QWidget *parent)
     , m_topicList(nullptr)
     , m_contentArea(nullptr)
     , m_closeButton(nullptr)
+    , m_clipboardButton(nullptr)
     , m_filePathLabel(nullptr)
 {
     setupUI();
@@ -77,6 +81,31 @@ void HelpDialog::setupUI()
     );
 
     m_buttonLayout->addWidget(m_filePathLabel);
+
+    // Clipboard button (small, next to file path)
+    m_clipboardButton = new QPushButton("📋", this);
+    m_clipboardButton->setFixedSize(24, 24);
+    m_clipboardButton->setToolTip("Copy file path to clipboard");
+    m_clipboardButton->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #21262d;"
+        "  color: #e6edf3;"
+        "  border: 1px solid #30363d;"
+        "  border-radius: 4px;"
+        "  padding: 2px;"
+        "  font-size: 12px;"
+        "  margin-left: 8px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #30363d;"
+        "}"
+        "QPushButton:pressed {"
+        "  background-color: #0c7ff2;"
+        "}"
+    );
+    connect(m_clipboardButton, &QPushButton::clicked, this, &HelpDialog::copyFilePathToClipboard);
+    m_buttonLayout->addWidget(m_clipboardButton);
+
     m_buttonLayout->addStretch();
 
     m_closeButton = new QPushButton("Close", this);
@@ -675,12 +704,44 @@ void HelpDialog::setCurrentFilePath(const QString &filePath)
     if (m_filePathLabel) {
         if (filePath.isEmpty()) {
             m_filePathLabel->setText("No file loaded");
+            // Disable clipboard button when no file is loaded
+            if (m_clipboardButton) {
+                m_clipboardButton->setEnabled(false);
+            }
         } else {
             // Show just the filename and directory for better readability
             QFileInfo fileInfo(filePath);
             QString displayPath = QString("Current file: %1").arg(filePath);
             m_filePathLabel->setText(displayPath);
             m_filePathLabel->setToolTip(filePath); // Full path in tooltip
+            // Enable clipboard button when file is loaded
+            if (m_clipboardButton) {
+                m_clipboardButton->setEnabled(true);
+            }
         }
+    }
+
+    // Store the current file path for clipboard copying
+    m_currentFilePath = filePath;
+}
+
+void HelpDialog::copyFilePathToClipboard()
+{
+    if (!m_currentFilePath.isEmpty()) {
+        QClipboard *clipboard = QApplication::clipboard();
+        clipboard->setText(m_currentFilePath);
+
+        // Provide visual feedback by temporarily changing the button text
+        QString originalText = m_clipboardButton->text();
+        m_clipboardButton->setText("✓");
+        m_clipboardButton->setToolTip("Copied to clipboard!");
+
+        // Reset the button after a short delay
+        QTimer::singleShot(1000, [this, originalText]() {
+            if (m_clipboardButton) {
+                m_clipboardButton->setText(originalText);
+                m_clipboardButton->setToolTip("Copy file path to clipboard");
+            }
+        });
     }
 }
