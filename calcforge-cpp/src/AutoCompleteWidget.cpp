@@ -632,6 +632,15 @@ void AutoCompleteManager::showAutocomplete()
         return;
     }
 
+    // Check if we're on a comment line - disable autocomplete for comments
+    QTextCursor commentCursor = m_editor->textCursor();
+    QString commentLineText = commentCursor.block().text().trimmed();
+    if (commentLineText.startsWith(":::")) {
+        LOG_DEBUG("AutoCompleteManager: On comment line - hiding autocomplete");
+        hideAutocomplete();
+        return;
+    }
+
     QString currentWord = getCurrentWord();
     QString context = getContextType();
 
@@ -743,6 +752,15 @@ void AutoCompleteManager::handleTextChanged()
 
     if (!m_editor) {
         LOG_DEBUG("AutoCompleteManager: No editor available in handleTextChanged");
+        return;
+    }
+
+    // Check if we're on a comment line - disable autocomplete for comments
+    QTextCursor commentCheckCursor = m_editor->textCursor();
+    QString commentCheckLineText = commentCheckCursor.block().text().trimmed();
+    if (commentCheckLineText.startsWith(":::")) {
+        LOG_DEBUG("AutoCompleteManager: On comment line - hiding autocomplete");
+        hideAutocomplete();
         return;
     }
 

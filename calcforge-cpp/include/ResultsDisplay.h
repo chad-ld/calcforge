@@ -57,6 +57,7 @@ public:
     // Current line highlighting
     void highlightCurrentLine(int lineNumber);
     void highlightCurrentLineWithLNReferences(int lineNumber, const QString &currentLineText);
+    void highlightCurrentLineWithLNReferencesFromEditor(int lineNumber, const QString &currentLineText, class ExpressionEditor* editor); // Enhanced version with consistent LN colors
     void highlightCurrentLineFromEditor(class ExpressionEditor* editor); // New cursor-based approach
     void highlightSpecificLine(int lineNumber, const QColor &lnColor = QColor()); // For cross-sheet highlighting
     void clearCrossSheetHighlighting(); // Clear cross-sheet highlighting
