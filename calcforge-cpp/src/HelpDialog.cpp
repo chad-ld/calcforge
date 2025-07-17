@@ -92,7 +92,7 @@ void HelpDialog::setupUI()
         "  border-radius: 4px;"
         "  padding: 2px;"
         "  font-size: 12px;"
-        "  margin-right: 8px;"
+        "  margin-right: 4px;"
         "}"
         "QPushButton:hover {"
         "  background-color: #30363d;"
