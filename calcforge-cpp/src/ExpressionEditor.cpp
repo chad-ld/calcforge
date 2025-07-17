@@ -504,6 +504,12 @@ void ExpressionEditor::keyPressEvent(QKeyEvent *event)
         }
     }
 
+    // Handle Enter key specially to preserve scroll position and highlighting
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        handleEnterKey(event);
+        return;
+    }
+
     // Handle other key events
     QTextEdit::keyPressEvent(event);
 
@@ -520,6 +526,38 @@ void ExpressionEditor::keyPressEvent(QKeyEvent *event)
         LOG_DEBUG(QString("ExpressionEditor: Autocomplete not triggered - enabled: %1, manager: %2, text: '%3'")
                   .arg(m_autoCompleteEnabled).arg(m_autoCompleteManager != nullptr).arg(event->text()));
     }
+}
+
+void ExpressionEditor::handleEnterKey(QKeyEvent *event)
+{
+    LOG_DEBUG("ExpressionEditor::handleEnterKey() called");
+
+    // Save current scroll position
+    QScrollBar *vScrollBar = verticalScrollBar();
+    QScrollBar *hScrollBar = horizontalScrollBar();
+    int savedVScrollPos = vScrollBar->value();
+    int savedHScrollPos = hScrollBar->value();
+
+    // Save current cursor position
+    QTextCursor cursor = textCursor();
+    int cursorPosition = cursor.position();
+
+    LOG_DEBUG(QString("  Saved scroll position: V=%1, H=%2").arg(savedVScrollPos).arg(savedHScrollPos));
+    LOG_DEBUG(QString("  Saved cursor position: %1").arg(cursorPosition));
+
+    // Let QTextEdit handle the Enter key normally
+    QTextEdit::keyPressEvent(event);
+
+    // Restore scroll position immediately
+    vScrollBar->setValue(savedVScrollPos);
+    hScrollBar->setValue(savedHScrollPos);
+
+    // Force current line highlighting update
+    // The cursor should now be on the new line after the Enter
+    highlightCurrentLine();
+
+    LOG_DEBUG(QString("  Restored scroll position: V=%1, H=%2").arg(savedVScrollPos).arg(savedHScrollPos));
+    LOG_DEBUG(QString("  New cursor position: %1").arg(textCursor().position()));
 }
 
 void ExpressionEditor::wheelEvent(QWheelEvent *event)

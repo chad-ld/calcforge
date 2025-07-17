@@ -118,6 +118,9 @@ private:
     void setupConnections();
     void updateViewport();
 
+    // Key handling methods
+    void handleEnterKey(QKeyEvent *event);
+
     // Cross-sheet navigation helper methods
     QString getCurrentSheetName(class MainWindow *mainWindow) const;
     void navigateToSheet(class MainWindow *mainWindow, const QString &sheetName, int lineNumber, int cursorPosition = -1);
