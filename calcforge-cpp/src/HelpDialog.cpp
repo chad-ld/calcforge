@@ -80,9 +80,7 @@ void HelpDialog::setupUI()
         "}"
     );
 
-    m_buttonLayout->addWidget(m_filePathLabel);
-
-    // Clipboard button (small, next to file path)
+    // Clipboard button (small, to the left of file path)
     m_clipboardButton = new QPushButton("📋", this);
     m_clipboardButton->setFixedSize(24, 24);
     m_clipboardButton->setToolTip("Copy file path to clipboard");
@@ -94,7 +92,7 @@ void HelpDialog::setupUI()
         "  border-radius: 4px;"
         "  padding: 2px;"
         "  font-size: 12px;"
-        "  margin-left: 8px;"
+        "  margin-right: 8px;"
         "}"
         "QPushButton:hover {"
         "  background-color: #30363d;"
@@ -106,6 +104,7 @@ void HelpDialog::setupUI()
     connect(m_clipboardButton, &QPushButton::clicked, this, &HelpDialog::copyFilePathToClipboard);
     m_buttonLayout->addWidget(m_clipboardButton);
 
+    m_buttonLayout->addWidget(m_filePathLabel);
     m_buttonLayout->addStretch();
 
     m_closeButton = new QPushButton("Close", this);
