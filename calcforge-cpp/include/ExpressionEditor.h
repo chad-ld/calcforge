@@ -81,6 +81,10 @@ public:
     void setTooltipsEnabled(bool enabled);
     bool areTooltipsEnabled() const;
 
+    // Operator highlighting functionality
+    void setOperatorHighlightingEnabled(bool enabled);
+    bool isOperatorHighlightingEnabled() const;
+
     // Autocomplete functionality
     void setAutoCompleteEnabled(bool enabled);
     bool isAutoCompleteEnabled() const;
@@ -126,6 +130,12 @@ private:
     QPair<int, int> findSubExpressionBounds(const QString &text, int operatorPos);
     QString extractLeftOperand(const QString &expression, int operatorPos);
     QString extractRightOperand(const QString &expression, int operatorPos);
+
+    // Operator highlighting helper methods
+    void updateOperatorHighlighting(const QString &text, int positionInLine, int absolutePosition, int blockStart);
+    void clearOperatorHighlighting();
+    QPair<int, int> getOperatorExpressionBounds(const QString &text, int operatorPos);
+    QColor getOperatorHighlightColor(QChar operatorChar, bool isCurrentLineHighlighted) const;
     
     // Line number area
     LineNumberArea *m_lineNumberArea;
@@ -142,6 +152,12 @@ private:
 
     // Tooltip functionality
     bool m_tooltipsEnabled;
+
+    // Operator highlighting functionality
+    bool m_operatorHighlightingEnabled;
+    int m_currentOperatorAbsolutePosition; // Absolute position in document of currently highlighted operator (-1 if none)
+    QPair<int, int> m_currentOperatorAbsoluteBounds; // Absolute start and end positions of highlighted expression
+    QChar m_currentOperatorChar; // The operator character being highlighted
 
     // Autocomplete functionality
     AutoCompleteManager *m_autoCompleteManager;

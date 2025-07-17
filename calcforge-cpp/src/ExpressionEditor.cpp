@@ -58,6 +58,10 @@ ExpressionEditor::ExpressionEditor(QWidget *parent)
     , m_lastLineCount(0)
     , m_isUpdating(false)
     , m_tooltipsEnabled(true)
+    , m_operatorHighlightingEnabled(true)
+    , m_currentOperatorAbsolutePosition(-1)
+    , m_currentOperatorAbsoluteBounds(-1, -1)
+    , m_currentOperatorChar()
     , m_autoCompleteManager(nullptr)
     , m_autoCompleteEnabled(true)
 {
@@ -546,13 +550,25 @@ void ExpressionEditor::resizeEvent(QResizeEvent *event)
 
 void ExpressionEditor::mouseMoveEvent(QMouseEvent *event)
 {
-    if (m_tooltipsEnabled) {
+    if (m_tooltipsEnabled || m_operatorHighlightingEnabled) {
         // Get the text position under the mouse cursor
         QTextCursor cursor = cursorForPosition(event->pos());
-        int textPosition = cursor.position();
+        int absoluteTextPosition = cursor.position();
 
-        // Show tooltip for the position
-        showTooltipForPosition(event->globalPosition().toPoint(), textPosition);
+        // Get the current line text for both tooltip and highlighting
+        QTextBlock block = cursor.block();
+        QString lineText = block.text();
+        int positionInLine = absoluteTextPosition - block.position();
+
+        if (m_tooltipsEnabled) {
+            // Show tooltip for the position
+            showTooltipForPosition(event->globalPosition().toPoint(), absoluteTextPosition);
+        }
+
+        if (m_operatorHighlightingEnabled) {
+            // Update operator highlighting with absolute position
+            updateOperatorHighlighting(lineText, positionInLine, absoluteTextPosition, block.position());
+        }
     }
 
     // Call parent implementation for normal mouse handling
@@ -563,6 +579,12 @@ void ExpressionEditor::leaveEvent(QEvent *event)
 {
     // Hide tooltip when mouse leaves the editor
     QToolTip::hideText();
+
+    // Clear operator highlighting when mouse leaves the editor
+    if (m_operatorHighlightingEnabled) {
+        clearOperatorHighlighting();
+    }
+
     QTextEdit::leaveEvent(event);
 }
 
@@ -1114,7 +1136,7 @@ void ExpressionEditor::highlightCurrentLine()
         }
     }
 
-    // Add current line highlight (always on top)
+    // Add current line highlight (medium priority)
     QTextEdit::ExtraSelection currentLineSelection;
     currentLineSelection.format.setBackground(s_currentLineBackgroundColor);
     currentLineSelection.format.setProperty(QTextCharFormat::FullWidthSelection, true);
@@ -1126,6 +1148,30 @@ void ExpressionEditor::highlightCurrentLine()
     }
 
     extraSelections.append(currentLineSelection);
+
+    // Add operator highlighting (highest priority - most specific)
+    if (m_operatorHighlightingEnabled && m_currentOperatorAbsolutePosition != -1 &&
+        m_currentOperatorAbsoluteBounds.first != -1 && m_currentOperatorAbsoluteBounds.second != -1) {
+
+        // Create cursor for the operator expression bounds using absolute positions
+        QTextCursor operatorCursor = textCursor();
+        operatorCursor.setPosition(m_currentOperatorAbsoluteBounds.first);
+        operatorCursor.setPosition(m_currentOperatorAbsoluteBounds.second + 1, QTextCursor::KeepAnchor);
+
+        // Determine if the operator is on the current line for color selection
+        const int currentLineNumber = getCurrentLineNumber();
+        QTextBlock operatorBlock = document()->findBlock(m_currentOperatorAbsolutePosition);
+        bool isOnCurrentLine = (operatorBlock.blockNumber() + 1) == currentLineNumber;
+
+        // Create operator highlighting selection
+        QTextEdit::ExtraSelection operatorSelection;
+        QColor operatorColor = getOperatorHighlightColor(m_currentOperatorChar, isOnCurrentLine);
+        operatorSelection.format.setBackground(operatorColor);
+        operatorSelection.cursor = operatorCursor;
+
+        extraSelections.append(operatorSelection);
+    }
+
     setExtraSelections(extraSelections);
 }
 
@@ -1455,7 +1501,7 @@ QString ExpressionEditor::getOperatorTooltip(const QString &text, int position)
     }
 
     QChar ch = text[position];
-    if (ch != '+' && ch != '-' && ch != '*' && ch != '/') {
+    if (ch != '+' && ch != '-' && ch != '*' && ch != '/' && ch != '^') {
         return QString(); // Not an operator
     }
 
@@ -1709,4 +1755,141 @@ QPair<int, int> ExpressionEditor::findSubExpressionBounds(const QString &text, i
     simpleRight--; // Adjust to include the last character
 
     return QPair<int, int>(simpleLeft, simpleRight);
+}
+
+// Operator highlighting functionality
+void ExpressionEditor::setOperatorHighlightingEnabled(bool enabled)
+{
+    if (m_operatorHighlightingEnabled != enabled) {
+        m_operatorHighlightingEnabled = enabled;
+
+        if (!enabled) {
+            // Clear any existing operator highlighting
+            clearOperatorHighlighting();
+        }
+    }
+}
+
+bool ExpressionEditor::isOperatorHighlightingEnabled() const
+{
+    return m_operatorHighlightingEnabled;
+}
+
+void ExpressionEditor::updateOperatorHighlighting(const QString &text, int positionInLine, int absolutePosition, int blockStart)
+{
+    // Check if we're hovering over an operator
+    if (positionInLine >= text.length() || positionInLine < 0) {
+        clearOperatorHighlighting();
+        return;
+    }
+
+    QChar ch = text[positionInLine];
+    if (ch != '+' && ch != '-' && ch != '*' && ch != '/' && ch != '^') {
+        clearOperatorHighlighting();
+        return;
+    }
+
+    // Check if this is the same operator position we're already highlighting
+    if (m_currentOperatorAbsolutePosition == absolutePosition) {
+        return; // No need to update
+    }
+
+    // Get the expression bounds for this operator (relative to line)
+    QPair<int, int> relativeBounds = getOperatorExpressionBounds(text, positionInLine);
+    if (relativeBounds.first == -1 || relativeBounds.second == -1) {
+        clearOperatorHighlighting();
+        return;
+    }
+
+    // Convert relative bounds to absolute bounds
+    QPair<int, int> absoluteBounds;
+    absoluteBounds.first = blockStart + relativeBounds.first;
+    absoluteBounds.second = blockStart + relativeBounds.second;
+
+    // Update current operator tracking
+    m_currentOperatorAbsolutePosition = absolutePosition;
+    m_currentOperatorAbsoluteBounds = absoluteBounds;
+    m_currentOperatorChar = ch;
+
+    // Refresh highlighting to include the new operator highlight
+    highlightCurrentLine();
+}
+
+void ExpressionEditor::clearOperatorHighlighting()
+{
+    if (m_currentOperatorAbsolutePosition != -1) {
+        m_currentOperatorAbsolutePosition = -1;
+        m_currentOperatorAbsoluteBounds = QPair<int, int>(-1, -1);
+        m_currentOperatorChar = QChar();
+
+        // Refresh highlighting to remove operator highlight
+        highlightCurrentLine();
+    }
+}
+
+QPair<int, int> ExpressionEditor::getOperatorExpressionBounds(const QString &text, int operatorPos)
+{
+    // Find the immediate left and right operands for this specific operator
+    QString leftOperand = extractLeftOperand(text, operatorPos);
+    QString rightOperand = extractRightOperand(text, operatorPos);
+
+    if (leftOperand.isEmpty() || rightOperand.isEmpty()) {
+        return QPair<int, int>(-1, -1); // Could not determine operands
+    }
+
+    // Calculate the start position (beginning of left operand)
+    int leftStart = operatorPos - 1;
+
+    // Skip whitespace before operator
+    while (leftStart >= 0 && text[leftStart].isSpace()) {
+        leftStart--;
+    }
+
+    // Move to start of left operand
+    leftStart = leftStart - leftOperand.length() + 1;
+
+    // Calculate the end position (end of right operand)
+    int rightStart = operatorPos + 1;
+
+    // Skip whitespace after operator
+    while (rightStart < text.length() && text[rightStart].isSpace()) {
+        rightStart++;
+    }
+
+    // Move to end of right operand
+    int rightEnd = rightStart + rightOperand.length() - 1;
+
+    return QPair<int, int>(leftStart, rightEnd);
+}
+
+QColor ExpressionEditor::getOperatorHighlightColor(QChar operatorChar, bool isCurrentLineHighlighted) const
+{
+    QColor baseColor;
+
+    // Choose base color based on operator type
+    switch (operatorChar.toLatin1()) {
+        case '+':
+        case '-':
+            baseColor = QColor(100, 149, 237); // Cornflower blue
+            break;
+        case '*':
+        case '/':
+            baseColor = QColor(255, 140, 0); // Dark orange
+            break;
+        case '^':
+            baseColor = QColor(220, 20, 60); // Crimson red for exponentiation
+            break;
+        default:
+            baseColor = QColor(147, 112, 219); // Medium slate blue
+            break;
+    }
+
+    // Adjust alpha based on whether current line is highlighted
+    if (isCurrentLineHighlighted) {
+        baseColor.setAlpha(140); // More opaque to stand out against line highlighting
+    } else {
+        baseColor.setAlpha(100); // Semi-transparent for non-highlighted lines
+    }
+
+    return baseColor;
 }
