@@ -64,6 +64,10 @@ MainWindow::MainWindow(QWidget *parent)
     , m_topLayout(nullptr)
     , m_tabWidget(nullptr)
     , m_addButton(nullptr)
+    , m_loadButton(nullptr)
+    , m_loadDropdownButton(nullptr)
+    , m_saveButton(nullptr)
+    , m_saveDropdownButton(nullptr)
     , m_helpButton(nullptr)
     , m_bottomLeftCorner(nullptr)
     , m_bottomRightCorner(nullptr)
@@ -122,19 +126,27 @@ MainWindow::MainWindow(QWidget *parent)
     // Restore window state
     restoreWindowState();
 
+    // Load recent files
+    loadRecentFiles();
+
     // Load existing worksheets or create initial tab if none exist
     loadWorksheets();
 
     // Ensure we have at least one tab
     if (m_tabWidget->count() == 0) {
         createInitialTab();
+        // Set default current file to worksheets.json for new tabs
+        QString appDir = QCoreApplication::applicationDirPath();
+        m_currentFile = QDir(appDir).absoluteFilePath("worksheets.json");
+        markAsSaved(); // Start with saved state
     }
+    // Note: If tabs were loaded, m_currentFile is already set by loadWorksheetFromFile
 }
 
 MainWindow::~MainWindow()
 {
     saveWindowState();
-    saveWorksheets();
+    saveRecentFiles();
 }
 
 void MainWindow::setupUI()
@@ -220,6 +232,94 @@ void MainWindow::setupUI()
     m_addButton->setText("+");
     connect(m_addButton, &QPushButton::clicked, this, &MainWindow::addTab);
 
+    // Load button (file folder icon)
+    m_loadButton = new QPushButton("📁", this);
+    m_loadButton->setFixedSize(28, 28);
+    m_loadButton->setToolTip("Load Worksheet");
+    m_loadButton->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #21262D;"
+        "  color: #ffffff;"
+        "  border: none;"
+        "  border-radius: 6px;"
+        "  font-size: 14px;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #30363D;"
+        "}"
+        "QPushButton:focus {"
+        "  outline: 2px solid #0c7ff2;"
+        "}"
+    );
+    connect(m_loadButton, &QPushButton::clicked, this, &MainWindow::loadWorksheetFile);
+
+    // Load dropdown button (small arrow)
+    m_loadDropdownButton = new QPushButton("▼", this);
+    m_loadDropdownButton->setFixedSize(16, 28);
+    m_loadDropdownButton->setToolTip("Recent Files");
+    m_loadDropdownButton->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #21262D;"
+        "  color: #ffffff;"
+        "  border: none;"
+        "  border-radius: 6px;"
+        "  font-size: 10px;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #30363D;"
+        "}"
+        "QPushButton:focus {"
+        "  outline: 2px solid #0c7ff2;"
+        "}"
+    );
+    connect(m_loadDropdownButton, &QPushButton::clicked, this, &MainWindow::showLoadDropdown);
+
+    // Save button (floppy disk icon)
+    m_saveButton = new QPushButton("💾", this);
+    m_saveButton->setFixedSize(28, 28);
+    m_saveButton->setToolTip("Save Worksheet");
+    m_saveButton->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #21262D;"
+        "  color: #ffffff;"
+        "  border: none;"
+        "  border-radius: 6px;"
+        "  font-size: 14px;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #30363D;"
+        "}"
+        "QPushButton:focus {"
+        "  outline: 2px solid #0c7ff2;"
+        "}"
+    );
+    connect(m_saveButton, &QPushButton::clicked, this, &MainWindow::saveWorksheetFile);
+
+    // Save dropdown button (small arrow)
+    m_saveDropdownButton = new QPushButton("▼", this);
+    m_saveDropdownButton->setFixedSize(16, 28);
+    m_saveDropdownButton->setToolTip("Save As...");
+    m_saveDropdownButton->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #21262D;"
+        "  color: #ffffff;"
+        "  border: none;"
+        "  border-radius: 6px;"
+        "  font-size: 10px;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #30363D;"
+        "}"
+        "QPushButton:focus {"
+        "  outline: 2px solid #0c7ff2;"
+        "}"
+    );
+    connect(m_saveDropdownButton, &QPushButton::clicked, this, &MainWindow::showSaveDropdown);
+
     // Currency update button (styled like HTML mockup)
     m_currencyButton = new QPushButton("$", this);
     m_currencyButton->setFixedSize(28, 28);
@@ -289,6 +389,29 @@ void MainWindow::setupUI()
 
     // Add control buttons to header
     m_topLayout->addWidget(m_addButton);
+
+    // Create grouped load button layout (no spacing between main button and dropdown)
+    QHBoxLayout *loadGroupLayout = new QHBoxLayout();
+    loadGroupLayout->setContentsMargins(0, 0, 0, 0);
+    loadGroupLayout->setSpacing(0); // No spacing between load button and dropdown
+    loadGroupLayout->addWidget(m_loadButton);
+    loadGroupLayout->addWidget(m_loadDropdownButton);
+
+    QWidget *loadGroupWidget = new QWidget();
+    loadGroupWidget->setLayout(loadGroupLayout);
+    m_topLayout->addWidget(loadGroupWidget);
+
+    // Create grouped save button layout (no spacing between main button and dropdown)
+    QHBoxLayout *saveGroupLayout = new QHBoxLayout();
+    saveGroupLayout->setContentsMargins(0, 0, 0, 0);
+    saveGroupLayout->setSpacing(0); // No spacing between save button and dropdown
+    saveGroupLayout->addWidget(m_saveButton);
+    saveGroupLayout->addWidget(m_saveDropdownButton);
+
+    QWidget *saveGroupWidget = new QWidget();
+    saveGroupWidget->setLayout(saveGroupLayout);
+    m_topLayout->addWidget(saveGroupWidget);
+
     m_topLayout->addWidget(m_currencyButton);
     m_topLayout->addWidget(m_helpButton);
     m_topLayout->addWidget(closeButton);
@@ -475,7 +598,14 @@ void MainWindow::setupShortcuts()
     connect(selectLineShortcut, &QShortcut::activated, this, &MainWindow::selectCurrentLine);
     connect(smartParenthesesShortcut, &QShortcut::activated, this, &MainWindow::smartParenthesesSelection);
 
-    logDebug("Font size, tab navigation, and text selection shortcuts setup complete");
+    // Add file operation shortcuts
+    QShortcut *saveShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this);
+    QShortcut *loadShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
+
+    connect(saveShortcut, &QShortcut::activated, this, &MainWindow::saveWorksheetFile);
+    connect(loadShortcut, &QShortcut::activated, this, &MainWindow::loadWorksheetFile);
+
+    logDebug("Font size, tab navigation, text selection, and file operation shortcuts setup complete");
 }
 
 void MainWindow::createInitialTab()
@@ -567,6 +697,9 @@ void MainWindow::addTab()
 
     // Connect value changes for cross-sheet recalculation
     connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+
+    // Connect content changes to mark as modified
+    connect(worksheet, &WorksheetWidget::contentChanged, this, &MainWindow::markAsModified);
 
     // Focus on the new worksheet
     worksheet->getEditor()->setFocus();
@@ -747,20 +880,240 @@ void MainWindow::newFile()
 
 void MainWindow::openFile()
 {
-    // TODO: Implement file opening
-    QMessageBox::information(this, "Open File", "File opening not yet implemented");
+    loadWorksheetFile();
 }
 
 void MainWindow::saveFile()
 {
-    // TODO: Implement file saving
-    QMessageBox::information(this, "Save File", "File saving not yet implemented");
+    saveWorksheetFile();
 }
 
 void MainWindow::saveAsFile()
 {
-    // TODO: Implement save as
-    QMessageBox::information(this, "Save As", "Save As not yet implemented");
+    saveWorksheetFileAs();
+}
+
+void MainWindow::loadWorksheetFile()
+{
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        "Load CalcForge Worksheet",
+        QDir::homePath(),
+        "CalcForge Files (*.json *.cf);;JSON Files (*.json);;All Files (*)"
+    );
+
+    if (fileName.isEmpty()) {
+        return; // User cancelled
+    }
+
+    loadRecentFile(fileName);
+}
+
+void MainWindow::saveWorksheetFile()
+{
+    if (m_currentFile.isEmpty()) {
+        saveWorksheetFileAs();
+        return;
+    }
+
+    // Save to current file
+    if (saveWorksheetsToFile(m_currentFile)) {
+        markAsSaved();
+        QMessageBox::information(this, "File Saved",
+            QString("File saved successfully to '%1'").arg(QFileInfo(m_currentFile).baseName()));
+    }
+}
+
+void MainWindow::saveWorksheetFileAs()
+{
+    // Determine default save location based on current file
+    QString defaultPath;
+    if (!m_currentFile.isEmpty() && QFile::exists(m_currentFile)) {
+        // Use the directory of the currently open file
+        QFileInfo currentFileInfo(m_currentFile);
+        QString currentDir = currentFileInfo.absolutePath();
+        QString baseName = currentFileInfo.baseName();
+
+        // Suggest a new name based on current file
+        if (baseName == "worksheets") {
+            defaultPath = QDir(currentDir).absoluteFilePath("calcforge-worksheet.json");
+        } else {
+            defaultPath = QDir(currentDir).absoluteFilePath(baseName + "-copy.json");
+        }
+    } else {
+        // Fallback to home directory if no current file
+        defaultPath = QDir::homePath() + "/calcforge-worksheet.json";
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        "Save CalcForge Worksheet",
+        defaultPath,
+        "CalcForge Files (*.json *.cf);;JSON Files (*.json);;All Files (*)"
+    );
+
+    if (fileName.isEmpty()) {
+        return; // User cancelled
+    }
+
+    // Ensure file has an extension
+    if (!fileName.contains('.')) {
+        fileName += ".json";
+    }
+
+    if (saveWorksheetsToFile(fileName)) {
+        m_currentFile = fileName;
+        addToRecentFiles(fileName);
+        markAsSaved();
+        setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(fileName).baseName()));
+        QMessageBox::information(this, "File Saved",
+            QString("File saved successfully as '%1'").arg(QFileInfo(fileName).baseName()));
+    }
+}
+
+void MainWindow::showLoadDropdown()
+{
+    if (m_recentFiles.isEmpty()) {
+        QMessageBox::information(this, "Recent Files", "No recent files available");
+        return;
+    }
+
+    QMenu *menu = new QMenu(this);
+
+    for (const QString &filePath : m_recentFiles) {
+        QFileInfo fileInfo(filePath);
+        QString displayName = fileInfo.baseName();
+        if (displayName.length() > 30) {
+            displayName = displayName.left(27) + "...";
+        }
+
+        QAction *action = menu->addAction(displayName);
+        action->setToolTip(filePath);
+        connect(action, &QAction::triggered, [this, filePath]() {
+            loadRecentFile(filePath);
+        });
+    }
+
+    // Show menu below the dropdown button
+    QPoint pos = m_loadDropdownButton->mapToGlobal(QPoint(0, m_loadDropdownButton->height()));
+    menu->exec(pos);
+
+    menu->deleteLater();
+}
+
+void MainWindow::showSaveDropdown()
+{
+    QMenu *menu = new QMenu(this);
+
+    QAction *saveAsAction = menu->addAction("Save As...");
+    connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveWorksheetFileAs);
+
+    // Show menu below the dropdown button
+    QPoint pos = m_saveDropdownButton->mapToGlobal(QPoint(0, m_saveDropdownButton->height()));
+    menu->exec(pos);
+
+    menu->deleteLater();
+}
+
+void MainWindow::loadRecentFile(const QString &filePath)
+{
+    QFile file(filePath);
+    if (!file.exists()) {
+        QMessageBox::warning(this, "File Not Found",
+            QString("The file '%1' could not be found.").arg(filePath));
+
+        // Remove from recent files
+        m_recentFiles.removeAll(filePath);
+        saveRecentFiles();
+        return;
+    }
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, "Load Error",
+            QString("Failed to open file '%1': %2").arg(filePath, file.errorString()));
+        return;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        QMessageBox::warning(this, "Parse Error",
+            QString("Failed to parse JSON file: %1").arg(parseError.errorString()));
+        return;
+    }
+
+    if (!doc.isObject()) {
+        QMessageBox::warning(this, "Invalid Format",
+            "The file does not contain a valid CalcForge worksheet format.");
+        return;
+    }
+
+    // Clear existing tabs
+    while (m_tabWidget->count() > 0) {
+        m_tabWidget->removeTab(0);
+    }
+
+    QJsonObject root = doc.object();
+
+    // Load worksheets using the same logic as loadWorksheets()
+    if (root.contains("version") && root.contains("tabs") && root["tabs"].isArray()) {
+        // New format: load tabs in order from array
+        QJsonArray tabsArray = root["tabs"].toArray();
+
+        for (const QJsonValue &tabValue : tabsArray) {
+            if (!tabValue.isObject()) {
+                continue;
+            }
+
+            QJsonObject tabObject = tabValue.toObject();
+            if (!tabObject.contains("name") || !tabObject.contains("content")) {
+                continue;
+            }
+
+            QString tabName = tabObject["name"].toString();
+            QString content = tabObject["content"].toString();
+
+            loadSingleWorksheet(tabName, content);
+        }
+    } else {
+        // Legacy format: load tabs from object keys
+        for (auto it = root.begin(); it != root.end(); ++it) {
+            QString tabName = it.key();
+            QString content = it.value().toString();
+
+            loadSingleWorksheet(tabName, content);
+        }
+    }
+
+    // Ensure we have at least one tab
+    if (m_tabWidget->count() == 0) {
+        createInitialTab();
+    } else {
+        // Trigger coordinated cross-sheet calculation
+        recalculateAllWorksheets();
+
+        // Set focus to first tab
+        m_tabWidget->setCurrentIndex(0);
+        WorksheetWidget *firstWorksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
+        if (firstWorksheet) {
+            firstWorksheet->getEditor()->setFocus();
+        }
+    }
+
+    // Update application state
+    m_currentFile = filePath;
+    addToRecentFiles(filePath);
+    markAsSaved(); // File was just loaded, so it's saved
+    setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(filePath).baseName()));
+
+    QMessageBox::information(this, "Load Complete",
+        QString("Successfully loaded %1 worksheet(s) from '%2'")
+        .arg(m_tabWidget->count())
+        .arg(QFileInfo(filePath).baseName()));
 }
 
 void MainWindow::exitApplication()
@@ -779,19 +1132,54 @@ void MainWindow::showAbout()
 
 void MainWindow::loadWorksheets()
 {
-    // Get the path to worksheets.json in the same directory as the executable
+    QString fileToLoad;
     QString appDir = QCoreApplication::applicationDirPath();
-    QString worksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
 
-    QFile file(worksheetsPath);
-    if (!file.exists()) {
-        // No saved worksheets, try to load example worksheets
-        loadExampleWorksheets();
-        return;
+    // Priority 1: Try to load the most recent file from recent files list
+    if (!m_recentFiles.isEmpty()) {
+        QString mostRecentFile = m_recentFiles.first();
+        if (QFile::exists(mostRecentFile)) {
+            fileToLoad = mostRecentFile;
+            qDebug() << "Loading most recent file:" << mostRecentFile;
+        } else {
+            // Remove non-existent file from recent files
+            m_recentFiles.removeFirst();
+            saveRecentFiles();
+        }
     }
 
+    // Priority 2: If no recent file, try worksheets.json
+    if (fileToLoad.isEmpty()) {
+        QString worksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
+        if (QFile::exists(worksheetsPath)) {
+            fileToLoad = worksheetsPath;
+            qDebug() << "Loading default worksheets.json";
+        }
+    }
+
+    // Priority 3: If no worksheets.json, load example worksheets and save as worksheets.json
+    if (fileToLoad.isEmpty()) {
+        QString exampleWorksheetsPath = QDir(appDir).absoluteFilePath("example_worksheets.json");
+        if (QFile::exists(exampleWorksheetsPath)) {
+            loadExampleWorksheetsAndSave();
+            return;
+        } else {
+            // No files found, create initial tab
+            qDebug() << "No worksheet files found, creating initial tab";
+            return;
+        }
+    }
+
+    // Load the determined file
+    loadWorksheetFromFile(fileToLoad);
+
+}
+
+void MainWindow::loadWorksheetFromFile(const QString &filePath)
+{
+    QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to open worksheets.json for reading:" << file.errorString();
+        qWarning() << "Failed to open file for reading:" << filePath << file.errorString();
         return;
     }
 
@@ -802,12 +1190,12 @@ void MainWindow::loadWorksheets()
     QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
 
     if (parseError.error != QJsonParseError::NoError) {
-        qWarning() << "Failed to parse worksheets.json:" << parseError.errorString();
+        qWarning() << "Failed to parse JSON file:" << filePath << parseError.errorString();
         return;
     }
 
     if (!doc.isObject()) {
-        qWarning() << "Invalid worksheets.json format: not an object";
+        qWarning() << "Invalid JSON format in file:" << filePath;
         return;
     }
 
@@ -852,6 +1240,20 @@ void MainWindow::loadWorksheets()
         }
     }
 
+    // Update current file and state
+    m_currentFile = filePath;
+    markAsSaved();
+
+    // Add to recent files if it's not the default worksheets.json
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString defaultWorksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
+    if (filePath != defaultWorksheetsPath) {
+        addToRecentFiles(filePath);
+        setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(filePath).baseName()));
+    } else {
+        setWindowTitle("CalcForge v4.0");
+    }
+
     // After all worksheets are loaded, trigger coordinated cross-sheet calculation
     if (m_tabWidget->count() > 0) {
         recalculateAllWorksheets();
@@ -871,20 +1273,39 @@ void MainWindow::loadWorksheets()
                     firstWorksheet->getResults()->horizontalScrollBar()->setValue(0);
 
                     // Trigger initial cross-sheet highlighting for current cursor position on app startup
-                    // This ensures cross-sheet references are highlighted immediately when app loads
                     int currentLine = firstWorksheet->getEditor()->getCurrentLineNumber();
                     QString currentLineText = firstWorksheet->getEditor()->textCursor().block().text();
 
                     // Trigger the same highlighting logic as cursor position changes
                     firstWorksheet->getResults()->highlightCurrentLineWithLNReferences(currentLine, currentLineText);
-                    // NOTE: Cross-sheet background highlighting is now disabled for automatic startup
-                    // firstWorksheet->handleCrossSheetBackgroundHighlighting(currentLineText);
 
-                    LOG_DEBUG(QString("App startup: Triggered initial highlighting for line %1: '%2' (cross-sheet disabled)")
+                    LOG_DEBUG(QString("App startup: Triggered initial highlighting for line %1: '%2'")
                               .arg(currentLine).arg(currentLineText));
                 }
             });
         }
+    }
+}
+
+void MainWindow::loadExampleWorksheetsAndSave()
+{
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString exampleWorksheetsPath = QDir(appDir).absoluteFilePath("example_worksheets.json");
+    QString worksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
+
+    qDebug() << "Loading example worksheets and saving as worksheets.json";
+
+    // Load the example worksheets
+    loadWorksheetFromFile(exampleWorksheetsPath);
+
+    // Save them as worksheets.json to prevent overwriting the example file
+    if (saveWorksheetsToFile(worksheetsPath)) {
+        m_currentFile = worksheetsPath;
+        markAsSaved();
+        setWindowTitle("CalcForge v4.0");
+        qDebug() << "Successfully saved example worksheets as worksheets.json";
+    } else {
+        qWarning() << "Failed to save example worksheets as worksheets.json";
     }
 }
 
@@ -971,6 +1392,9 @@ void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &cont
 
     // Connect value changes for cross-sheet recalculation
     connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+
+    // Connect content changes to mark as modified
+    connect(worksheet, &WorksheetWidget::contentChanged, this, &MainWindow::markAsModified);
 }
 
 void MainWindow::loadExampleWorksheets()
@@ -1088,6 +1512,137 @@ void MainWindow::saveWorksheets()
     }
 }
 
+bool MainWindow::saveWorksheetsToFile(const QString &filePath)
+{
+    // Create new format with version and ordered tabs array
+    QJsonObject root;
+    root["version"] = "2.0";
+
+    QJsonArray tabsArray;
+
+    // Collect data from all tabs in their current order
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        QString tabName = m_tabWidget->tabText(i);
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+
+        if (worksheet) {
+            QString content = worksheet->getContent();
+
+            // Create tab object with name and content
+            QJsonObject tabObject;
+            tabObject["name"] = tabName;
+            tabObject["content"] = content;
+
+            tabsArray.append(tabObject);
+        }
+    }
+
+    root["tabs"] = tabsArray;
+
+    // Create JSON document
+    QJsonDocument doc(root);
+
+    // Write to file
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, "Save Error",
+            QString("Failed to open file for writing: %1").arg(file.errorString()));
+        return false;
+    }
+
+    QByteArray jsonData = doc.toJson(QJsonDocument::Indented);
+    qint64 bytesWritten = file.write(jsonData);
+    file.close();
+
+    if (bytesWritten == -1) {
+        QMessageBox::warning(this, "Save Error",
+            QString("Failed to write to file: %1").arg(file.errorString()));
+        return false;
+    }
+
+    qDebug() << "Saved worksheets to:" << filePath;
+    return true;
+}
+
+void MainWindow::addToRecentFiles(const QString &filePath)
+{
+    // Remove if already exists (to move to top)
+    m_recentFiles.removeAll(filePath);
+
+    // Add to beginning
+    m_recentFiles.prepend(filePath);
+
+    // Limit to MAX_RECENT_FILES
+    while (m_recentFiles.size() > MAX_RECENT_FILES) {
+        m_recentFiles.removeLast();
+    }
+
+    saveRecentFiles();
+}
+
+void MainWindow::loadRecentFiles()
+{
+    m_recentFiles = m_settings->value("recentFiles").toStringList();
+
+    // Remove files that no longer exist
+    QStringList validFiles;
+    for (const QString &filePath : m_recentFiles) {
+        if (QFile::exists(filePath)) {
+            validFiles.append(filePath);
+        }
+    }
+
+    if (validFiles.size() != m_recentFiles.size()) {
+        m_recentFiles = validFiles;
+        saveRecentFiles();
+    }
+}
+
+void MainWindow::saveRecentFiles()
+{
+    m_settings->setValue("recentFiles", m_recentFiles);
+}
+
+void MainWindow::updateRecentFilesMenu(QMenu *menu)
+{
+    menu->clear();
+
+    if (m_recentFiles.isEmpty()) {
+        QAction *noFilesAction = menu->addAction("No recent files");
+        noFilesAction->setEnabled(false);
+        return;
+    }
+
+    for (const QString &filePath : m_recentFiles) {
+        QFileInfo fileInfo(filePath);
+        QString displayName = fileInfo.baseName();
+        if (displayName.length() > 30) {
+            displayName = displayName.left(27) + "...";
+        }
+
+        QAction *action = menu->addAction(displayName);
+        action->setToolTip(filePath);
+        connect(action, &QAction::triggered, [this, filePath]() {
+            loadRecentFile(filePath);
+        });
+    }
+}
+
+void MainWindow::markAsModified()
+{
+    m_isModified = true;
+}
+
+void MainWindow::markAsSaved()
+{
+    m_isModified = false;
+}
+
+bool MainWindow::hasUnsavedChanges() const
+{
+    return m_isModified;
+}
+
 void MainWindow::restoreWindowState()
 {
     if (m_settings->contains("geometry")) {
@@ -1114,6 +1669,22 @@ void MainWindow::saveWindowState()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    // Check for unsaved changes
+    if (hasUnsavedChanges()) {
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            this,
+            "Unsaved Changes",
+            "You have unsaved changes. Do you want to close without saving?",
+            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+            QMessageBox::No
+        );
+
+        if (reply == QMessageBox::No || reply == QMessageBox::Cancel) {
+            event->ignore();
+            return;
+        }
+    }
+
     // Capture current tab's splitter state before saving
     WorksheetWidget *currentWorksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->currentWidget());
     if (currentWorksheet) {
@@ -1125,7 +1696,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
 
     saveWindowState();
-    saveWorksheets();
+    // Note: No longer auto-saving worksheets on close
     QMainWindow::closeEvent(event);
 }
 

@@ -57,6 +57,14 @@ private slots:
     void onLineNumberingChanged(const QString &sheetName, const QList<LineChange> &changes);
     void onValuesChanged(const QString &sheetName);
 
+    // Load/Save functionality
+    void loadWorksheetFile();
+    void saveWorksheetFile();
+    void saveWorksheetFileAs();
+    void showLoadDropdown();
+    void showSaveDropdown();
+    void loadRecentFile(const QString &filePath);
+
 private:
     void setupUI();
     void setupMenuBar();
@@ -71,11 +79,25 @@ private:
     Qt::Edges getResizeEdges(const QPoint &pos) const;
     void loadWorksheets();
     void loadExampleWorksheets();
+    void loadExampleWorksheetsAndSave();
+    void loadWorksheetFromFile(const QString &filePath);
     void loadSingleWorksheet(const QString &tabName, const QString &content);
     void saveWorksheets();
+    bool saveWorksheetsToFile(const QString &filePath);
     void restoreWindowState();
     void saveWindowState();
     void setupCrossSheetSupport(WorksheetWidget *worksheet);
+
+    // Recent files management
+    void addToRecentFiles(const QString &filePath);
+    void loadRecentFiles();
+    void saveRecentFiles();
+    void updateRecentFilesMenu(QMenu *menu);
+
+    // Unsaved changes tracking
+    void markAsModified();
+    void markAsSaved();
+    bool hasUnsavedChanges() const;
 
     // Font management
     void increaseFontSize();
@@ -125,6 +147,10 @@ public:
     
     // Top bar controls
     QPushButton *m_addButton;
+    QPushButton *m_loadButton;
+    QPushButton *m_loadDropdownButton;
+    QPushButton *m_saveButton;
+    QPushButton *m_saveDropdownButton;
     QPushButton *m_currencyButton;
     QPushButton *m_helpButton;
 
@@ -157,6 +183,10 @@ public:
     // Application state
     QString m_currentFile;
     bool m_isModified;
+
+    // Recent files management
+    QStringList m_recentFiles;
+    static const int MAX_RECENT_FILES = 10;
 
     // Window dragging and resizing
     QPoint m_dragPosition;

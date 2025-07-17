@@ -183,9 +183,66 @@ void HelpDialog::setupContent()
         "</ul>"
         
         "<p><i>💡 Tip: Try typing 'sqrt(16)' or '100 USD to EUR' to see CalcForge in action!</i></p>");
-    
+
+    // File Operations
+    addTopic("💾 File Operations",
+        "<h2>Saving and Loading Worksheets</h2>"
+        "<p>CalcForge provides powerful file management with automatic recent files tracking and smart defaults.</p>"
+
+        "<h3>File Operations:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Action</th><th>Button</th><th>Keyboard</th><th>Description</th></tr>"
+        "<tr><td>Load</td><td>📁</td><td>Ctrl+L</td><td>Open file dialog to load a worksheet</td></tr>"
+        "<tr><td>Recent Files</td><td>▼</td><td>-</td><td>Quick access to recently opened files</td></tr>"
+        "<tr><td>Save</td><td>💾</td><td>Ctrl+S</td><td>Save current worksheet immediately</td></tr>"
+        "<tr><td>Save As</td><td>▼</td><td>-</td><td>Save worksheet with new name/location</td></tr>"
+        "</table>"
+
+        "<h3>Startup Behavior:</h3>"
+        "<p>CalcForge intelligently chooses what to load on startup:</p>"
+        "<ol>"
+        "<li><b>Most Recent File:</b> Loads your last opened file automatically</li>"
+        "<li><b>Default Worksheets:</b> If no recent files, loads worksheets.json</li>"
+        "<li><b>Example Worksheets:</b> If no saved work, loads examples and saves them as your starting point</li>"
+        "<li><b>New Worksheet:</b> Creates empty worksheet if no files exist</li>"
+        "</ol>"
+
+        "<h3>Save Features:</h3>"
+        "<ul>"
+        "<li><b>Immediate Save:</b> Save button works instantly - no 'Save As' prompts</li>"
+        "<li><b>Smart Defaults:</b> Save As dialog opens in the same folder as current file</li>"
+        "<li><b>Auto-naming:</b> Suggests intelligent filenames (e.g., 'project-copy.json')</li>"
+        "<li><b>Recent Files:</b> Automatically tracks up to 10 recent files</li>"
+        "<li><b>File Protection:</b> Example files are never overwritten</li>"
+        "</ul>"
+
+        "<h3>Load Features:</h3>"
+        "<ul>"
+        "<li><b>File Dialog:</b> Standard OS file picker with JSON/CF file filters</li>"
+        "<li><b>Recent Files Menu:</b> Click dropdown arrow for quick access to recent files</li>"
+        "<li><b>Auto-cleanup:</b> Non-existent files are automatically removed from recent list</li>"
+        "<li><b>Cross-sheet Support:</b> All cross-sheet references are preserved when loading</li>"
+        "</ul>"
+
+        "<h3>File Safety:</h3>"
+        "<ul>"
+        "<li><b>No Auto-save:</b> Files are only saved when you click save buttons</li>"
+        "<li><b>Unsaved Changes Warning:</b> Get prompted before closing with unsaved work</li>"
+        "<li><b>Confirmation Messages:</b> Clear feedback when files are saved successfully</li>"
+        "<li><b>Error Handling:</b> Graceful handling of corrupted or missing files</li>"
+        "</ul>"
+
+        "<h3>File Format:</h3>"
+        "<p>CalcForge uses JSON format (.json) with support for:</p>"
+        "<ul>"
+        "<li><b>Multiple Tabs:</b> All worksheets saved in proper order</li>"
+        "<li><b>Version Control:</b> Format version tracking for compatibility</li>"
+        "<li><b>Cross-platform:</b> Files work on Windows, Mac, and Linux</li>"
+        "<li><b>Human-readable:</b> JSON format can be viewed/edited in text editors</li>"
+        "</ul>");
+
     // Basic Math
-    addTopic("🔢 Basic Mathematics", 
+    addTopic("🔢 Basic Mathematics",
         "<h2>Mathematical Operations</h2>"
         "<p>CalcForge supports all standard mathematical operations with proper order of operations.</p>"
         
@@ -511,6 +568,13 @@ void HelpDialog::setupContent()
         "<tr><td>Shift + Backspace</td><td>Return to original cross-sheet expression</td></tr>"
         "</table>"
 
+        "<h3>File Operations:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Shortcut</th><th>Action</th></tr>"
+        "<tr><td>Ctrl + S</td><td>Save current worksheet</td></tr>"
+        "<tr><td>Ctrl + L</td><td>Load worksheet file</td></tr>"
+        "</table>"
+
         "<h3>Autocomplete Navigation:</h3>"
         "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
         "<tr><th>Key</th><th>Action</th></tr>"
@@ -531,6 +595,15 @@ void HelpDialog::setupContent()
         "<li><b>Organization:</b> Use blank lines and comments to organize complex calculations</li>"
         "<li><b>Templates:</b> Save common calculation patterns as templates</li>"
         "<li><b>Cross-references:</b> Use multiple sheets for different calculation categories</li>"
+        "</ul>"
+
+        "<h3>File Management Tips:</h3>"
+        "<ul>"
+        "<li><b>Regular Saving:</b> Use the 💾 save button frequently to avoid losing work</li>"
+        "<li><b>Project Organization:</b> Use descriptive filenames and keep related files together</li>"
+        "<li><b>Recent Files:</b> Use the dropdown arrow next to load button for quick access</li>"
+        "<li><b>Backup Strategy:</b> Save important calculations with different names using Save As</li>"
+        "<li><b>Version Control:</b> Add dates or version numbers to filenames for tracking changes</li>"
         "</ul>"
 
         "<h3>Calculation Tips:</h3>"
