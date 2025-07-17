@@ -358,8 +358,8 @@ void WorksheetWidget::setContent(const QString &content)
     m_editor->setPlainText(content);
     m_isModified = false;
 
-    // Position cursor at end
-    m_editor->positionCursorAtEnd();
+    // Position cursor at start (top of sheet)
+    m_editor->positionCursorAtStart();
 
     // Reset horizontal scroll position to leftmost for both editor and results
     // Use QTimer::singleShot to ensure this happens after the content is fully rendered

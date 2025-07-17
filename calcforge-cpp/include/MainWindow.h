@@ -64,6 +64,7 @@ private slots:
     void showLoadDropdown();
     void showSaveDropdown();
     void loadRecentFile(const QString &filePath);
+    void toggleAlwaysOnTop(bool enabled);
 
 private:
     void setupUI();
@@ -81,6 +82,7 @@ private:
     void loadExampleWorksheets();
     void loadExampleWorksheetsAndSave();
     void loadWorksheetFromFile(const QString &filePath);
+    bool loadWorksheetContentFromFile(const QString &filePath);
     void loadSingleWorksheet(const QString &tabName, const QString &content);
     void saveWorksheets();
     bool saveWorksheetsToFile(const QString &filePath);
@@ -92,6 +94,7 @@ private:
     void addToRecentFiles(const QString &filePath);
     void loadRecentFiles();
     void saveRecentFiles();
+    void createInitialRecentFilesJson();
     void updateRecentFilesMenu(QMenu *menu);
 
     // Unsaved changes tracking
@@ -152,6 +155,7 @@ public:
     QPushButton *m_saveButton;
     QPushButton *m_saveDropdownButton;
     QPushButton *m_currencyButton;
+    QPushButton *m_alwaysOnTopButton;
     QPushButton *m_helpButton;
 
     // Resize corner indicators

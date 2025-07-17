@@ -350,6 +350,13 @@ void ExpressionEditor::positionCursorAtEnd()
     setTextCursor(cursor);
 }
 
+void ExpressionEditor::positionCursorAtStart()
+{
+    QTextCursor cursor = textCursor();
+    cursor.movePosition(QTextCursor::Start);
+    setTextCursor(cursor);
+}
+
 int ExpressionEditor::getCurrentLineNumber() const
 {
     return textCursor().blockNumber() + 1;

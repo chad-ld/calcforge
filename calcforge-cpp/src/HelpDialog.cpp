@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QScreen>
 #include <QScrollBar>
+#include <QFileInfo>
 
 HelpDialog::HelpDialog(QWidget *parent)
     : QDialog(parent)
@@ -11,6 +12,7 @@ HelpDialog::HelpDialog(QWidget *parent)
     , m_topicList(nullptr)
     , m_contentArea(nullptr)
     , m_closeButton(nullptr)
+    , m_filePathLabel(nullptr)
 {
     setupUI();
     setupContent();
@@ -55,15 +57,32 @@ void HelpDialog::setupUI()
     m_splitter->setStretchFactor(1, 1);
     
     m_mainLayout->addWidget(m_splitter);
-    
-    // Button layout
+
+    // Button layout with file path
     m_buttonLayout = new QHBoxLayout();
+
+    // File path label (compact, on same line as Close button)
+    m_filePathLabel = new QLabel("No file loaded", this);
+    m_filePathLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    m_filePathLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_filePathLabel->setStyleSheet(
+        "QLabel {"
+        "  background-color: transparent;"
+        "  border: none;"
+        "  padding: 4px 8px;"
+        "  font-size: 14px;"
+        "  color: #ffffff;"
+        "  font-family: 'Consolas', 'Monaco', monospace;"
+        "}"
+    );
+
+    m_buttonLayout->addWidget(m_filePathLabel);
     m_buttonLayout->addStretch();
-    
+
     m_closeButton = new QPushButton("Close", this);
     m_closeButton->setFixedSize(80, 30);
     connect(m_closeButton, &QPushButton::clicked, this, &HelpDialog::closeDialog);
-    
+
     m_buttonLayout->addWidget(m_closeButton);
     m_mainLayout->addLayout(m_buttonLayout);
     
@@ -180,6 +199,7 @@ void HelpDialog::setupContent()
         "<li><b>Results Display:</b> Right side - shows calculated results</li>"
         "<li><b>Line Numbers:</b> Help you reference specific calculations</li>"
         "<li><b>Comments:</b> Lines starting with ::: are comments (no calculation)</li>"
+        "<li><b>Always On Top:</b> Click the 📌 pin button to keep CalcForge above other windows</li>"
         "</ul>"
         
         "<p><i>💡 Tip: Try typing 'sqrt(16)' or '100 USD to EUR' to see CalcForge in action!</i></p>");
@@ -196,6 +216,12 @@ void HelpDialog::setupContent()
         "<tr><td>Recent Files</td><td>▼</td><td>-</td><td>Quick access to recently opened files</td></tr>"
         "<tr><td>Save</td><td>💾</td><td>Ctrl+S</td><td>Save current worksheet immediately</td></tr>"
         "<tr><td>Save As</td><td>▼</td><td>-</td><td>Save worksheet with new name/location</td></tr>"
+        "</table>"
+
+        "<h3>Window Controls:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Action</th><th>Button</th><th>Keyboard</th><th>Description</th></tr>"
+        "<tr><td>Always On Top</td><td>📌</td><td>Ctrl+T</td><td>Toggle window to stay above other applications</td></tr>"
         "</table>"
 
         "<h3>Startup Behavior:</h3>"
@@ -575,6 +601,12 @@ void HelpDialog::setupContent()
         "<tr><td>Ctrl + L</td><td>Load worksheet file</td></tr>"
         "</table>"
 
+        "<h3>Window Controls:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Shortcut</th><th>Action</th></tr>"
+        "<tr><td>Ctrl + T</td><td>Toggle always on top</td></tr>"
+        "</table>"
+
         "<h3>Autocomplete Navigation:</h3>"
         "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
         "<tr><th>Key</th><th>Action</th></tr>"
@@ -636,4 +668,19 @@ void HelpDialog::setupContent()
         "<li><b>Auto-updates:</b> LN references update automatically when lines are inserted/deleted</li>"
         "<li><b>Synchronized scrolling:</b> Expression and results columns scroll together</li>"
         "</ul>");
+}
+
+void HelpDialog::setCurrentFilePath(const QString &filePath)
+{
+    if (m_filePathLabel) {
+        if (filePath.isEmpty()) {
+            m_filePathLabel->setText("No file loaded");
+        } else {
+            // Show just the filename and directory for better readability
+            QFileInfo fileInfo(filePath);
+            QString displayPath = QString("Current file: %1").arg(filePath);
+            m_filePathLabel->setText(displayPath);
+            m_filePathLabel->setToolTip(filePath); // Full path in tooltip
+        }
+    }
 }

@@ -19,6 +19,7 @@ class HelpDialog : public QDialog
 
 public:
     explicit HelpDialog(QWidget *parent = nullptr);
+    void setCurrentFilePath(const QString &filePath);
 
 private slots:
     void onTopicSelected(int row);
@@ -38,6 +39,7 @@ private:
     QListWidget *m_topicList;
     QTextEdit *m_contentArea;
     QPushButton *m_closeButton;
+    QLabel *m_filePathLabel;
     
     // Content storage
     QStringList m_topicTitles;

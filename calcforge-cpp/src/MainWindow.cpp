@@ -9,6 +9,11 @@
 #include "LineChangeDetector.h"
 #include "HelpDialog.h"
 #include "Logger.h"
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
 #include <QApplication>
 #include <limits>
 #include <QMessageBox>
@@ -33,6 +38,7 @@
 #include <QDebug>
 #include <QTimer>
 #include <QFile>
+#include <QDateTime>
 #include <QTextStream>
 #include <QDateTime>
 
@@ -68,6 +74,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_loadDropdownButton(nullptr)
     , m_saveButton(nullptr)
     , m_saveDropdownButton(nullptr)
+    , m_alwaysOnTopButton(nullptr)
     , m_helpButton(nullptr)
     , m_bottomLeftCorner(nullptr)
     , m_bottomRightCorner(nullptr)
@@ -141,6 +148,11 @@ MainWindow::MainWindow(QWidget *parent)
         markAsSaved(); // Start with saved state
     }
     // Note: If tabs were loaded, m_currentFile is already set by loadWorksheetFromFile
+
+    // Set always on top by default after window is shown
+    QTimer::singleShot(100, this, [this]() {
+        toggleAlwaysOnTop(true);
+    });
 }
 
 MainWindow::~MainWindow()
@@ -342,6 +354,40 @@ void MainWindow::setupUI()
     );
     connect(m_currencyButton, &QPushButton::clicked, this, &MainWindow::updateCurrencyRates);
 
+    // Always on top toggle button (pin icon)
+    m_alwaysOnTopButton = new QPushButton("📌", this);
+    m_alwaysOnTopButton->setFixedSize(28, 28);
+    m_alwaysOnTopButton->setToolTip("Toggle Always On Top");
+    m_alwaysOnTopButton->setCheckable(true); // Makes it a toggle button
+    m_alwaysOnTopButton->setChecked(true); // Start checked (always on top by default)
+
+    // Set initial style (unchecked state - grey background)
+    m_alwaysOnTopButton->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #21262D;"
+        "  color: #ffffff;"
+        "  border: none;"
+        "  border-radius: 6px;"
+        "  font-size: 14px;"
+        "  font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #30363D;"
+        "}"
+        "QPushButton:focus {"
+        "  outline: 2px solid #0c7ff2;"
+        "}"
+        "QPushButton:checked {"
+        "  background-color: #0c7ff2;"  // Blue background when checked
+        "  color: #ffffff;"
+        "}"
+        "QPushButton:checked:hover {"
+        "  background-color: #1f6feb;"  // Slightly darker blue on hover when checked
+        "}"
+    );
+
+    connect(m_alwaysOnTopButton, &QPushButton::toggled, this, &MainWindow::toggleAlwaysOnTop);
+
     // Help button (styled like HTML mockup)
     m_helpButton = new QPushButton("?", this);
     m_helpButton->setFixedSize(28, 28);
@@ -413,6 +459,7 @@ void MainWindow::setupUI()
     m_topLayout->addWidget(saveGroupWidget);
 
     m_topLayout->addWidget(m_currencyButton);
+    m_topLayout->addWidget(m_alwaysOnTopButton);
     m_topLayout->addWidget(m_helpButton);
     m_topLayout->addWidget(closeButton);
 
@@ -601,9 +648,13 @@ void MainWindow::setupShortcuts()
     // Add file operation shortcuts
     QShortcut *saveShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_S), this);
     QShortcut *loadShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_L), this);
+    QShortcut *alwaysOnTopShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_T), this);
 
     connect(saveShortcut, &QShortcut::activated, this, &MainWindow::saveWorksheetFile);
     connect(loadShortcut, &QShortcut::activated, this, &MainWindow::loadWorksheetFile);
+    connect(alwaysOnTopShortcut, &QShortcut::activated, [this]() {
+        m_alwaysOnTopButton->toggle(); // Toggle the button state
+    });
 
     logDebug("Font size, tab navigation, text selection, and file operation shortcuts setup complete");
 }
@@ -822,6 +873,7 @@ void MainWindow::onSplitterMoved(const QByteArray &newState)
 void MainWindow::showHelp()
 {
     HelpDialog *helpDialog = new HelpDialog(this);
+    helpDialog->setCurrentFilePath(m_currentFile);
     helpDialog->exec();
     helpDialog->deleteLater();
 }
@@ -963,7 +1015,7 @@ void MainWindow::saveWorksheetFileAs()
 
     if (saveWorksheetsToFile(fileName)) {
         m_currentFile = fileName;
-        addToRecentFiles(fileName);
+        addToRecentFiles(fileName); // Save As creates a new file location, so add to recent files
         markAsSaved();
         setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(fileName).baseName()));
         QMessageBox::information(this, "File Saved",
@@ -1295,18 +1347,111 @@ void MainWindow::loadExampleWorksheetsAndSave()
 
     qDebug() << "Loading example worksheets and saving as worksheets.json";
 
-    // Load the example worksheets
-    loadWorksheetFromFile(exampleWorksheetsPath);
+    // Load the example worksheets content directly (without adding to recent files)
+    if (loadWorksheetContentFromFile(exampleWorksheetsPath)) {
+        // Save them as worksheets.json to prevent overwriting the example file
+        if (saveWorksheetsToFile(worksheetsPath)) {
+            m_currentFile = worksheetsPath;
+            markAsSaved();
+            setWindowTitle("CalcForge v4.0");
+            qDebug() << "Successfully saved example worksheets as worksheets.json";
 
-    // Save them as worksheets.json to prevent overwriting the example file
-    if (saveWorksheetsToFile(worksheetsPath)) {
-        m_currentFile = worksheetsPath;
-        markAsSaved();
-        setWindowTitle("CalcForge v4.0");
-        qDebug() << "Successfully saved example worksheets as worksheets.json";
+            // Create initial recent_files.json now that we have a worksheets.json
+            createInitialRecentFilesJson();
+
+            // Add the final worksheets.json to recent files (not the example file)
+            addToRecentFiles(worksheetsPath);
+        } else {
+            qWarning() << "Failed to save example worksheets as worksheets.json";
+        }
     } else {
-        qWarning() << "Failed to save example worksheets as worksheets.json";
+        qWarning() << "Failed to load example worksheets from" << exampleWorksheetsPath;
     }
+}
+
+bool MainWindow::loadWorksheetContentFromFile(const QString &filePath)
+{
+    QFile file(filePath);
+    if (!file.exists()) {
+        qWarning() << "File does not exist:" << filePath;
+        return false;
+    }
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open file:" << filePath << file.errorString();
+        return false;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        qWarning() << "Failed to parse JSON file:" << parseError.errorString();
+        return false;
+    }
+
+    if (!doc.isObject()) {
+        qWarning() << "The file does not contain a valid CalcForge worksheet format.";
+        return false;
+    }
+
+    // Clear existing tabs
+    while (m_tabWidget->count() > 0) {
+        m_tabWidget->removeTab(0);
+    }
+
+    QJsonObject root = doc.object();
+
+    // Load worksheets using the same logic as loadWorksheetFromFile()
+    if (root.contains("version") && root.contains("tabs") && root["tabs"].isArray()) {
+        // New format: load tabs in order from array
+        QJsonArray tabsArray = root["tabs"].toArray();
+
+        for (const QJsonValue &tabValue : tabsArray) {
+            if (!tabValue.isObject()) {
+                continue;
+            }
+
+            QJsonObject tabObject = tabValue.toObject();
+            if (!tabObject.contains("name") || !tabObject.contains("content")) {
+                continue;
+            }
+
+            QString tabName = tabObject["name"].toString();
+            QString content = tabObject["content"].toString();
+
+            loadSingleWorksheet(tabName, content);
+        }
+    } else {
+        // Legacy format: load tabs from object keys
+        for (auto it = root.begin(); it != root.end(); ++it) {
+            QString tabName = it.key();
+            QString content = it.value().toString();
+
+            loadSingleWorksheet(tabName, content);
+        }
+    }
+
+    // Ensure we have at least one tab
+    if (m_tabWidget->count() == 0) {
+        createInitialTab();
+        return false;
+    } else {
+        // Trigger coordinated cross-sheet calculation
+        recalculateAllWorksheets();
+
+        // Set focus to first tab
+        m_tabWidget->setCurrentIndex(0);
+        WorksheetWidget *firstWorksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
+        if (firstWorksheet) {
+            firstWorksheet->getEditor()->setFocus();
+        }
+    }
+
+    return true;
 }
 
 void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &content)
@@ -1582,25 +1727,122 @@ void MainWindow::addToRecentFiles(const QString &filePath)
 
 void MainWindow::loadRecentFiles()
 {
-    m_recentFiles = m_settings->value("recentFiles").toStringList();
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString recentFilesPath = QDir(appDir).absoluteFilePath("recent_files.json");
 
-    // Remove files that no longer exist
+    QFile file(recentFilesPath);
+    if (!file.exists()) {
+        // File doesn't exist yet, start with empty list
+        m_recentFiles.clear();
+        return;
+    }
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qDebug() << "Failed to open recent_files.json for reading:" << file.errorString();
+        m_recentFiles.clear();
+        return;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        qDebug() << "Failed to parse recent_files.json:" << parseError.errorString();
+        m_recentFiles.clear();
+        return;
+    }
+
+    if (!doc.isObject()) {
+        qDebug() << "recent_files.json is not a valid JSON object";
+        m_recentFiles.clear();
+        return;
+    }
+
+    QJsonObject root = doc.object();
+    QJsonArray recentArray = root["recent_files"].toArray();
+
+    // Convert JSON array to QStringList and validate files
     QStringList validFiles;
-    for (const QString &filePath : m_recentFiles) {
-        if (QFile::exists(filePath)) {
+    for (const QJsonValue &value : recentArray) {
+        QString filePath = value.toString();
+        if (!filePath.isEmpty() && QFile::exists(filePath)) {
             validFiles.append(filePath);
         }
     }
 
-    if (validFiles.size() != m_recentFiles.size()) {
-        m_recentFiles = validFiles;
+    m_recentFiles = validFiles;
+
+    // If we removed invalid files, save the cleaned list
+    if (validFiles.size() != recentArray.size()) {
         saveRecentFiles();
     }
 }
 
 void MainWindow::saveRecentFiles()
 {
-    m_settings->setValue("recentFiles", m_recentFiles);
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString recentFilesPath = QDir(appDir).absoluteFilePath("recent_files.json");
+
+    // Create JSON structure
+    QJsonObject root;
+    QJsonArray recentArray;
+
+    for (const QString &filePath : m_recentFiles) {
+        recentArray.append(filePath);
+    }
+
+    root["recent_files"] = recentArray;
+    root["last_updated"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    root["version"] = "1.0";
+
+    QJsonDocument doc(root);
+
+    QFile file(recentFilesPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qDebug() << "Failed to open recent_files.json for writing:" << file.errorString();
+        return;
+    }
+
+    file.write(doc.toJson(QJsonDocument::Indented));
+    file.close();
+
+    qDebug() << "Saved recent files to:" << recentFilesPath;
+}
+
+void MainWindow::createInitialRecentFilesJson()
+{
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString recentFilesPath = QDir(appDir).absoluteFilePath("recent_files.json");
+
+    // Only create if it doesn't already exist
+    if (QFile::exists(recentFilesPath)) {
+        return;
+    }
+
+    // Create initial JSON structure with empty recent files list
+    QJsonObject root;
+    QJsonArray recentArray; // Empty array
+
+    root["recent_files"] = recentArray;
+    root["last_updated"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    root["version"] = "1.0";
+    root["created"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+
+    QJsonDocument doc(root);
+
+    QFile file(recentFilesPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qDebug() << "Failed to create initial recent_files.json:" << file.errorString();
+        return;
+    }
+
+    file.write(doc.toJson(QJsonDocument::Indented));
+    file.close();
+
+    qDebug() << "Created initial recent_files.json at:" << recentFilesPath;
 }
 
 void MainWindow::updateRecentFilesMenu(QMenu *menu)
@@ -1641,6 +1883,35 @@ void MainWindow::markAsSaved()
 bool MainWindow::hasUnsavedChanges() const
 {
     return m_isModified;
+}
+
+void MainWindow::toggleAlwaysOnTop(bool enabled)
+{
+#ifdef Q_OS_WIN
+    // Use Windows API directly to avoid Qt flicker
+    HWND hwnd = reinterpret_cast<HWND>(winId());
+    if (enabled) {
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        qDebug() << "Always on top enabled (Windows API)";
+    } else {
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        qDebug() << "Always on top disabled (Windows API)";
+    }
+#else
+    // Fallback to Qt method for other platforms
+    Qt::WindowFlags flags = windowFlags();
+
+    if (enabled) {
+        flags |= Qt::WindowStaysOnTopHint;
+        qDebug() << "Always on top enabled (Qt)";
+    } else {
+        flags &= ~Qt::WindowStaysOnTopHint;
+        qDebug() << "Always on top disabled (Qt)";
+    }
+
+    setWindowFlags(flags);
+    show();
+#endif
 }
 
 void MainWindow::restoreWindowState()

@@ -47,6 +47,7 @@ public:
     
     // Cursor and selection
     void positionCursorAtEnd();
+    void positionCursorAtStart();
     int getCurrentLineNumber() const;
     void selectCurrentLine();
     void smartParenthesesSelection();
