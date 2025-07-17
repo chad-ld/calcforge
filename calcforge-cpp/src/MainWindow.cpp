@@ -961,11 +961,22 @@ void MainWindow::loadWorksheetFile()
     loadRecentFile(fileName);
 }
 
-void MainWindow::saveWorksheetFile()
+bool MainWindow::saveWorksheetFile()
 {
     if (m_currentFile.isEmpty()) {
-        saveWorksheetFileAs();
-        return;
+        // If no current file, default to worksheets.json in app directory
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString defaultPath = QDir(appDir).absoluteFilePath("worksheets.json");
+
+        if (saveWorksheetsToFile(defaultPath)) {
+            m_currentFile = defaultPath;
+            markAsSaved();
+            setWindowTitle("CalcForge v4.0");
+            QMessageBox::information(this, "File Saved",
+                QString("File saved successfully to '%1'").arg(QFileInfo(defaultPath).baseName()));
+            return true;
+        }
+        return false;
     }
 
     // Save to current file
@@ -973,10 +984,12 @@ void MainWindow::saveWorksheetFile()
         markAsSaved();
         QMessageBox::information(this, "File Saved",
             QString("File saved successfully to '%1'").arg(QFileInfo(m_currentFile).baseName()));
+        return true;
     }
+    return false;
 }
 
-void MainWindow::saveWorksheetFileAs()
+bool MainWindow::saveWorksheetFileAs()
 {
     // Determine default save location based on current file
     QString defaultPath;
@@ -1005,7 +1018,7 @@ void MainWindow::saveWorksheetFileAs()
     );
 
     if (fileName.isEmpty()) {
-        return; // User cancelled
+        return false; // User cancelled
     }
 
     // Ensure file has an extension
@@ -1020,7 +1033,9 @@ void MainWindow::saveWorksheetFileAs()
         setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(fileName).baseName()));
         QMessageBox::information(this, "File Saved",
             QString("File saved successfully as '%1'").arg(QFileInfo(fileName).baseName()));
+        return true;
     }
+    return false;
 }
 
 void MainWindow::showLoadDropdown()
@@ -1963,18 +1978,31 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
     // Check for unsaved changes
     if (hasUnsavedChanges()) {
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            this,
-            "Unsaved Changes",
-            "You have unsaved changes. Do you want to close without saving?",
-            QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
-            QMessageBox::No
-        );
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Unsaved Changes");
+        msgBox.setText("You have unsaved changes.");
+        msgBox.setInformativeText("Do you want to save your changes before closing?");
+        msgBox.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+        msgBox.setDefaultButton(QMessageBox::Save);
+        msgBox.setIcon(QMessageBox::Question);
 
-        if (reply == QMessageBox::No || reply == QMessageBox::Cancel) {
+        int reply = msgBox.exec();
+
+        if (reply == QMessageBox::Save) {
+            // User wants to save - call save function
+            bool saveSuccessful = saveWorksheetFile();
+            if (!saveSuccessful) {
+                // Save failed or was cancelled, don't close
+                event->ignore();
+                return;
+            }
+            // Save succeeded, continue with close
+        } else if (reply == QMessageBox::Cancel) {
+            // User cancelled, don't close
             event->ignore();
             return;
         }
+        // If reply == QMessageBox::Discard, continue with close without saving
     }
 
     // Capture current tab's splitter state before saving

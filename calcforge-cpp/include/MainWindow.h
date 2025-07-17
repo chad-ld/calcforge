@@ -59,8 +59,8 @@ private slots:
 
     // Load/Save functionality
     void loadWorksheetFile();
-    void saveWorksheetFile();
-    void saveWorksheetFileAs();
+    bool saveWorksheetFile();
+    bool saveWorksheetFileAs();
     void showLoadDropdown();
     void showSaveDropdown();
     void loadRecentFile(const QString &filePath);

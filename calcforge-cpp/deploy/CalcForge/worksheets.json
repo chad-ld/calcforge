@@ -1,6 +1,10 @@
 {
     "tabs": [
         {
+            "content": "1020\n302039",
+            "name": "Misc Sheet"
+        },
+        {
             "content": "::: BASIC MATHEMATICS\n5 + 3\n10 - 4\n7 * 6\n15 / 3\n2^3\n(2 + 3) * 4\n2 + 3 * 4\n-5\n\n::: MATHEMATICAL CONSTANTS\npi\ne\n\n::: MATHEMATICAL FUNCTIONS\nsqrt(16)\nsqrt(2)\nsin(0)\ncos(pi)\ntan(pi/4)\nlog(e)\nlog10(100)\nexp(1)\nabs(-5)\nceil(3.2)\nfloor(3.8)\nround(3.14159, 2)\n\n::: SAMPLE DATA FOR STATISTICS\n10\n20\n30\n40\n50\n\n::: STATISTICAL FUNCTIONS\nsum(30-34)\nmean(30-34)\nmedian(30-34)\nmin(30-34)\nmax(30-34)\ncount(30-34)\nvariance(30-34)\nstdev(30-34)\nproduct(30-34)\nrange(30-34)\ngeomean(30-34)\nharmmean(30-34)\nsumsq(30-34)\n\n::: STATISTICAL WITH ROUNDING\nmean(30-34, .2)\nstdev(30-34, .3)\n\n::: LN REFERENCES\nLN30\nLN31 * 2\nLN30 + LN31 + LN32\n\n::: SIMPLE FUNCTION CALLS\nsqrt(LN34)\nabs(LN8)\nround(LN11, 3)\n\n::: BASIC ARITHMETIC WITH LN\n(LN30 + LN31) / 2\nLN32 * LN33\nLN34 - LN30",
             "name": "Math & Statistics"
         },
