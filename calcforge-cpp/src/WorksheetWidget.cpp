@@ -13,6 +13,7 @@
 #include <QSplitter>
 #include <QScrollBar>
 #include <QSplitterHandle>
+#include <QTimer>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QEnterEvent>
@@ -588,6 +589,19 @@ void WorksheetWidget::onTextChanged()
 
                 m_editor->blockSignals(false);
 
+                // Force current line highlighting update after document rebuild
+                // This ensures highlighting is properly restored on both expression and results sides
+                if (m_editor->hasFocus()) {
+                    // Use QTimer::singleShot to ensure the highlighting update happens after all document changes are complete
+                    QTimer::singleShot(0, [this]() {
+                        m_editor->highlightCurrentLine();
+                        if (m_results) {
+                            m_results->highlightCurrentLineFromEditor(m_editor);
+                        }
+                        LOG_DEBUG("Forced current line highlighting update after LN reference auto-update");
+                    });
+                }
+
                 // Update our tracking variables
                 currentContent = m_editor->toPlainText();
                 LOG_INFO("LN references auto-updated in worksheet");
@@ -622,6 +636,9 @@ void WorksheetWidget::onTextChanged()
     }
 
     m_lastContent = currentContent;
+
+    // Emit contentChanged signal to notify MainWindow of modifications
+    emit contentChanged();
 
     // Start evaluation timer
     startEvaluationTimer();

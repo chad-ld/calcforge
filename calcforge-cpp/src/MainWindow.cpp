@@ -1878,11 +1878,32 @@ void MainWindow::markAsModified()
 void MainWindow::markAsSaved()
 {
     m_isModified = false;
+
+    // Also mark all worksheets as saved
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+        if (worksheet) {
+            worksheet->setModified(false);
+        }
+    }
 }
 
 bool MainWindow::hasUnsavedChanges() const
 {
-    return m_isModified;
+    // Check global modified state
+    if (m_isModified) {
+        return true;
+    }
+
+    // Check if any individual worksheet has unsaved changes
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+        if (worksheet && worksheet->isModified()) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void MainWindow::toggleAlwaysOnTop(bool enabled)

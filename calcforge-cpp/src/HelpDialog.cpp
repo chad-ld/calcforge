@@ -331,8 +331,8 @@ void HelpDialog::setupContent()
         "<li><b>Visual highlighting:</b> LN references are color-coded</li>"
         "<li><b>Hover tooltips:</b> Hover over LN references to see their values</li>"
         "<li><b>Smart selection:</b> Ctrl+Left/Right to select LN references</li>"
-        "<li><b>Cross-sheet navigation:</b> Shift+Enter to jump to referenced line</li>"
-        "<li><b>Return navigation:</b> Shift+Backspace to return to original expression</li>"
+        "<li><b>Cross-sheet navigation:</b> Ctrl+Enter to jump to referenced line</li>"
+        "<li><b>Return navigation:</b> Ctrl+Backspace to return to original expression</li>"
         "</ul>");
 
     // Mathematical Functions
@@ -590,8 +590,8 @@ void HelpDialog::setupContent()
         "<h3>Cross-Sheet Navigation:</h3>"
         "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
         "<tr><th>Shortcut</th><th>Action</th></tr>"
-        "<tr><td>Shift + Enter</td><td>Jump to cross-sheet line reference</td></tr>"
-        "<tr><td>Shift + Backspace</td><td>Return to original cross-sheet expression</td></tr>"
+        "<tr><td>Ctrl + Enter</td><td>Jump to cross-sheet line reference</td></tr>"
+        "<tr><td>Ctrl + Backspace</td><td>Return to original cross-sheet expression</td></tr>"
         "</table>"
 
         "<h3>File Operations:</h3>"

@@ -412,26 +412,22 @@ void ExpressionEditor::keyPressEvent(QKeyEvent *event)
     LOG_DEBUG(QString("ExpressionEditor::keyPressEvent: key=%1, text='%2', printable=%3")
               .arg(event->key()).arg(event->text()).arg(!event->text().isEmpty() && event->text().at(0).isPrint()));
 
-    // Handle cross-sheet navigation shortcuts first
-    if (event->modifiers() & Qt::ShiftModifier) {
+    // Handle Ctrl key combinations
+    if (event->modifiers() & Qt::ControlModifier) {
+        // Handle cross-sheet navigation shortcuts first
         if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
-            // Shift+Enter: Navigate to cross-sheet reference
+            // Ctrl+Enter: Navigate to cross-sheet reference
             handleCrossSheetNavigation();
             event->accept();
             return;
         } else if (event->key() == Qt::Key_Backspace) {
-            // Shift+Backspace: Return to previous cross-sheet reference
+            // Ctrl+Backspace: Return to previous cross-sheet reference
             handleCrossSheetReturn();
             event->accept();
             return;
         }
-    }
-
-    // TEMPORARILY DISABLED: Let MainWindow QShortcut system handle font size shortcuts
-    // Handle special key combinations first
-    if (event->modifiers() & Qt::ControlModifier) {
         // Handle smart navigation shortcuts
-        if (event->key() == Qt::Key_Left) {
+        else if (event->key() == Qt::Key_Left) {
             jumpToPreviousNumberOrLN();
             event->accept();
             return;
