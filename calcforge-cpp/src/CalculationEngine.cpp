@@ -976,18 +976,24 @@ double CalculationEngine::handleStatisticalFunctions(const QString &expr, int li
             result = calculatePercentile(values, 0.95, originalRangeExpr);
         }
         else if (funcName == "meanfps") {
-            // Mean frames per second (harmonic mean for frame times)
+            // Mean frames per second (harmonic mean approach: 1/mean_frame_time)
+            // This gives the most accurate representation of actual performance for graphics/game programming
             if (values.isEmpty()) {
                 result = 0.0;
             } else {
                 double sum = 0.0;
+                LOG_DEBUG(QString("meanfps: Processing %1 values").arg(values.size()));
                 for (double value : values) {
+                    LOG_DEBUG(QString("meanfps: Frame time value = %1").arg(value));
                     if (value <= 0) {
                         return std::numeric_limits<double>::quiet_NaN(); // Invalid frame time
                     }
-                    sum += 1.0 / value; // Sum of reciprocals (1/frame_time = fps)
+                    sum += value; // Sum of frame times
                 }
-                result = values.size() / sum; // Harmonic mean of frame times = mean fps
+                double meanFrameTime = sum / values.size(); // Mean frame time
+                LOG_DEBUG(QString("meanfps: Sum = %1, Count = %2, Mean frame time = %3").arg(sum).arg(values.size()).arg(meanFrameTime));
+                result = 1.0 / meanFrameTime; // Mean FPS = 1 / mean frame time
+                LOG_DEBUG(QString("meanfps: Final result = %1 FPS").arg(result));
             }
         }
 
@@ -1167,9 +1173,33 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
                     int start = rangeParts[0].trimmed().toInt(&ok1);
                     int end = rangeParts[1].trimmed().toInt(&ok2);
                     if (ok1 && ok2) {
-                        for (int i = start; i <= end; ++i) {
-                            if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
-                                values.append(getLineValue(i));
+                        LOG_DEBUG(QString("Comma-separated range parsing: %1-%2").arg(start).arg(end));
+
+                        // Use worksheet content approach for better reliability
+                        if (m_worksheetWidget) {
+                            QString content = m_worksheetWidget->getContent();
+                            QStringList lines = content.split('\n');
+
+                            for (int i = start; i <= end; ++i) {
+                                if (i >= 1 && i <= lines.size()) {
+                                    QString line = lines[i - 1].trimmed(); // Convert to 0-based index
+                                    LOG_DEBUG(QString("Comma range line %1: '%2'").arg(i).arg(line));
+
+                                    // Only count lines that contain actual numeric values, not expressions
+                                    bool ok;
+                                    double numericValue = line.toDouble(&ok);
+                                    if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                                        LOG_DEBUG(QString("Comma range adding value %1 from line %2").arg(numericValue).arg(i));
+                                        values.append(numericValue);
+                                    }
+                                }
+                            }
+                        } else {
+                            // Fallback to old method if worksheet widget not available
+                            for (int i = start; i <= end; ++i) {
+                                if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
+                                    values.append(getLineValue(i));
+                                }
                             }
                         }
                         continue; // Skip the rest of the processing for this part
@@ -1203,9 +1233,33 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
             int start = parts[0].trimmed().toInt(&ok1);
             int end = parts[1].trimmed().toInt(&ok2);
             if (ok1 && ok2) {
-                for (int i = start; i <= end; ++i) {
-                    if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
-                        values.append(getLineValue(i));
+                LOG_DEBUG(QString("Range parsing: %1-%2").arg(start).arg(end));
+
+                // Use worksheet content approach for better reliability
+                if (m_worksheetWidget) {
+                    QString content = m_worksheetWidget->getContent();
+                    QStringList lines = content.split('\n');
+
+                    for (int i = start; i <= end; ++i) {
+                        if (i >= 1 && i <= lines.size()) {
+                            QString line = lines[i - 1].trimmed(); // Convert to 0-based index
+                            LOG_DEBUG(QString("Range line %1: '%2'").arg(i).arg(line));
+
+                            // Only count lines that contain actual numeric values, not expressions
+                            bool ok;
+                            double numericValue = line.toDouble(&ok);
+                            if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                                LOG_DEBUG(QString("Range adding value %1 from line %2").arg(numericValue).arg(i));
+                                values.append(numericValue);
+                            }
+                        }
+                    }
+                } else {
+                    // Fallback to old method if worksheet widget not available
+                    for (int i = start; i <= end; ++i) {
+                        if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
+                            values.append(getLineValue(i));
+                        }
                     }
                 }
             }
