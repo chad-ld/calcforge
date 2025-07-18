@@ -1068,3 +1068,572 @@ percent(333, %, 1000, .2)       // → 33.30% (precision)
 - **🔄 Performance Optimizations**: Startup time improvements, memory usage optimization - **ONGOING POLISH**
 
 **✅ FEATURE PARITY ACHIEVED**: ALL core functionality is implemented and working. CalcForge C++ has achieved complete feature parity with Python/Electron versions and is ready for production use.
+
+## 🚀 **FUTURE ENHANCEMENT ROADMAP**
+
+### **🎯 NEXT MAJOR FEATURES - HIGH IMPACT ADDITIONS**
+
+#### **🔍 "Solve for X" System** - **HIGH PRIORITY** ⭐
+**Effort Level**: Medium (2-3 weeks) | **Impact**: Very High | **Complexity**: Medium
+
+Transform CalcForge from advanced calculator to mathematical problem-solving tool:
+
+```cpp
+// Linear equations
+2*X + 5 = 15                    // Result: X = 5
+X/3 + 7 = 12                    // Result: X = 15
+
+// Quadratic equations
+X^2 - 4*X + 3 = 0              // Result: X = 1, X = 3
+2*X^2 + 3*X - 2 = 0            // Result: X = 0.5, X = -2
+
+// Transcendental equations
+sin(X) = 0.5                    // Result: X = π/6, X = 5π/6
+log(X) = 2                      // Result: X = 100
+
+// System of equations
+solve(2*X + 3*Y = 10, X - Y = 1) // Result: X = 2.6, Y = 1.6
+```
+
+**Implementation Components**:
+- Equation parser and symbolic manipulation
+- Newton-Raphson method for numerical solutions
+- Algebraic solver for polynomial equations
+- Multiple solution handling and validation
+- Integration with existing expression system
+
+**Technical Requirements**:
+- Symbolic math library integration or custom implementation
+- Robust equation parsing with = operator support
+- Numerical methods for transcendental equations
+- Solution validation and error handling
+
+#### **📊 Data Visualization & Plotting** - **HIGH PRIORITY** ⭐
+**Effort Level**: High (4-6 weeks) | **Impact**: Very High | **Complexity**: High
+
+Add powerful graphing and visualization capabilities:
+
+```cpp
+// Function plotting
+plot(X^2 + 2*X - 3)             // Parabola visualization
+plot(sin(X), cos(X))            // Multiple functions
+plot3d(X^2 + Y^2)               // 3D surface plots
+
+// Data visualization from worksheet lines
+scatter(LN1-LN10, LN11-LN20)    // Scatter plot from line data
+histogram(LN1-LN50)             // Data distribution
+boxplot(LN1-LN20, LN21-LN40)    // Box and whisker plots
+heatmap(matrix_data)            // Heat map visualization
+```
+
+**Implementation Components**:
+- Qt Charts integration or custom plotting engine
+- 2D/3D rendering with OpenGL support
+- Interactive plot controls (zoom, pan, annotations)
+- Export capabilities (PNG, SVG, PDF)
+- Real-time plotting from worksheet data
+
+**Technical Requirements**:
+- Qt Charts or QCustomPlot library integration
+- OpenGL for 3D rendering
+- Mathematical function evaluation over ranges
+- Interactive UI controls for plot customization
+
+#### **🧮 Matrix Operations & Linear Algebra** - **HIGH PRIORITY** ⭐
+**Effort Level**: Medium (3-4 weeks) | **Impact**: High | **Complexity**: Medium
+
+Essential for engineering, science, and advanced mathematics:
+
+```cpp
+// Matrix creation and operations
+matrix([[1,2],[3,4]]) * matrix([[5,6],[7,8]])  // Matrix multiplication
+determinant([[1,2,3],[4,5,6],[7,8,9]])         // Determinant calculation
+inverse([[1,2],[3,4]])                         // Matrix inversion
+transpose([[1,2,3],[4,5,6]])                   // Matrix transpose
+
+// Advanced linear algebra
+eigenvalues([[1,2],[3,4]])                     // Eigenvalue computation
+eigenvectors([[1,2],[3,4]])                    // Eigenvector computation
+rank([[1,2,3],[4,5,6]])                        // Matrix rank
+solve_linear(A, b)                             // Linear system solver
+```
+
+**Implementation Components**:
+- Matrix data structure and operations
+- Linear algebra algorithms (LU decomposition, QR factorization)
+- Eigenvalue/eigenvector computation
+- Integration with existing expression system
+
+**Technical Requirements**:
+- Eigen library integration for optimized linear algebra
+- Matrix syntax parsing and display formatting
+- Numerical stability and error handling
+- Memory management for large matrices
+
+### **🎯 MEDIUM PRIORITY ENHANCEMENTS**
+
+#### **📈 Advanced Statistics & Probability** - **MEDIUM PRIORITY**
+**Effort Level**: Medium (2-3 weeks) | **Impact**: High | **Complexity**: Medium
+
+Expand statistical capabilities for data analysis:
+
+```cpp
+// Probability distributions
+normal(mean=0, std=1, x=1.96)       // Normal distribution CDF/PDF
+binomial(n=10, p=0.5, k=3)          // Binomial probability
+poisson(lambda=3, k=2)               // Poisson distribution
+chisquare(observed, expected)         // Chi-square goodness of fit
+ttest(sample1, sample2)              // Student's t-test
+anova(group1, group2, group3)        // Analysis of variance
+
+// Advanced statistical analysis
+correlation(LN1-LN10, LN11-LN20)     // Pearson correlation
+regression(LN1-LN10, LN11-LN20)      // Linear/polynomial regression
+confidence_interval(data, 0.95)      // Confidence intervals
+hypothesis_test(data, null_value)     // Hypothesis testing
+```
+
+#### **💰 Financial Mathematics** - **MEDIUM PRIORITY**
+**Effort Level**: Low (1-2 weeks) | **Impact**: Medium | **Complexity**: Low
+
+Professional financial calculations:
+
+```cpp
+// Time value of money
+pv(rate=0.05, nper=10, pmt=1000)     // Present value
+fv(rate=0.05, nper=10, pmt=1000)     // Future value
+pmt(rate=0.05, nper=10, pv=10000)    // Payment calculation
+rate(nper=10, pmt=1000, pv=10000)    // Interest rate
+
+// Investment analysis
+irr([-1000, 200, 300, 400, 500])     // Internal rate of return
+npv(0.1, [-1000, 200, 300, 400])     // Net present value
+payback([-1000, 200, 300, 400])      // Payback period
+roi(initial=1000, final=1200)        // Return on investment
+
+// Loan calculations
+loan_payment(principal=100000, rate=0.05, years=30)  // Mortgage payments
+amortization_schedule(100000, 0.05, 30)              // Payment schedule
+```
+
+#### **🔢 Advanced Number Theory** - **MEDIUM PRIORITY**
+**Effort Level**: Low (1-2 weeks) | **Impact**: Medium | **Complexity**: Low
+
+Expand mathematical capabilities:
+
+```cpp
+// Prime number functions
+isprime(97)                          // Prime testing
+nextprime(100)                       // Next prime number
+prevprime(100)                       // Previous prime number
+primes_in_range(1, 100)              // List primes in range
+prime_factors(360)                   // Prime factorization
+
+// Combinatorics and sequences
+fibonacci(20)                        // Fibonacci sequence
+lucas(15)                           // Lucas numbers
+catalan(10)                         // Catalan numbers
+binomial(10, 3)                     // Binomial coefficients
+permutations(10, 3)                 // Permutations P(n,r)
+combinations(10, 3)                 // Combinations C(n,r)
+
+// Number theory
+gcd_extended(48, 18)                // Extended Euclidean algorithm
+modular_inverse(3, 11)              // Modular multiplicative inverse
+chinese_remainder([2,3,2], [3,5,7]) // Chinese remainder theorem
+```
+
+#### **🌐 Extended Unit System** - **MEDIUM PRIORITY**
+**Effort Level**: Low (1 week) | **Impact**: Medium | **Complexity**: Low
+
+Expand unit conversion capabilities:
+
+```cpp
+// Power and energy units
+50 watts to horsepower              // Power conversions
+1000 joules to calories             // Energy conversions
+100 kwh to btu                      // Electrical energy
+1 horsepower to watts               // Mechanical power
+
+// Velocity and acceleration
+60 mph to meters per second         // Speed conversions
+9.8 m/s^2 to ft/s^2                // Acceleration
+mach 1 to mph                       // Supersonic speeds
+
+// Pressure and force
+1 atmosphere to pascals             // Pressure units
+100 psi to bar                      // Industrial pressure
+1 newton to pounds force            // Force conversions
+
+// Sound and electromagnetic
+100 decibels to watts per meter squared  // Sound intensity
+1 tesla to gauss                         // Magnetic field
+1 volt per meter to newtons per coulomb  // Electric field
+```
+
+### **🔬 ADVANCED FEATURES - HIGH EFFORT**
+
+#### **📐 Symbolic Calculus System** - **ADVANCED FEATURE**
+**Effort Level**: Very High (8-12 weeks) | **Impact**: Very High | **Complexity**: Very High
+
+Professional-grade symbolic mathematics:
+
+```cpp
+// Symbolic derivatives
+derivative(X^3 + 2*X^2 + 5*X + 1, X)    // Result: 3*X^2 + 4*X + 5
+derivative(sin(X)*cos(X), X)             // Result: cos(2*X)
+partial(X^2*Y + Y^3, X)                  // Partial derivatives
+
+// Symbolic integration
+integral(X^2, X)                         // Indefinite: X^3/3 + C
+integral(X^2, X, 0, 5)                   // Definite: 125/3
+integral(sin(X), X, 0, pi)               // Result: 2
+
+// Limits and series
+limit(sin(X)/X, X, 0)                    // Result: 1
+limit((1+1/X)^X, X, infinity)           // Result: e
+taylor(sin(X), X, 0, 5)                  // Taylor series expansion
+fourier_series(X^2, X, -pi, pi, 5)      // Fourier series
+
+// Symbolic equation solving
+solve(X^3 - 6*X^2 + 11*X - 6 = 0, X)    // Symbolic solutions
+dsolve(y'' + y = 0, y)                   // Differential equations
+```
+
+**Technical Requirements**:
+- Computer algebra system (CAS) integration (SymEngine, GiNaC)
+- Symbolic expression tree manipulation
+- Pattern matching and simplification rules
+- LaTeX rendering for mathematical expressions
+
+#### **🔄 Programming Constructs** - **ADVANCED FEATURE**
+**Effort Level**: High (6-8 weeks) | **Impact**: High | **Complexity**: High
+
+Transform CalcForge into a mathematical programming environment:
+
+```cpp
+// Conditional logic
+if(LN1 > 100, "High", "Low")            // Conditional expressions
+switch(LN1, 1="One", 2="Two", "Other")  // Switch statements
+case(LN1, >100="High", >50="Medium", "Low") // Case analysis
+
+// Loop constructs
+for(i=1 to 10, i^2)                     // For loops with expressions
+while(condition, expression)             // While loops
+sum_for(i=1 to 100, i^2)                // Summation loops
+product_for(i=1 to 10, i)               // Product loops
+
+// Function definitions
+define(f(x), x^2 + 2*x + 1)             // User-defined functions
+define(factorial(n), if(n<=1, 1, n*factorial(n-1))) // Recursive functions
+lambda(x, x^2 + 1)                      // Anonymous functions
+
+// String and data manipulation
+concat("Hello", " ", "World")            // String concatenation
+substring("CalcForge", 1, 4)             // String extraction
+length("CalcForge")                      // String length
+regex_match("test@email.com", email_pattern) // Pattern matching
+split("a,b,c", ",")                      // String splitting
+```
+
+#### **🌐 Data Import/Export System** - **ADVANCED FEATURE**
+**Effort Level**: High (4-6 weeks) | **Impact**: Medium | **Complexity**: Medium
+
+External data integration capabilities:
+
+```cpp
+// File operations
+import_csv("data.csv")                   // Import CSV data to worksheet
+import_excel("spreadsheet.xlsx")         // Import Excel files
+import_json("data.json")                 // Import JSON data
+export_results("output.csv")             // Export calculations
+export_plot("chart.png")                 // Export visualizations
+
+// Database connectivity
+db_connect("sqlite:database.db")         // Database connections
+db_query("SELECT * FROM sales WHERE amount > 1000") // SQL queries
+db_insert("INSERT INTO results VALUES (?, ?)", LN1, LN2) // Data insertion
+
+// Web API integration
+web_get("https://api.example.com/data")  // REST API calls
+web_post("https://api.example.com/submit", data) // POST requests
+json_parse(web_response)                 // JSON parsing
+xml_parse(web_response)                  // XML parsing
+
+// Real-time data feeds
+stock_price("AAPL")                      // Stock market data
+weather("New York")                      // Weather data
+exchange_rate("USD", "EUR")              // Live exchange rates
+```
+
+### **🎯 IMPLEMENTATION PRIORITY MATRIX**
+
+#### **🚀 IMMEDIATE NEXT STEPS (High Impact, Medium Effort)**
+1. **"Solve for X" System** ⭐ - Game-changing feature
+2. **Matrix Operations** ⭐ - Essential for technical users
+3. **Advanced Statistics** - Valuable for data analysis
+
+#### **📊 MAJOR MILESTONES (High Impact, High Effort)**
+1. **Data Visualization & Plotting** ⭐ - Visual mathematics
+2. **Symbolic Calculus System** - Professional mathematics tool
+
+#### **🔧 QUICK WINS (Medium Impact, Low Effort)**
+1. **Financial Mathematics** - Useful for business users
+2. **Extended Unit System** - Easy expansion of existing system
+3. **Advanced Number Theory** - Mathematical completeness
+
+#### **🎓 ADVANCED GOALS (Variable Impact, High Effort)**
+1. **Programming Constructs** - Transform into programming environment
+2. **Data Import/Export** - Enterprise integration capabilities
+
+### **📋 DEVELOPMENT ROADMAP SUGGESTION**
+
+**Phase 1 (Next 3 months)**: "Solve for X" + Matrix Operations
+**Phase 2 (Months 4-6)**: Data Visualization + Advanced Statistics
+**Phase 3 (Months 7-9)**: Financial Functions + Extended Units
+**Phase 4 (Months 10-12)**: Symbolic Calculus System
+**Phase 5 (Year 2)**: Programming Constructs + Data Integration
+
+This roadmap would transform CalcForge from an advanced calculator into a comprehensive mathematical analysis and problem-solving platform, competing with tools like Mathematica, MATLAB, and Wolfram Alpha while maintaining its user-friendly worksheet interface.
+
+## 🚀 **FUTURE ENHANCEMENT ROADMAP**
+
+### **🎯 NEXT MAJOR FEATURES - HIGH IMPACT ADDITIONS**
+
+#### **🔍 "Solve for X" System** - **HIGH PRIORITY** ⭐
+**Effort Level**: Medium (2-3 weeks) | **Impact**: Very High | **Complexity**: Medium
+
+Transform CalcForge from advanced calculator to mathematical problem-solving tool:
+
+```cpp
+// Linear equations
+2*X + 5 = 15                    // Result: X = 5
+X/3 + 7 = 12                    // Result: X = 15
+
+// Quadratic equations
+X^2 - 4*X + 3 = 0              // Result: X = 1, X = 3
+2*X^2 + 3*X - 2 = 0            // Result: X = 0.5, X = -2
+
+// Transcendental equations
+sin(X) = 0.5                    // Result: X = π/6, X = 5π/6
+log(X) = 2                      // Result: X = 100
+
+// System of equations
+solve(2*X + 3*Y = 10, X - Y = 1) // Result: X = 2.6, Y = 1.6
+```
+
+**Implementation Components**:
+- Equation parser and symbolic manipulation
+- Newton-Raphson method for numerical solutions
+- Algebraic solver for linear/quadratic equations
+- Multiple solution handling and validation
+- Integration with existing expression system
+
+**Technical Requirements**:
+- Symbolic math library integration or custom implementation
+- Robust equation parsing with = operator support
+- Numerical methods for transcendental equations
+- Error handling for unsolvable/infinite solutions
+
+#### **📊 Data Visualization & Plotting** - **HIGH PRIORITY** ⭐
+**Effort Level**: High (4-6 weeks) | **Impact**: Very High | **Complexity**: High
+
+Add comprehensive plotting and visualization capabilities:
+
+```cpp
+// Function plotting
+plot(X^2 + 2*X - 3)             // Parabola visualization
+plot(sin(X), cos(X))            // Multiple functions
+plot3d(X^2 + Y^2)               // 3D surface plots
+
+// Data plotting from worksheet lines
+scatter(LN1-LN10, LN11-LN20)    // Scatter plot from line data
+line_plot(LN1-LN50)             // Line graph
+histogram(LN1-LN100)            // Data distribution
+box_plot(LN1-LN20, LN21-LN40)   // Statistical box plots
+
+// Advanced visualizations
+contour(X^2 + Y^2)              // Contour plots
+polar_plot(r=2*cos(theta))      // Polar coordinates
+parametric(t*cos(t), t*sin(t))  // Parametric curves
+```
+
+**Implementation Components**:
+- Qt Charts or custom OpenGL plotting engine
+- Interactive plot controls (zoom, pan, axis scaling)
+- Export capabilities (PNG, SVG, PDF)
+- Real-time plot updates when worksheet data changes
+- Multiple plot types and customization options
+
+#### **🧮 Matrix Operations & Linear Algebra** - **HIGH PRIORITY** ⭐
+**Effort Level**: Medium (3-4 weeks) | **Impact**: High | **Complexity**: Medium
+
+Essential for engineering, science, and advanced mathematics:
+
+```cpp
+// Matrix creation and operations
+matrix([[1,2,3],[4,5,6]])       // Matrix definition
+A * B                           // Matrix multiplication
+A + B                           // Matrix addition
+transpose(A)                    // Matrix transpose
+inverse(A)                      // Matrix inverse
+
+// Advanced operations
+determinant(A)                  // Determinant calculation
+rank(A)                         // Matrix rank
+eigenvalues(A)                  // Eigenvalue computation
+eigenvectors(A)                 // Eigenvector computation
+svd(A)                          // Singular value decomposition
+
+// System solving
+solve_linear(A, b)              // Solve Ax = b
+least_squares(A, b)             // Least squares solution
+```
+
+**Implementation Components**:
+- Matrix data structure and storage
+- BLAS/LAPACK integration for performance
+- Matrix display formatting in results
+- Integration with existing calculation engine
+- Memory management for large matrices
+
+### **🔬 ADVANCED MATHEMATICAL FEATURES**
+
+#### **📈 Symbolic Calculus System** - **MEDIUM PRIORITY**
+**Effort Level**: Very High (8-12 weeks) | **Impact**: High | **Complexity**: Very High
+
+Advanced calculus operations with symbolic manipulation:
+
+```cpp
+// Derivatives
+derivative(X^3 + 2*X^2, X)      // Result: 3*X^2 + 4*X
+partial(X^2*Y + Y^3, X)         // Partial derivatives
+gradient(X^2 + Y^2 + Z^2)       // Vector calculus
+
+// Integrals
+integral(X^2, X)                // Indefinite: X^3/3 + C
+integral(X^2, X, 0, 5)          // Definite: 41.67
+double_integral(X*Y, X, 0, 1, Y, 0, 2) // Multiple integrals
+
+// Limits and series
+limit(sin(X)/X, X, 0)           // Result: 1
+taylor(sin(X), X, 0, 5)         // Taylor series expansion
+fourier_series(f(X), period)    // Fourier analysis
+```
+
+**Implementation Components**:
+- Symbolic math engine (SymEngine, GiNaC, or custom)
+- Expression tree manipulation
+- Symbolic differentiation algorithms
+- Numerical integration methods (Gaussian quadrature, adaptive)
+- Series expansion algorithms
+
+#### **📊 Advanced Statistics & Probability** - **MEDIUM PRIORITY**
+**Effort Level**: Medium (3-4 weeks) | **Impact**: Medium | **Complexity**: Medium
+
+Comprehensive statistical analysis and probability distributions:
+
+```cpp
+// Probability distributions
+normal(mean=0, std=1, x=1.96)   // Normal distribution CDF/PDF
+binomial(n=10, p=0.5, k=3)      // Binomial probability
+poisson(lambda=3, k=2)          // Poisson distribution
+exponential(lambda=2, x=1)      // Exponential distribution
+gamma(alpha=2, beta=1, x=3)     // Gamma distribution
+
+// Hypothesis testing
+ttest(sample1, sample2)         // Student's t-test
+chisquare(observed, expected)   // Chi-square test
+anova(group1, group2, group3)   // Analysis of variance
+correlation(LN1-LN10, LN11-LN20) // Correlation analysis
+
+// Regression analysis
+linear_regression(X_data, Y_data)    // Linear regression
+polynomial_regression(X, Y, degree) // Polynomial fitting
+logistic_regression(X, Y)            // Logistic regression
+```
+
+**Implementation Components**:
+- Statistical distribution library
+- Hypothesis testing algorithms
+- Regression analysis methods
+- Random number generation
+- Statistical significance calculations
+
+### **💼 SPECIALIZED DOMAIN FEATURES**
+
+#### **💰 Financial Mathematics** - **LOW-MEDIUM PRIORITY**
+**Effort Level**: Low-Medium (2-3 weeks) | **Impact**: Medium | **Complexity**: Low-Medium
+
+Professional financial calculations for business and investment analysis:
+
+```cpp
+// Time value of money
+pv(rate=0.05, nper=10, pmt=1000)     // Present value
+fv(rate=0.05, nper=10, pmt=1000)     // Future value
+pmt(rate=0.05, nper=10, pv=50000)    // Payment calculation
+rate(nper=10, pmt=1000, pv=8000)     // Interest rate
+
+// Investment analysis
+irr([-1000, 200, 300, 400, 500])     // Internal rate of return
+npv(0.1, [-1000, 200, 300, 400])     // Net present value
+payback_period([-1000, 300, 400, 500]) // Payback period
+roi(gain=500, cost=1000)             // Return on investment
+
+// Bond and loan calculations
+bond_price(face=1000, coupon=0.05, yield=0.06, years=10)
+loan_payment(principal=200000, rate=0.04, years=30)
+amortization_schedule(principal, rate, years)
+```
+
+#### **⚙️ Engineering Functions** - **LOW-MEDIUM PRIORITY**
+**Effort Level**: Medium (3-4 weeks) | **Impact**: Medium | **Complexity**: Medium
+
+Specialized functions for engineering and signal processing:
+
+```cpp
+// Signal processing
+fft(LN1-LN100)                       // Fast Fourier Transform
+ifft(frequency_data)                 // Inverse FFT
+filter(LN1-LN100, type="lowpass", cutoff=0.1) // Digital filtering
+convolution(signal1, signal2)       // Signal convolution
+correlation(signal1, signal2)       // Cross-correlation
+
+// Interpolation and fitting
+interpolate(LN1-LN10, method="cubic")    // Cubic spline interpolation
+extrapolate(LN1-LN10, points=5)         // Data extrapolation
+curve_fit(X_data, Y_data, function)     // Custom curve fitting
+smooth(LN1-LN100, window=5)             // Data smoothing
+
+// Control systems
+transfer_function(numerator, denominator) // Transfer function analysis
+bode_plot(transfer_func)                 // Frequency response
+step_response(transfer_func)             // Step response analysis
+```
+
+#### **🔢 Number Theory & Discrete Mathematics** - **LOW PRIORITY**
+**Effort Level**: Low-Medium (2-3 weeks) | **Impact**: Low-Medium | **Complexity**: Low-Medium
+
+Advanced number theory and combinatorial functions:
+
+```cpp
+// Prime numbers and factorization
+isprime(97)                      // Prime testing
+nextprime(100)                   // Next prime number
+prevprime(100)                   // Previous prime number
+factors(360)                     // Prime factorization: [2^3, 3^2, 5]
+totient(12)                      // Euler's totient function
+
+// Sequences and series
+fibonacci(20)                    // Fibonacci sequence
+lucas(15)                        // Lucas numbers
+catalan(10)                      // Catalan numbers
+bernoulli(8)                     // Bernoulli numbers
+
+// Combinatorics
+binomial(10, 3)                  // Binomial coefficients
+permutations(10, 3)              // Permutations: P(10,3)
+combinations(10, 3)              // Combinations: C(10,3)
+stirling_second(n, k)            // Stirling numbers
+partition(n)                     // Integer partitions
+```
