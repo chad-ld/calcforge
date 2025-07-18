@@ -1,0 +1,9 @@
+{
+    "version": "1.0",
+    "tabs": [
+        {
+            "name": "Extended Unit Tests",
+            "content": "::: POWER CONVERSIONS\n1000 watts to kilowatts\n5 kilowatts to watts\n100 horsepower to watts\n1 horsepower to kilowatts\n1000 BTU/h to watts\n500 watts to horsepower\n2 kilowatts to horsepower\n750 watts to horsepower\n\n::: ENERGY CONVERSIONS\n1000 joules to kilojoules\n5 kilojoules to joules\n1000 calories to joules\n1 kilocalorie to calories\n1 BTU to joules\n1 kWh to joules\n3600000 joules to kWh\n4184 joules to kilocalories\n1000 kilocalories to BTU\n100 BTU to calories\n\n::: VELOCITY/SPEED CONVERSIONS\n60 mph to km/h\n100 km/h to mph\n30 m/s to mph\n10 ft/s to m/s\n100 knots to mph\n1 mach to m/s\n343 m/s to mach\n88 ft/s to mph\n25 m/s to km/h\n200 km/h to ft/s\n\n::: PRESSURE CONVERSIONS\n100000 pascals to bar\n1 bar to pascals\n1 atmosphere to pascals\n14.7 psi to atmospheres\n760 torr to atmospheres\n760 mmHg to torr\n101325 pascals to atmospheres\n1 bar to psi\n2 atmospheres to psi\n1000 pascals to torr\n\n::: BASIC MATH WITH UNITS\n1000 + 2000\n5000 - 1000\n100 * 2\n200 / 2\nmean(100, 200, 300)\nsqrt(16) * 100\n\n::: REAL WORLD EXAMPLES\n150 horsepower to kilowatts\n2000 calories to kWh\n70 mph to m/s\n32 psi to bar\n1 mach to mph\n100 BTU to kilocalories\n1 horsepower to BTU/h\n60 mph to knots\n1000 watts to BTU/h\n1 atmosphere to mmHg\n\n::: AUTOMOTIVE EXAMPLES\n300 horsepower to kilowatts\n35 psi to bar\n120 mph to m/s\n2.5 bar to psi\n\n::: AVIATION EXAMPLES\n500 knots to mph\n0.8 mach to mph\n10000 ft/s to m/s\n29.92 psi to atmospheres\n\n::: ENERGY EFFICIENCY\n33.7 kWh to BTU\n1000 BTU to kilocalories\n100 watts to horsepower"
+        }
+    ]
+}

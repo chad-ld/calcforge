@@ -1,4 +1,4 @@
-# CalcForge v4.0 - Portable Distribution
+# CalcForge v4.1 - Portable Distribution
 
 ## 🚀 **What is CalcForge?**
 
@@ -39,13 +39,17 @@ This portable distribution contains everything you need to run CalcForge:
 - **Auto-Updates**: LN references automatically update when lines are inserted/deleted
 - **Works with all functions**: LN variables work with unit conversions, currency, etc.
 
-### **📏 Unit Conversions (6 Categories)**
+### **📏 Unit Conversions (10 Categories)**
 - **Distance**: meters, feet, inches, miles, kilometers, yards, centimeters
 - **Weight**: pounds, kilograms, grams, ounces, tons
 - **Volume**: liters, gallons, cubic meters, cubic feet, cubic inches, milliliters
 - **Temperature**: Celsius, Fahrenheit, Kelvin
 - **Time**: seconds, minutes, hours, days, weeks
 - **Area**: square meters, acres, hectares, square feet, square miles, square inches
+- **Power**: watts, kilowatts, horsepower, BTU per hour
+- **Energy**: joules, kilojoules, calories, kilocalories, BTU, kilowatt hours
+- **Velocity**: meters per second, kilometers per hour, miles per hour, feet per second, knots, mach
+- **Pressure**: pascals, kilopascals, bar, atmospheres, psi, torr, millimeters of mercury
 
 ### **💰 Currency Conversions**
 - **157+ Currencies**: USD, EUR, GBP, JPY, CAD, AUD, and many more
@@ -77,7 +81,10 @@ This portable distribution contains everything you need to run CalcForge:
 5 + 3 * 2                    → 11
 sqrt(16)                     → 4
 100 fahrenheit to celsius    → 37.777778 Celsius
-LN3 celsius to kelvin        → 310.927778 Kelvin
+1000 watts to horsepower     → 1.341 horsepower
+60 mph to km/h               → 96.5606 km/h
+14.7 psi to atmospheres      → 1.0 atm
+1000 calories to joules      → 4184 joules
 mean(1, 5, 10, 15, 20)      → 10.2
 percent(25%, 1000)          → 250
 D(July 4, 2023 + 30)        → August 3, 2023
@@ -146,11 +153,12 @@ CalcForge uses JSON format for worksheets:
 
 ## 🎉 **Version Information**
 
-**CalcForge v4.0 C++**
+**CalcForge v4.1 C++**
 - Built with Qt 6.9.1 and MSVC 2022
 - All features from Python and Electron versions
 - Native Windows performance
-- Complete unit conversion system with 6 categories
+- Complete unit conversion system with 10 categories
+- Extended unit system: power, energy, velocity, pressure conversions
 - LN variables work with all special functions
 - Professional-grade calculation engine
 

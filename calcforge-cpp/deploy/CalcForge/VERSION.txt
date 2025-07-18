@@ -1,8 +1,8 @@
-CalcForge v4.0 - C++ Native Windows Version
+CalcForge v4.1 - C++ Native Windows Version
 ===========================================
 
 Build Information:
-- Version: 4.0
+- Version: 4.1
 - Build Date: 2025-07-18
 - Platform: Windows 64-bit
 - Compiler: MSVC 2022
@@ -13,7 +13,7 @@ Features Included:
 ✅ Statistical Functions (15+ functions)
 ✅ LN Reference System with Auto-Updates
 ✅ Cross-Sheet References (S.SheetName.LN#)
-✅ Unit Conversions (6 categories: distance, weight, volume, temperature, time, area)
+✅ Unit Conversions (10 categories: distance, weight, volume, temperature, time, area, power, energy, velocity, pressure)
 ✅ Currency Conversions (157+ currencies with live API updates)
 ✅ Date Functions (D) with business day support
 ✅ Timecode Functions (TC) with drop frame support
@@ -34,6 +34,12 @@ Recent Updates:
 - Added comprehensive area conversions (acres, hectares, square meters, etc.)
 - Expanded volume conversions (cubic meters, cubic feet, cubic inches, etc.)
 - Added time conversions (seconds, minutes, hours, days, weeks)
+- EXTENDED UNIT SYSTEM: Added 4 new unit categories (power, energy, velocity, pressure)
+- Power conversions: watts, kilowatts, horsepower, BTU per hour
+- Energy conversions: joules, kilojoules, calories, kilocalories, BTU, kilowatt hours
+- Velocity conversions: m/s, km/h, mph, ft/s, knots, mach
+- Pressure conversions: pascals, kilopascals, bar, atmospheres, psi, torr, mmHg
+- Complete autocomplete integration with detailed descriptions for all new units
 - Updated help documentation with all new conversion types
 - Enhanced LN variable examples in help system
 
@@ -44,6 +50,10 @@ Unit Conversion Categories:
 4. Temperature: Celsius, Fahrenheit, Kelvin
 5. Time: seconds, minutes, hours, days, weeks
 6. Area: square meters, square kilometers, square feet, square inches, square yards, square miles, acres, hectares
+7. Power: watts, kilowatts, horsepower, BTU per hour
+8. Energy: joules, kilojoules, calories, kilocalories, BTU, kilowatt hours
+9. Velocity: meters per second, kilometers per hour, miles per hour, feet per second, knots, mach
+10. Pressure: pascals, kilopascals, bar, atmospheres, psi, torr, millimeters of mercury
 
 Mathematical Functions:
 - Basic: +, -, *, /, ^, sqrt, abs, round, ceil, floor
