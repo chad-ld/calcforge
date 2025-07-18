@@ -134,6 +134,13 @@ public:
     QString handlePercentageCalculation(const QString &expr);
 
     /**
+     * Handle solve function calls like "solve(X + 2 = 5, linear, .2)"
+     * @param expr The expression to check and evaluate
+     * @return Solve result string, or empty string if not a solve function
+     */
+    QString handleSolveFunction(const QString &expr);
+
+    /**
      * Get the stored value for a specific line number
      * @param lineNumber The line number to look up
      * @return The stored value, or 0.0 if not found
@@ -246,6 +253,75 @@ private:
      * @return Numeric value extracted from the beginning of the string
      */
     double extractNumericValueFromResult(const QString &result);
+
+    /**
+     * Extract numeric value from solve result for LN references
+     * @param result The solve result string (e.g., "X = 5" or "X = 1, X = 3")
+     * @return First numeric value extracted from the result
+     */
+    double extractNumericValueFromSolveResult(const QString &result);
+
+    /**
+     * Solve linear equations of the form aX + b = c
+     * @param leftSide Left side of equation (e.g., "2*X + 3")
+     * @param rightSide Right side of equation (e.g., "15")
+     * @param decimalPlaces Number of decimal places for rounding (-1 for no rounding)
+     * @return Formatted solution string (e.g., "X = 6")
+     */
+    QString solveLinearEquation(const QString &leftSide, const QString &rightSide, int decimalPlaces);
+
+    /**
+     * Solve quadratic equations of the form aX² + bX + c = 0
+     * @param leftSide Left side of equation (e.g., "X^2 - 4*X + 3")
+     * @param rightSide Right side of equation (e.g., "0")
+     * @param decimalPlaces Number of decimal places for rounding (-1 for no rounding)
+     * @return Formatted solution string (e.g., "X = 1, X = 3")
+     */
+    QString solveQuadraticEquation(const QString &leftSide, const QString &rightSide, int decimalPlaces);
+
+    /**
+     * Solve transcendental equations with trig, log, exponential functions
+     * @param leftSide Left side of equation (e.g., "sin(X)")
+     * @param rightSide Right side of equation (e.g., "0.5")
+     * @param decimalPlaces Number of decimal places for rounding (-1 for no rounding)
+     * @return Formatted solution string (e.g., "X = 30° (0.524 rad)")
+     */
+    QString solveTranscendentalEquation(const QString &leftSide, const QString &rightSide, int decimalPlaces);
+
+    /**
+     * Solve trigonometric equations (sin, cos, tan)
+     * @param function Function name ("sin", "cos", "tan")
+     * @param target Target value
+     * @param decimalPlaces Number of decimal places for rounding (-1 for no rounding)
+     * @return Formatted solution string with degrees and radians
+     */
+    QString solveTrigonometric(const QString &function, double target, int decimalPlaces);
+
+    /**
+     * Solve logarithmic equations (log, log10)
+     * @param function Function name ("log", "log10")
+     * @param target Target value
+     * @param decimalPlaces Number of decimal places for rounding (-1 for no rounding)
+     * @return Formatted solution string
+     */
+    QString solveLogarithmic(const QString &function, double target, int decimalPlaces);
+
+    /**
+     * Solve exponential equations (exp, e^x)
+     * @param target Target value
+     * @param decimalPlaces Number of decimal places for rounding (-1 for no rounding)
+     * @return Formatted solution string
+     */
+    QString solveExponential(double target, int decimalPlaces);
+
+    /**
+     * Numerical solver for general transcendental equations
+     * @param leftSide Left side of equation
+     * @param target Target value
+     * @param decimalPlaces Number of decimal places for rounding (-1 for no rounding)
+     * @return Formatted solution string
+     */
+    QString solveNumerical(const QString &leftSide, double target, int decimalPlaces);
 
     // Mathematical constants and functions
     QHash<QString, double> m_constants;

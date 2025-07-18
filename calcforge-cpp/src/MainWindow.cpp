@@ -947,10 +947,21 @@ void MainWindow::saveAsFile()
 
 void MainWindow::loadWorksheetFile()
 {
+    // Determine default directory based on current file
+    QString defaultDir;
+    if (!m_currentFile.isEmpty() && QFile::exists(m_currentFile)) {
+        // Use the directory of the currently open file
+        QFileInfo currentFileInfo(m_currentFile);
+        defaultDir = currentFileInfo.absolutePath();
+    } else {
+        // Fallback to home directory if no current file
+        defaultDir = QDir::homePath();
+    }
+
     QString fileName = QFileDialog::getOpenFileName(
         this,
         "Load CalcForge Worksheet",
-        QDir::homePath(),
+        defaultDir,
         "CalcForge Files (*.json *.cf);;JSON Files (*.json);;All Files (*)"
     );
 

@@ -540,6 +540,7 @@ void AutoCompleteManager::setupFunctions()
     m_functions["AR"] = AutoCompleteFunction("AR", "Aspect ratio calculation", {"dimensions"}, "special");
     m_functions["D"] = AutoCompleteFunction("D", "Date calculation", {"date_expression"}, "special");
     m_functions["percent"] = AutoCompleteFunction("percent", "Percentage calculation", {"value", "operation", "value2"}, "special");
+    m_functions["solve"] = AutoCompleteFunction("solve", "Solve equations for unknown variables. Supports linear, quadratic, and transcendental equations", {"equation", "method", "rounding"}, "special");
 
     // Cross-sheet function
     m_functions["S"] = AutoCompleteFunction("S", "Cross-sheet reference", {"sheet", "reference"}, "reference");
@@ -575,6 +576,9 @@ void AutoCompleteManager::setupFunctions()
     // TC function - first parameter (framerate)
     m_functionParameters["TC"] = {"24", "29.97", "30", "23.976", "25", "50", "59.94", "60"};
     m_functionParameters["tc"] = {"24", "29.97", "30", "23.976", "25", "50", "59.94", "60"};
+
+    // Solve function - first parameter (equation examples)
+    m_functionParameters["solve"] = {"X + 2 = 5", "2*X + 3 = 15", "X^2 - 4*X + 3 = 0", "sin(X) = 0.5"};
     // TC function - second parameter (timecode expressions with usage examples)
     m_functionParameters["TC_param2"] = {
         "100",
@@ -699,16 +703,18 @@ void AutoCompleteManager::showAutocomplete()
 
     // Enhanced conditions to prevent inappropriate autocomplete
     if (currentWord.isEmpty()) {
-        if (context != "function_param" && context != "rounding_options" && context != "percentile_method") {
-            LOG_DEBUG("AutoCompleteManager: Current word is empty and not in function_param, rounding_options, or percentile_method context - hiding");
+        if (context != "function_param" && context != "rounding_options" && context != "percentile_method" &&
+            context != "solve_method" && context != "solve_rounding") {
+            LOG_DEBUG("AutoCompleteManager: Current word is empty and not in special context - hiding");
             hideAutocomplete();
             return;
         }
     }
 
     // Don't show autocomplete if current word is too short (less than 1 character)
-    // unless we're in a special context like function parameters, rounding options, or percentile methods
-    if (currentWord.length() < 1 && context != "function_param" && context != "rounding_options" && context != "percentile_method") {
+    // unless we're in a special context like function parameters, rounding options, or solve contexts
+    if (currentWord.length() < 1 && context != "function_param" && context != "rounding_options" &&
+        context != "percentile_method" && context != "solve_method" && context != "solve_rounding") {
         LOG_DEBUG("AutoCompleteManager: Current word too short and not in special context - hiding");
         hideAutocomplete();
         return;
@@ -936,6 +942,19 @@ QString AutoCompleteManager::getContextType()
                 }
             }
 
+            // Special handling for solve function - multi-stage workflow
+            if (functionName == "solve" && commaCount >= 1) {
+                if (commaCount == 1) {
+                    // After equation, show method options
+                    LOG_DEBUG("AutoCompleteManager::getContextType: Solve function after equation - returning 'solve_method'");
+                    return "solve_method";
+                } else if (commaCount == 2) {
+                    // After method, show rounding options
+                    LOG_DEBUG("AutoCompleteManager::getContextType: Solve function after method - returning 'solve_rounding'");
+                    return "solve_rounding";
+                }
+            }
+
             // For TC function, check if we're on the second parameter
             if ((functionName == "tc" || functionName == "TC") && commaCount >= 1) {
                 m_currentContext = "function_param:" + functionName + "_param2";
@@ -1113,6 +1132,28 @@ QStringList AutoCompleteManager::filterCompletions(const QString &prefix, const 
         }
         results.sort();
     }
+    else if (context == "solve_method") {
+        LOG_DEBUG("AutoCompleteManager: Filtering solve methods");
+        // Filter solve method options
+        QStringList methods = {"linear", "quadratic", "transcendental"};
+        for (const QString &method : methods) {
+            if (method.toLower().contains(lowerPrefix)) {
+                results << method;
+            }
+        }
+        results.sort();
+    }
+    else if (context == "solve_rounding") {
+        LOG_DEBUG("AutoCompleteManager: Filtering solve rounding options");
+        // Filter solve rounding options
+        QStringList roundingOptions = {"no rounding", "rounding"};
+        for (const QString &option : roundingOptions) {
+            if (option.toLower().contains(lowerPrefix)) {
+                results << option;
+            }
+        }
+        results.sort();
+    }
     else if (context == "unit") {
         LOG_DEBUG(QString("AutoCompleteManager: Filtering units/currencies with %1 units, %2 currencies").arg(m_units.size()).arg(m_currencies.size()));
         // Filter units and currencies
@@ -1207,6 +1248,22 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
                 description = "Nearest-rank method\nReturns actual data values from the dataset";
             }
         }
+        else if (context == "solve_method") {
+            if (completion == "linear") {
+                description = "Linear equation solver (default)\nSolves equations of the form: aX + b = c\nExample: 2*X + 5 = 15 → X = 5";
+            } else if (completion == "quadratic") {
+                description = "Quadratic equation solver\nSolves equations of the form: aX² + bX + c = 0\nExample: X^2 - 4*X + 3 = 0 → X = 1, X = 3";
+            } else if (completion == "transcendental") {
+                description = "Transcendental equation solver\nSolves equations with trig, log, exponential functions\nExample: sin(X) = 0.5 → X = π/6, X = 5π/6";
+            }
+        }
+        else if (context == "solve_rounding") {
+            if (completion == "no rounding") {
+                description = "Display full precision results\nExample: X = 3.14159265359";
+            } else if (completion == "rounding") {
+                description = "Round results to 2 decimal places\nExample: X = 3.14";
+            }
+        }
         else if (context == "unit") {
             if (m_units.contains(completion)) {
                 description = QString("Unit: %1").arg(completion);
@@ -1264,6 +1321,19 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
                     description = "Calculate percentage change between values\nAdd .2 for 2 decimal places: percent(1000, to, 1200, .2)";
                 } else {
                     description = "Percentage calculation\nAdd .2 for 2 decimal places";
+                }
+            } else if (functionName == "solve") {
+                // Special descriptions for solve function equation examples
+                if (completion == "X + 2 = 5") {
+                    description = "Simple linear equation\nSolves for X in basic addition/subtraction\nResult: X = 3";
+                } else if (completion == "2*X + 3 = 15") {
+                    description = "Linear equation with multiplication\nSolves for X with coefficients\nResult: X = 6";
+                } else if (completion == "X^2 - 4*X + 3 = 0") {
+                    description = "Quadratic equation\nSolves for X using quadratic formula\nResult: X = 1, X = 3";
+                } else if (completion == "sin(X) = 0.5") {
+                    description = "Transcendental equation\nSolves trigonometric equations\nResult: X = π/6, X = 5π/6";
+                } else {
+                    description = "Equation to solve for unknown variable X\nSupports linear, quadratic, and transcendental equations";
                 }
             } else {
                 // Check if this is a statistical function that supports rounding
@@ -1381,7 +1451,12 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
                 LOG_DEBUG(QString("AutoCompleteManager: Function parameter completion - functionName='%1', completion='%2', isStatFunction=%3")
                           .arg(functionName).arg(completion).arg(statFunctions.contains(functionName.toLower())));
 
-                if (functionName.toLower() == "perc5" || functionName.toLower() == "perc95") {
+                if (functionName.toLower() == "solve") {
+                    // Solve function - after equation, add comma and trigger method autocomplete
+                    replaceCurrentWord(completion + ", ");
+                    LOG_DEBUG(QString("AutoCompleteManager: Solve function equation completed, triggering method autocomplete"));
+                    QTimer::singleShot(50, this, &AutoCompleteManager::handleTextChanged);
+                } else if (functionName.toLower() == "perc5" || functionName.toLower() == "perc95") {
                     // Percentile function - after range, add comma and trigger method autocomplete
                     replaceCurrentWord(completion + ", ");
                     LOG_DEBUG(QString("AutoCompleteManager: Percentile function '%1' range completed, triggering method autocomplete").arg(functionName));
@@ -1461,6 +1536,50 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
                     LOG_DEBUG("AutoCompleteManager: Added .2 rounding parameter and positioned cursor after closing parenthesis");
                 }
             }
+        }
+    }
+    else if (context == "solve_method") {
+        // Solve method completion - add method, add comma, and trigger rounding options
+        LOG_DEBUG(QString("AutoCompleteManager: Solve method completion - method: '%1'").arg(completion));
+
+        // Add the method and comma for next parameter
+        replaceCurrentWord(completion + ", ");
+
+        // Set context for solve rounding options
+        m_currentContext = "solve_rounding:solve";
+        LOG_DEBUG("AutoCompleteManager: Set solve rounding context");
+
+        // Trigger rounding options autocomplete after a short delay
+        QTimer::singleShot(50, this, &AutoCompleteManager::handleTextChanged);
+    }
+    else if (context == "solve_rounding") {
+        // Solve rounding completion - add rounding option and close function
+        LOG_DEBUG(QString("AutoCompleteManager: Solve rounding completion - option: '%1'").arg(completion));
+
+        if (completion == "no rounding") {
+            // Remove trailing comma and space, then close function
+            QTextCursor cursor = m_editor->textCursor();
+            QString lineText = cursor.block().text();
+            int posInLine = cursor.positionInBlock();
+
+            // Find and remove the trailing ", " before closing the function
+            QString textBeforeCursor = lineText.left(posInLine);
+            if (textBeforeCursor.endsWith(", ")) {
+                // Remove the ", " and close the function
+                cursor.setPosition(cursor.block().position() + posInLine - 2);
+                cursor.setPosition(cursor.block().position() + posInLine, QTextCursor::KeepAnchor);
+                cursor.insertText(")");
+                m_editor->setTextCursor(cursor);
+                LOG_DEBUG("AutoCompleteManager: Solve function completed without rounding - removed trailing comma");
+            } else {
+                // Fallback: just close function
+                replaceCurrentWord(")");
+                LOG_DEBUG("AutoCompleteManager: Solve function completed without rounding - fallback");
+            }
+        } else if (completion == "rounding") {
+            // Add .2 rounding parameter and close function
+            replaceCurrentWord(".2)");
+            LOG_DEBUG("AutoCompleteManager: Solve function completed with .2 rounding");
         }
     }
     else if (context == "percentile_method") {

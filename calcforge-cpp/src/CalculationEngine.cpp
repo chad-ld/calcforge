@@ -137,6 +137,16 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
             return percentageResult;
         }
 
+        // Check for solve function
+        QString solveResult = handleSolveFunction(expr);
+        if (!solveResult.isEmpty()) {
+            // For solve functions, try to extract numeric value for LN references
+            // Results can be single values (X = 5) or multiple values (X = 1, X = 3)
+            double numericValue = extractNumericValueFromSolveResult(solveResult);
+            m_lineValues[lineNumber] = numericValue;
+            return solveResult;
+        }
+
         // Check for statistical functions
         double statResult = handleStatisticalFunctions(expr, lineNumber);
         if (!std::isnan(statResult)) {
@@ -1522,6 +1532,445 @@ QString CalculationEngine::handlePercentageCalculation(const QString &expr)
 void CalculationEngine::setSheetLookupFunction(std::function<WorksheetWidget*(const QString&)> lookupFunction)
 {
     m_sheetLookupFunction = lookupFunction;
+}
+
+QString CalculationEngine::handleSolveFunction(const QString &expr)
+{
+    // Pattern to match solve function: solve(equation, method, rounding)
+    QRegularExpression solvePattern(R"(^solve\s*\(\s*(.*?)\s*(?:,\s*(linear|quadratic|transcendental)\s*)?(?:,\s*(\.\d+|\d+\.\d+)\s*)?\)$)",
+                                    QRegularExpression::CaseInsensitiveOption);
+
+    QRegularExpressionMatch match = solvePattern.match(expr.trimmed());
+    if (!match.hasMatch()) {
+        return QString(); // Not a solve function
+    }
+
+    QString equation = match.captured(1).trimmed();
+    QString method = match.captured(2).trimmed().toLower();
+    QString roundingStr = match.captured(3).trimmed();
+
+    // Default method is linear
+    if (method.isEmpty()) {
+        method = "linear";
+    }
+
+    // Parse rounding parameter
+    int decimalPlaces = -1; // -1 means no rounding
+    if (!roundingStr.isEmpty()) {
+        bool ok;
+        double roundingValue = roundingStr.toDouble(&ok);
+        if (ok && roundingValue > 0) {
+            // Convert .2 to 2 decimal places, .3 to 3 decimal places, etc.
+            if (roundingValue < 1.0) {
+                decimalPlaces = static_cast<int>(roundingValue * 10);
+            } else {
+                decimalPlaces = static_cast<int>(roundingValue);
+            }
+        }
+    }
+
+    LOG_DEBUG(QString("Solve function: equation='%1', method='%2', rounding=%3")
+              .arg(equation).arg(method).arg(decimalPlaces));
+
+    // Parse the equation (split on '=')
+    QStringList parts = equation.split('=');
+    if (parts.size() != 2) {
+        return QString("Error: Invalid equation format. Use format: X + 2 = 5");
+    }
+
+    QString leftSide = parts[0].trimmed();
+    QString rightSide = parts[1].trimmed();
+
+    // Solve based on method
+    if (method == "linear") {
+        return solveLinearEquation(leftSide, rightSide, decimalPlaces);
+    } else if (method == "quadratic") {
+        return solveQuadraticEquation(leftSide, rightSide, decimalPlaces);
+    } else if (method == "transcendental") {
+        return solveTranscendentalEquation(leftSide, rightSide, decimalPlaces);
+    } else {
+        return QString("Error: Unknown solve method: %1").arg(method);
+    }
+}
+
+QString CalculationEngine::solveLinearEquation(const QString &leftSide, const QString &rightSide, int decimalPlaces)
+{
+    // Simple linear equation solver for equations of the form: aX + b = c
+    // This is a basic implementation - can be enhanced later
+
+    try {
+        // For now, handle simple cases like "X + 2 = 5" or "2*X + 3 = 15"
+        // Parse left side to extract coefficient and constant
+        double coefficient = 0.0;
+        double constant = 0.0;
+
+        // Parse right side to get target value
+        double target = rightSide.toDouble();
+
+        // Simple pattern matching for common linear equation forms
+        QString leftNormalized = leftSide.toLower().replace(" ", "");
+
+        if (leftNormalized == "x") {
+            // Simple case: X = target
+            coefficient = 1.0;
+            constant = 0.0;
+        } else if (leftNormalized.startsWith("x+")) {
+            // Case: X + constant = target
+            coefficient = 1.0;
+            constant = leftNormalized.mid(2).toDouble();
+        } else if (leftNormalized.startsWith("x-")) {
+            // Case: X - constant = target
+            coefficient = 1.0;
+            constant = -leftNormalized.mid(2).toDouble();
+        } else if (leftNormalized.contains("*x+")) {
+            // Case: coefficient*X + constant = target
+            QStringList parts = leftNormalized.split("*x+");
+            if (parts.size() == 2) {
+                coefficient = parts[0].toDouble();
+                constant = parts[1].toDouble();
+            }
+        } else if (leftNormalized.contains("*x-")) {
+            // Case: coefficient*X - constant = target
+            QStringList parts = leftNormalized.split("*x-");
+            if (parts.size() == 2) {
+                coefficient = parts[0].toDouble();
+                constant = -parts[1].toDouble();
+            }
+        } else if (leftNormalized.contains("*x")) {
+            // Case: coefficient*X = target
+            QString coeffStr = leftNormalized;
+            coeffStr.remove("*x");
+            coefficient = coeffStr.toDouble();
+            constant = 0.0;
+        } else {
+            return QString("Error: Unsupported linear equation format");
+        }
+
+        // Solve: coefficient*X + constant = target
+        // X = (target - constant) / coefficient
+        if (qAbs(coefficient) < 1e-10) {
+            return QString("Error: No variable X found in equation");
+        }
+
+        double solution = (target - constant) / coefficient;
+
+        // Format result with optional rounding
+        QString result;
+        if (decimalPlaces >= 0) {
+            result = QString("X = %1").arg(solution, 0, 'f', decimalPlaces);
+        } else {
+            result = QString("X = %1").arg(solution);
+        }
+
+        LOG_DEBUG(QString("Linear equation solved: %1 + %2 = %3, solution: X = %4")
+                  .arg(coefficient).arg(constant).arg(target).arg(solution));
+
+        return result;
+
+    } catch (...) {
+        return QString("Error: Failed to solve linear equation");
+    }
+}
+
+double CalculationEngine::extractNumericValueFromSolveResult(const QString &result)
+{
+    // Extract the first numeric value from solve results like "X = 5" or "X = 1, X = 3"
+    QRegularExpression numPattern(R"(X\s*=\s*([+-]?\d+(?:\.\d+)?))");
+    QRegularExpressionMatch match = numPattern.match(result);
+
+    if (match.hasMatch()) {
+        bool ok;
+        double value = match.captured(1).toDouble(&ok);
+        if (ok) {
+            return value;
+        }
+    }
+
+    return 0.0; // Default value if no number found
+}
+
+QString CalculationEngine::solveQuadraticEquation(const QString &leftSide, const QString &rightSide, int decimalPlaces)
+{
+    // Quadratic equation solver for equations of the form: aX² + bX + c = 0
+    // Rearrange equation to standard form and use quadratic formula
+
+    try {
+        // Parse right side to get target value
+        double target = rightSide.toDouble();
+
+        // Parse left side to extract coefficients a, b, c from aX² + bX + c
+        double a = 0.0, b = 0.0, c = 0.0;
+
+        QString leftNormalized = leftSide.toLower().replace(" ", "");
+
+        // Handle various quadratic equation formats
+        if (leftNormalized.contains("x^2") || leftNormalized.contains("x²")) {
+            // Parse quadratic terms
+            QRegularExpression quadPattern(R"(([+-]?\d*\.?\d*)\*?x\^?[2²]([+-]\d*\.?\d*\*?x)?([+-]\d*\.?\d*)?)",
+                                         QRegularExpression::CaseInsensitiveOption);
+            QRegularExpressionMatch match = quadPattern.match(leftNormalized);
+
+            if (match.hasMatch()) {
+                // Extract coefficient of X²
+                QString aStr = match.captured(1);
+                if (aStr.isEmpty() || aStr == "+") {
+                    a = 1.0;
+                } else if (aStr == "-") {
+                    a = -1.0;
+                } else {
+                    a = aStr.toDouble();
+                }
+
+                // Extract coefficient of X
+                QString bStr = match.captured(2);
+                if (!bStr.isEmpty()) {
+                    bStr = bStr.replace("*x", "").replace("x", "");
+                    if (bStr == "+" || bStr.isEmpty()) {
+                        b = 1.0;
+                    } else if (bStr == "-") {
+                        b = -1.0;
+                    } else {
+                        b = bStr.toDouble();
+                    }
+                }
+
+                // Extract constant term
+                QString cStr = match.captured(3);
+                if (!cStr.isEmpty()) {
+                    c = cStr.toDouble();
+                }
+            } else {
+                return QString("Error: Unable to parse quadratic equation format");
+            }
+        } else {
+            return QString("Error: Not a quadratic equation (missing X² term)");
+        }
+
+        // Rearrange to standard form: aX² + bX + (c - target) = 0
+        c = c - target;
+
+        LOG_DEBUG(QString("Quadratic equation: %1*X² + %2*X + %3 = 0").arg(a).arg(b).arg(c));
+
+        // Check if it's actually linear (a = 0)
+        if (qAbs(a) < 1e-10) {
+            if (qAbs(b) < 1e-10) {
+                return QString("Error: No variable terms found");
+            }
+            // Linear case: bX + c = 0
+            double solution = -c / b;
+            QString result;
+            if (decimalPlaces >= 0) {
+                result = QString("X = %1").arg(solution, 0, 'f', decimalPlaces);
+            } else {
+                result = QString("X = %1").arg(solution);
+            }
+            return result;
+        }
+
+        // Calculate discriminant: b² - 4ac
+        double discriminant = b * b - 4 * a * c;
+
+        LOG_DEBUG(QString("Discriminant: %1").arg(discriminant));
+
+        if (discriminant < 0) {
+            return QString("No real solutions (discriminant < 0)");
+        } else if (qAbs(discriminant) < 1e-10) {
+            // One solution (repeated root)
+            double solution = -b / (2 * a);
+            QString result;
+            if (decimalPlaces >= 0) {
+                result = QString("X = %1").arg(solution, 0, 'f', decimalPlaces);
+            } else {
+                result = QString("X = %1").arg(solution);
+            }
+            return result;
+        } else {
+            // Two solutions
+            double sqrtDiscriminant = std::sqrt(discriminant);
+            double solution1 = (-b + sqrtDiscriminant) / (2 * a);
+            double solution2 = (-b - sqrtDiscriminant) / (2 * a);
+
+            QString result;
+            if (decimalPlaces >= 0) {
+                result = QString("X = %1, X = %2")
+                        .arg(solution1, 0, 'f', decimalPlaces)
+                        .arg(solution2, 0, 'f', decimalPlaces);
+            } else {
+                result = QString("X = %1, X = %2").arg(solution1).arg(solution2);
+            }
+            return result;
+        }
+
+    } catch (...) {
+        return QString("Error: Failed to solve quadratic equation");
+    }
+}
+
+QString CalculationEngine::solveTranscendentalEquation(const QString &leftSide, const QString &rightSide, int decimalPlaces)
+{
+    // Transcendental equation solver using Newton-Raphson method
+    // Handles equations with sin, cos, tan, log, exp, etc.
+
+    try {
+        double target = rightSide.toDouble();
+        QString leftNormalized = leftSide.toLower().replace(" ", "");
+
+        LOG_DEBUG(QString("Solving transcendental equation: %1 = %2").arg(leftSide).arg(target));
+
+        // Check for common transcendental function patterns
+        if (leftNormalized.contains("sin(x)")) {
+            return solveTrigonometric("sin", target, decimalPlaces);
+        } else if (leftNormalized.contains("cos(x)")) {
+            return solveTrigonometric("cos", target, decimalPlaces);
+        } else if (leftNormalized.contains("tan(x)")) {
+            return solveTrigonometric("tan", target, decimalPlaces);
+        } else if (leftNormalized.contains("log(x)")) {
+            return solveLogarithmic("log", target, decimalPlaces);
+        } else if (leftNormalized.contains("log10(x)")) {
+            return solveLogarithmic("log10", target, decimalPlaces);
+        } else if (leftNormalized.contains("exp(x)") || leftNormalized.contains("e^x")) {
+            return solveExponential(target, decimalPlaces);
+        } else {
+            // Use numerical Newton-Raphson method for general case
+            return solveNumerical(leftSide, target, decimalPlaces);
+        }
+
+    } catch (...) {
+        return QString("Error: Failed to solve transcendental equation");
+    }
+}
+
+QString CalculationEngine::solveTrigonometric(const QString &function, double target, int decimalPlaces)
+{
+    // Solve trigonometric equations like sin(X) = 0.5, cos(X) = 0.707, etc.
+
+    if (target < -1.0 || target > 1.0) {
+        if (function != "tan") {
+            return QString("Error: %1(X) = %2 has no solution (range is [-1, 1])").arg(function).arg(target);
+        }
+    }
+
+    QStringList solutions;
+
+    if (function == "sin") {
+        if (qAbs(target) <= 1.0) {
+            double arcsin_val = std::asin(target);
+            double sol1 = arcsin_val;
+            double sol2 = M_PI - arcsin_val;
+
+            // Convert to degrees for user-friendly display
+            double sol1_deg = sol1 * 180.0 / M_PI;
+            double sol2_deg = sol2 * 180.0 / M_PI;
+
+            if (decimalPlaces >= 0) {
+                solutions << QString("X = %1° (%2 rad)").arg(sol1_deg, 0, 'f', decimalPlaces).arg(sol1, 0, 'f', decimalPlaces);
+                if (qAbs(sol1 - sol2) > 1e-10) {
+                    solutions << QString("X = %1° (%2 rad)").arg(sol2_deg, 0, 'f', decimalPlaces).arg(sol2, 0, 'f', decimalPlaces);
+                }
+            } else {
+                solutions << QString("X = %1° (%2 rad)").arg(sol1_deg).arg(sol1);
+                if (qAbs(sol1 - sol2) > 1e-10) {
+                    solutions << QString("X = %1° (%2 rad)").arg(sol2_deg).arg(sol2);
+                }
+            }
+        }
+    } else if (function == "cos") {
+        if (qAbs(target) <= 1.0) {
+            double arccos_val = std::acos(target);
+            double sol1 = arccos_val;
+            double sol2 = -arccos_val;
+
+            double sol1_deg = sol1 * 180.0 / M_PI;
+            double sol2_deg = sol2 * 180.0 / M_PI;
+
+            if (decimalPlaces >= 0) {
+                solutions << QString("X = %1° (%2 rad)").arg(sol1_deg, 0, 'f', decimalPlaces).arg(sol1, 0, 'f', decimalPlaces);
+                if (qAbs(sol1 - sol2) > 1e-10) {
+                    solutions << QString("X = %1° (%2 rad)").arg(sol2_deg, 0, 'f', decimalPlaces).arg(sol2, 0, 'f', decimalPlaces);
+                }
+            } else {
+                solutions << QString("X = %1° (%2 rad)").arg(sol1_deg).arg(sol1);
+                if (qAbs(sol1 - sol2) > 1e-10) {
+                    solutions << QString("X = %1° (%2 rad)").arg(sol2_deg).arg(sol2);
+                }
+            }
+        }
+    } else if (function == "tan") {
+        double arctan_val = std::atan(target);
+        double sol_deg = arctan_val * 180.0 / M_PI;
+
+        if (decimalPlaces >= 0) {
+            solutions << QString("X = %1° (%2 rad)").arg(sol_deg, 0, 'f', decimalPlaces).arg(arctan_val, 0, 'f', decimalPlaces);
+        } else {
+            solutions << QString("X = %1° (%2 rad)").arg(sol_deg).arg(arctan_val);
+        }
+    }
+
+    if (solutions.isEmpty()) {
+        return QString("Error: No solutions found for %1(X) = %2").arg(function).arg(target);
+    }
+
+    return solutions.join(", ");
+}
+
+QString CalculationEngine::solveLogarithmic(const QString &function, double target, int decimalPlaces)
+{
+    // Solve logarithmic equations like log(X) = 2, log10(X) = 3, etc.
+
+    double solution;
+
+    if (function == "log") {
+        // Natural logarithm: log(X) = target → X = e^target
+        solution = std::exp(target);
+    } else if (function == "log10") {
+        // Base-10 logarithm: log10(X) = target → X = 10^target
+        solution = std::pow(10.0, target);
+    } else {
+        return QString("Error: Unknown logarithmic function: %1").arg(function);
+    }
+
+    if (solution <= 0) {
+        return QString("Error: Invalid solution X = %1 (must be positive for logarithms)").arg(solution);
+    }
+
+    QString result;
+    if (decimalPlaces >= 0) {
+        result = QString("X = %1").arg(solution, 0, 'f', decimalPlaces);
+    } else {
+        result = QString("X = %1").arg(solution);
+    }
+
+    return result;
+}
+
+QString CalculationEngine::solveExponential(double target, int decimalPlaces)
+{
+    // Solve exponential equations like exp(X) = 10 or e^X = 10
+    // exp(X) = target → X = ln(target)
+
+    if (target <= 0) {
+        return QString("Error: exp(X) = %1 has no solution (target must be positive)").arg(target);
+    }
+
+    double solution = std::log(target);
+
+    QString result;
+    if (decimalPlaces >= 0) {
+        result = QString("X = %1").arg(solution, 0, 'f', decimalPlaces);
+    } else {
+        result = QString("X = %1").arg(solution);
+    }
+
+    return result;
+}
+
+QString CalculationEngine::solveNumerical(const QString &leftSide, double target, int decimalPlaces)
+{
+    // Numerical solver using Newton-Raphson method for general transcendental equations
+    // This is a simplified implementation for basic cases
+
+    // For now, return an error message indicating this needs more complex implementation
+    return QString("Error: General numerical solving not yet implemented. Supported functions: sin(X), cos(X), tan(X), log(X), log10(X), exp(X)");
 }
 
 void CalculationEngine::setCurrentSheetName(const QString &sheetName)
