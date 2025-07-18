@@ -344,7 +344,21 @@ void HelpDialog::setupContent()
         "<li><b>Cross-calculations:</b> Use multiple LN references: LN1 + LN2 + LN3</li>"
         "<li><b>In functions:</b> mean(LN1, LN2, LN3) or sum(LN5, LN10, LN15)</li>"
         "<li><b>Complex expressions:</b> (LN1 + LN2) / (LN3 - LN4)</li>"
+        "<li><b>Unit conversions:</b> LN5 celsius to kelvin or LN10 meters to feet</li>"
+        "<li><b>Currency conversions:</b> LN3 USD to EUR or LN7 GBP to JPY</li>"
+        "<li><b>Special functions:</b> Works with timecode, dates, percentages, and solve functions</li>"
         "</ul>"
+
+        "<h3>LN Variables with Special Functions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Expression</th><th>Description</th><th>Example Result</th></tr>"
+        "<tr><td>LN5 celsius to kelvin</td><td>Convert temperature from line 5</td><td>310.927778 Kelvin</td></tr>"
+        "<tr><td>LN10 USD to EUR</td><td>Convert currency from line 10</td><td>85.50 EUR</td></tr>"
+        "<tr><td>LN3 meters to feet</td><td>Convert length from line 3</td><td>32.808 feet</td></tr>"
+        "<tr><td>LN11 square meters to acres</td><td>Convert area from line 11</td><td>0.0229568 acres</td></tr>"
+        "<tr><td>LN15 liters to gallons</td><td>Convert volume from line 15</td><td>2.16338 gallons</td></tr>"
+        "<tr><td>percent(LN1%, LN2)</td><td>Calculate percentage using LN values</td><td>25% of 200 = 50</td></tr>"
+        "</table>"
 
         "<h3>Cross-Sheet References:</h3>"
         "<p>Reference lines from other sheets using the S function:</p>"
@@ -521,6 +535,7 @@ void HelpDialog::setupContent()
 
         "<h3>Conversion Syntax:</h3>"
         "<p><code>[number] [from_unit] to [to_unit]</code></p>"
+        "<p><b>Note:</b> You can use LN variables instead of numbers: <code>LN5 celsius to kelvin</code></p>"
 
         "<h3>Length Conversions:</h3>"
         "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
@@ -552,6 +567,29 @@ void HelpDialog::setupContent()
         "<tr><th>Example</th><th>Description</th></tr>"
         "<tr><td>1 gallon to liters</td><td>Convert gallons to liters</td></tr>"
         "<tr><td>500 milliliters to fluid ounces</td><td>Convert ml to fl oz</td></tr>"
+        "<tr><td>1 cubic meter to liters</td><td>Convert m³ to liters</td></tr>"
+        "<tr><td>500 cubic inches to liters</td><td>Convert in³ to liters</td></tr>"
+        "<tr><td>10 cubic feet to cubic meters</td><td>Convert ft³ to m³</td></tr>"
+        "</table>"
+
+        "<h3>Area Conversions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Example</th><th>Description</th></tr>"
+        "<tr><td>1000 square feet to square meters</td><td>Convert ft² to m²</td></tr>"
+        "<tr><td>5 acres to square meters</td><td>Convert acres to m²</td></tr>"
+        "<tr><td>100 square meters to acres</td><td>Convert m² to acres</td></tr>"
+        "<tr><td>1 hectare to acres</td><td>Convert hectares to acres</td></tr>"
+        "<tr><td>1 square mile to square kilometers</td><td>Convert mi² to km²</td></tr>"
+        "<tr><td>500 square inches to square feet</td><td>Convert in² to ft²</td></tr>"
+        "</table>"
+
+        "<h3>Time Conversions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Example</th><th>Description</th></tr>"
+        "<tr><td>120 seconds to minutes</td><td>Convert seconds to minutes</td></tr>"
+        "<tr><td>2 hours to minutes</td><td>Convert hours to minutes</td></tr>"
+        "<tr><td>7 days to weeks</td><td>Convert days to weeks</td></tr>"
+        "<tr><td>3600 seconds to hours</td><td>Convert seconds to hours</td></tr>"
         "</table>");
 
     // Currency Conversions

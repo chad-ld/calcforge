@@ -72,10 +72,19 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         return "";
     }
 
+    // Process LN references early so they work in all function types
+    QString processedExpr = processLNReferences(expr);
+
+    // Check if the processed expression contains an error message
+    if (processedExpr.startsWith("Error:")) {
+        LOG_DEBUG(QString("Expression contains error after early LN processing: %1").arg(processedExpr));
+        return processedExpr; // Return error message directly
+    }
+
     // Try to evaluate as a mathematical expression
     try {
         // Check for timecode function first
-        QString timecodeResult = handleTimecodeFunction(expr);
+        QString timecodeResult = handleTimecodeFunction(processedExpr);
         if (!timecodeResult.isEmpty()) {
             // For timecode functions, try to extract numeric value for LN references
             // If result is a number (frame count), store it; otherwise store 0
@@ -90,7 +99,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         }
 
         // Check for aspect ratio function
-        QString aspectRatioResult = handleAspectRatioFunction(expr);
+        QString aspectRatioResult = handleAspectRatioFunction(processedExpr);
         if (!aspectRatioResult.isEmpty()) {
             // For aspect ratio functions, store 0 for LN references (dimensions are strings)
             m_lineValues[lineNumber] = 0.0;
@@ -98,7 +107,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         }
 
         // Check for date function
-        QString dateResult = handleDateFunction(expr);
+        QString dateResult = handleDateFunction(processedExpr);
         if (!dateResult.isEmpty()) {
             // For date functions, try to extract numeric value for LN references
             // Date range calculations return "X Days" or "X Business Days"
@@ -108,7 +117,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         }
 
         // Check for unit conversion FIRST (more specific pattern)
-        QString unitResult = handleUnitConversion(expr);
+        QString unitResult = handleUnitConversion(processedExpr);
         if (!unitResult.isEmpty()) {
             // For unit conversions, extract the numeric value for LN references
             // The result format is "value unit", so we extract the numeric part
@@ -118,7 +127,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         }
 
         // Check for currency conversion AFTER unit conversion (broader pattern)
-        QString currencyResult = handleCurrencyConversion(expr);
+        QString currencyResult = handleCurrencyConversion(processedExpr);
         if (!currencyResult.isEmpty()) {
             // For currency conversions, extract the numeric value for LN references
             // The result format is "value currency", so we extract the numeric part
@@ -128,7 +137,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         }
 
         // Check for percentage calculations AFTER currency conversion
-        QString percentageResult = handlePercentageCalculation(expr);
+        QString percentageResult = handlePercentageCalculation(processedExpr);
         if (!percentageResult.isEmpty()) {
             // For percentage calculations, extract the numeric value for LN references
             // Results can be raw numbers (250) or percentages (50%)
@@ -138,7 +147,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         }
 
         // Check for solve function
-        QString solveResult = handleSolveFunction(expr);
+        QString solveResult = handleSolveFunction(processedExpr);
         if (!solveResult.isEmpty()) {
             // For solve functions, try to extract numeric value for LN references
             // Results can be single values (X = 5) or multiple values (X = 1, X = 3)
@@ -148,7 +157,7 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
         }
 
         // Check for statistical functions
-        double statResult = handleStatisticalFunctions(expr, lineNumber);
+        double statResult = handleStatisticalFunctions(processedExpr, lineNumber);
         if (!std::isnan(statResult)) {
             // Store result for future LN references
             m_lineValues[lineNumber] = statResult;
@@ -157,17 +166,8 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
 
 
 
-        // Preprocess the expression
-        QString processedExpr = preprocessExpression(expr);
-
-        // Process LN references
-        processedExpr = processLNReferences(processedExpr);
-
-        // Check if the processed expression contains an error message
-        if (processedExpr.startsWith("Error:")) {
-            LOG_DEBUG(QString("Expression contains error: %1").arg(processedExpr));
-            return processedExpr; // Return error message directly
-        }
+        // Preprocess the expression (LN references already processed earlier)
+        processedExpr = preprocessExpression(processedExpr);
 
         // Parse and evaluate
         double result = parseExpression(processedExpr);

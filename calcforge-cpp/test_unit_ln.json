@@ -1,0 +1,9 @@
+{
+    "tabs": [
+        {
+            "content": "::: UNIT CONVERSION LN VARIABLE TEST\n::: Testing if LN variables properly strip unit text\n\n::: Basic unit conversion\n100 fahrenheit to celsius\n\n::: Using LN variable from unit conversion\nLN5 celsius to kelvin\n\n::: Another test\n1000 square feet to square meters\nLN11 square meters to acres\n\n::: Volume test\n500 cubic inches to liters\nLN5 liters to gallons\n\n::: Debug - what's in LN5?\nLN5\n\n::: Debug - what's in LN11?\nLN11\n\n::: Debug - what's in LN15?\nLN15\n\n::: Simple arithmetic with LN variables\nLN5 + 10\nLN11 * 2\nLN15 / 2",
+            "name": "Unit LN Test"
+        }
+    ],
+    "version": "2.0"
+}
