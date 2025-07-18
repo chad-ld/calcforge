@@ -9,7 +9,9 @@
 - This applies to ALL changes: code, documentation, configuration files, etc.
 - Always wait for explicit user approval before any git operations
 
-**Debugging Policy**: When debugging code is added to output to log files:
+**Debugging Policy**: 
+- Please use the build in debugging class built in to the app to debug any code issues.
+- When debugging code is added to output to log files:
 - **DO NOT remove debugging code** until explicitly instructed that everything is fixed
 - Keep all `LOG_DEBUG()` statements and debug output intact during development
 - Only clean up debugging code after explicit confirmation that the feature is working correctly
