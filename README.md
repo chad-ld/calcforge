@@ -22,8 +22,8 @@ This repository contains multiple implementations of CalcForge:
 
 ### **📁 [calcforge-cpp/](./calcforge-cpp/)**
 - **High-performance C++ Qt version** - Native standalone executable
-- Maximum performance, minimal dependencies
-- 🚧 **Status**: Planned (see [conversion plan](./CALCFORGE_CPP_CONVERSION_PLAN.md))
+- Maximum performance, minimal dependencies, comprehensive features
+- 🎉 **Status**: 85% Complete - Fully functional with LN auto-updates, unit/currency conversion, advanced functions (see [conversion plan](./CALCFORGE_CPP_CONVERSION_PLAN.md))
 
 Long and short of this app is this: I use my calculator on my windows pc all the time, but the default calc is limited in terms of history and more advanced functionality. I also do conversions a lot and work with timecode/frames in the film/video/gaming/animation world. There are various "supercalcs" out there, but none of them really worked the way I wanted a calculator to work, or they were incredibly buggy. So, I decided to make this a fun project to brush off my dormant comp sci chops and give cursor/claude combo a try to see if I could make my own app that functioned exactly like I wanted it. Hence, CalcForge was born! Below is a list of features, feel free to download it and give it a whirl, suggest improvements, all that jazz. On the windows side, i bind a keyboard shortcut to launch the app via power toys and it works like a champ. 
 
