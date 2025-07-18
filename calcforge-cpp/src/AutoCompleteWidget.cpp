@@ -473,18 +473,48 @@ AutoCompleteManager::~AutoCompleteManager()
 
 void AutoCompleteManager::setupFunctions()
 {
-    // Mathematical functions
+    // Basic mathematical functions
     m_functions["sqrt"] = AutoCompleteFunction("sqrt", "Square root function", {"value"});
-    m_functions["sin"] = AutoCompleteFunction("sin", "Sine function (radians)", {"angle"});
-    m_functions["cos"] = AutoCompleteFunction("cos", "Cosine function (radians)", {"angle"});
-    m_functions["tan"] = AutoCompleteFunction("tan", "Tangent function (radians)", {"angle"});
-    m_functions["log"] = AutoCompleteFunction("log", "Natural logarithm", {"value"});
-    m_functions["log10"] = AutoCompleteFunction("log10", "Base-10 logarithm", {"value"});
-    m_functions["exp"] = AutoCompleteFunction("exp", "Exponential function (e^x)", {"value"});
     m_functions["abs"] = AutoCompleteFunction("abs", "Absolute value", {"value"});
     m_functions["ceil"] = AutoCompleteFunction("ceil", "Round up to nearest integer", {"value"});
     m_functions["floor"] = AutoCompleteFunction("floor", "Round down to nearest integer", {"value"});
     m_functions["round"] = AutoCompleteFunction("round", "Round to specified decimal places", {"value", "decimals"});
+
+    // Trigonometric functions
+    m_functions["sin"] = AutoCompleteFunction("sin", "Sine function (radians)", {"angle"});
+    m_functions["cos"] = AutoCompleteFunction("cos", "Cosine function (radians)", {"angle"});
+    m_functions["tan"] = AutoCompleteFunction("tan", "Tangent function (radians)", {"angle"});
+
+    // Inverse trigonometric functions
+    m_functions["asin"] = AutoCompleteFunction("asin", "Inverse sine (arcsine) in radians", {"value"});
+    m_functions["acos"] = AutoCompleteFunction("acos", "Inverse cosine (arccosine) in radians", {"value"});
+    m_functions["atan"] = AutoCompleteFunction("atan", "Inverse tangent (arctangent) in radians", {"value"});
+
+    // Hyperbolic functions
+    m_functions["sinh"] = AutoCompleteFunction("sinh", "Hyperbolic sine", {"value"});
+    m_functions["cosh"] = AutoCompleteFunction("cosh", "Hyperbolic cosine", {"value"});
+    m_functions["tanh"] = AutoCompleteFunction("tanh", "Hyperbolic tangent", {"value"});
+    m_functions["asinh"] = AutoCompleteFunction("asinh", "Inverse hyperbolic sine", {"value"});
+    m_functions["acosh"] = AutoCompleteFunction("acosh", "Inverse hyperbolic cosine", {"value"});
+    m_functions["atanh"] = AutoCompleteFunction("atanh", "Inverse hyperbolic tangent", {"value"});
+
+    // Logarithmic and exponential functions
+    m_functions["log"] = AutoCompleteFunction("log", "Natural logarithm (base e)", {"value"});
+    m_functions["log10"] = AutoCompleteFunction("log10", "Base-10 logarithm", {"value"});
+    m_functions["log2"] = AutoCompleteFunction("log2", "Base-2 logarithm", {"value"});
+    m_functions["exp"] = AutoCompleteFunction("exp", "Exponential function (e^x)", {"value"});
+
+    // Power and utility functions
+    m_functions["pow"] = AutoCompleteFunction("pow", "Power function (base^exponent)", {"base", "exponent"});
+    m_functions["factorial"] = AutoCompleteFunction("factorial", "Factorial function (n!)", {"n"});
+
+    // Number theory functions
+    m_functions["gcd"] = AutoCompleteFunction("gcd", "Greatest common divisor", {"a", "b"});
+    m_functions["lcm"] = AutoCompleteFunction("lcm", "Least common multiple", {"a", "b"});
+
+    // Angle conversion functions
+    m_functions["degrees"] = AutoCompleteFunction("degrees", "Convert radians to degrees", {"radians"});
+    m_functions["radians"] = AutoCompleteFunction("radians", "Convert degrees to radians", {"degrees"});
 
     // Statistical functions
     m_functions["sum"] = AutoCompleteFunction("sum", "Sum of values", {"range"}, "statistical");
@@ -495,6 +525,15 @@ void AutoCompleteManager::setupFunctions()
     m_functions["median"] = AutoCompleteFunction("median", "Median value", {"range"}, "statistical");
     m_functions["variance"] = AutoCompleteFunction("variance", "Variance of values", {"range"}, "statistical");
     m_functions["stdev"] = AutoCompleteFunction("stdev", "Standard deviation", {"range"}, "statistical");
+    m_functions["mode"] = AutoCompleteFunction("mode", "Most frequent value. Supports: above, below, 1-5, 1,3,5", {"range"}, "statistical");
+    m_functions["product"] = AutoCompleteFunction("product", "Product of values. Supports: above, below, 1-5, 1,3,5", {"range"}, "statistical");
+    m_functions["range"] = AutoCompleteFunction("range", "Difference between max and min. Supports: above, below, 1-5, 1,3,5", {"range"}, "statistical");
+    m_functions["geomean"] = AutoCompleteFunction("geomean", "Geometric mean. Supports: above, below, 1-5, 1,3,5", {"range"}, "statistical");
+    m_functions["harmmean"] = AutoCompleteFunction("harmmean", "Harmonic mean. Supports: above, below, 1-5, 1,3,5", {"range"}, "statistical");
+    m_functions["sumsq"] = AutoCompleteFunction("sumsq", "Sum of squares. Supports: above, below, 1-5, 1,3,5", {"range"}, "statistical");
+    m_functions["perc5"] = AutoCompleteFunction("perc5", "5th percentile. Supports: above, below, 1-5, 1,3,5. Optional method: linear (default) or nearest", {"range", "method"}, "statistical");
+    m_functions["perc95"] = AutoCompleteFunction("perc95", "95th percentile. Supports: above, below, 1-5, 1,3,5. Optional method: linear (default) or nearest", {"range", "method"}, "statistical");
+    m_functions["meanfps"] = AutoCompleteFunction("meanfps", "Mean frames per second (harmonic mean for frame times). Supports: above, below, 1-5, 1,3,5", {"range"}, "statistical");
 
     // Special functions
     m_functions["TC"] = AutoCompleteFunction("TC", "Timecode calculation", {"framerate", "timecode"}, "special");
@@ -519,6 +558,18 @@ void AutoCompleteManager::setupFunctions()
     m_functionParameters["median"] = statParams;
     m_functionParameters["variance"] = statParams;
     m_functionParameters["stdev"] = statParams;
+
+    // New statistical functions
+    m_functionParameters["mode"] = statParams;
+    m_functionParameters["product"] = statParams;
+    m_functionParameters["range"] = statParams;
+    m_functionParameters["geomean"] = statParams;
+    m_functionParameters["harmmean"] = statParams;
+    m_functionParameters["sumsq"] = statParams;
+    // Percentile functions use same range parameters as other statistical functions
+    m_functionParameters["perc5"] = statParams;
+    m_functionParameters["perc95"] = statParams;
+    m_functionParameters["meanfps"] = statParams;
 
     // Setup parameter templates for special functions
     // TC function - first parameter (framerate)
@@ -648,16 +699,16 @@ void AutoCompleteManager::showAutocomplete()
 
     // Enhanced conditions to prevent inappropriate autocomplete
     if (currentWord.isEmpty()) {
-        if (context != "function_param" && context != "rounding_options") {
-            LOG_DEBUG("AutoCompleteManager: Current word is empty and not in function_param or rounding_options context - hiding");
+        if (context != "function_param" && context != "rounding_options" && context != "percentile_method") {
+            LOG_DEBUG("AutoCompleteManager: Current word is empty and not in function_param, rounding_options, or percentile_method context - hiding");
             hideAutocomplete();
             return;
         }
     }
 
     // Don't show autocomplete if current word is too short (less than 1 character)
-    // unless we're in a special context like function parameters or rounding options
-    if (currentWord.length() < 1 && context != "function_param" && context != "rounding_options") {
+    // unless we're in a special context like function parameters, rounding options, or percentile methods
+    if (currentWord.length() < 1 && context != "function_param" && context != "rounding_options" && context != "percentile_method") {
         LOG_DEBUG("AutoCompleteManager: Current word too short and not in special context - hiding");
         hideAutocomplete();
         return;
@@ -876,6 +927,15 @@ QString AutoCompleteManager::getContextType()
 
             LOG_DEBUG(QString("AutoCompleteManager::getContextType: Function '%1' found in m_functions as '%2', commaCount=%3").arg(functionName).arg(actualFunctionName).arg(commaCount));
 
+            // Special handling for percentile functions - check if we should show method options
+            if ((functionName == "perc5" || functionName == "perc95") && commaCount >= 1) {
+                // Check if we're after a range with comma (like "perc5(above, ")
+                if (isAfterPercentileRange()) {
+                    LOG_DEBUG("AutoCompleteManager::getContextType: Percentile function after range - returning 'percentile_method'");
+                    return "percentile_method";
+                }
+            }
+
             // For TC function, check if we're on the second parameter
             if ((functionName == "tc" || functionName == "TC") && commaCount >= 1) {
                 m_currentContext = "function_param:" + functionName + "_param2";
@@ -901,13 +961,19 @@ QString AutoCompleteManager::getContextType()
     }
 
     // PRIORITY: Check for rounding options context (after statistical function completion)
-    QRegularExpression roundingPattern(R"((sum|mean|median|min|max|count|variance|stdev|product|range|geomean|harmmean|sumsq)\s*\([^)]*\)\s*$)");
+    QRegularExpression roundingPattern(R"((sum|mean|median|min|max|count|variance|stdev|product|range|geomean|harmmean|sumsq|mode|perc5|perc95|meanfps)\s*\([^)]*\)\s*$)");
     QRegularExpressionMatch roundingMatch = roundingPattern.match(textBeforeCursor);
     if (roundingMatch.hasMatch()) {
         QString functionName = roundingMatch.captured(1).toLower();
         LOG_DEBUG(QString("AutoCompleteManager::getContextType: Rounding options context for '%1' - returning 'rounding_options'").arg(functionName));
         m_currentContext = "rounding_options:" + functionName;
         return "rounding_options";
+    }
+
+    // PRIORITY: Check if we're after a percentile function range (for method selection)
+    if (isAfterPercentileRange()) {
+        LOG_DEBUG("AutoCompleteManager::getContextType: After percentile range - returning 'percentile_method'");
+        return "percentile_method";
     }
 
     // PRIORITY: Check if we're after a number (for units/currencies) - this takes precedence
@@ -979,6 +1045,28 @@ bool AutoCompleteManager::isAtStartOfLine()
     return result;
 }
 
+bool AutoCompleteManager::isAfterPercentileRange()
+{
+    if (!m_editor) {
+        return false;
+    }
+
+    QTextCursor cursor = m_editor->textCursor();
+    QString lineText = cursor.block().text();
+    int posInLine = cursor.positionInBlock();
+
+    // Check if we're after a percentile function range like "perc5(above, " or "perc95(4-10, "
+    // Pattern: perc5( or perc95( followed by range, then comma and space, then optional partial word
+    QRegularExpression percentilePattern(R"(perc(5|95)\s*\(\s*[^,)]+\s*,\s*\w*$)", QRegularExpression::CaseInsensitiveOption);
+    QString textBeforeCursor = lineText.left(posInLine);
+
+    bool match = percentilePattern.match(textBeforeCursor).hasMatch();
+    LOG_DEBUG(QString("AutoCompleteManager::isAfterPercentileRange: textBeforeCursor='%1', match: %2")
+              .arg(textBeforeCursor).arg(match));
+
+    return match;
+}
+
 bool AutoCompleteManager::isAfterConversionTo()
 {
     if (!m_editor) {
@@ -1010,6 +1098,17 @@ QStringList AutoCompleteManager::filterCompletions(const QString &prefix, const 
             if (it.key().toLower().contains(lowerPrefix)) {
                 results << it.key();
                 LOG_DEBUG(QString("AutoCompleteManager: Added function '%1'").arg(it.key()));
+            }
+        }
+        results.sort();
+    }
+    else if (context == "percentile_method") {
+        LOG_DEBUG("AutoCompleteManager: Filtering percentile methods");
+        // Filter percentile method options
+        QStringList methods = {"linear", "nearest"};
+        for (const QString &method : methods) {
+            if (method.toLower().contains(lowerPrefix)) {
+                results << method;
             }
         }
         results.sort();
@@ -1101,6 +1200,13 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
                 }
             }
         }
+        else if (context == "percentile_method") {
+            if (completion == "linear") {
+                description = "Linear interpolation method (default)\nProvides smooth interpolated values between data points";
+            } else if (completion == "nearest") {
+                description = "Nearest-rank method\nReturns actual data values from the dataset";
+            }
+        }
         else if (context == "unit") {
             if (m_units.contains(completion)) {
                 description = QString("Unit: %1").arg(completion);
@@ -1163,7 +1269,7 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
                 // Check if this is a statistical function that supports rounding
                 QStringList statFunctions = {"sum", "mean", "median", "mode", "min", "max", "count",
                                            "product", "variance", "stdev", "range", "geomean",
-                                           "harmmean", "sumsq", "perc5", "perc95"};
+                                           "harmmean", "sumsq", "perc5", "perc95", "meanfps"};
                 if (statFunctions.contains(functionName.toLower())) {
                     // Specific descriptions for statistical function parameters
                     if (completion == "above") {
@@ -1270,12 +1376,17 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
                 // Single parameter function - check if it's a statistical function that supports rounding
                 QStringList statFunctions = {"sum", "mean", "median", "min", "max", "count",
                                            "variance", "stdev", "product", "range",
-                                           "geomean", "harmmean", "sumsq"};
+                                           "geomean", "harmmean", "sumsq", "mode", "perc5", "perc95", "meanfps"};
 
                 LOG_DEBUG(QString("AutoCompleteManager: Function parameter completion - functionName='%1', completion='%2', isStatFunction=%3")
                           .arg(functionName).arg(completion).arg(statFunctions.contains(functionName.toLower())));
 
-                if (statFunctions.contains(functionName.toLower())) {
+                if (functionName.toLower() == "perc5" || functionName.toLower() == "perc95") {
+                    // Percentile function - after range, add comma and trigger method autocomplete
+                    replaceCurrentWord(completion + ", ");
+                    LOG_DEBUG(QString("AutoCompleteManager: Percentile function '%1' range completed, triggering method autocomplete").arg(functionName));
+                    QTimer::singleShot(50, this, &AutoCompleteManager::handleTextChanged);
+                } else if (statFunctions.contains(functionName.toLower())) {
                     // Statistical function - trigger rounding options autocomplete
                     replaceCurrentWord(completion + ")");
                     LOG_DEBUG(QString("AutoCompleteManager: Statistical function '%1' completed, triggering rounding options").arg(functionName));
@@ -1351,6 +1462,27 @@ void AutoCompleteManager::insertCompletion(const QString &completion)
                 }
             }
         }
+    }
+    else if (context == "percentile_method") {
+        // Percentile method completion - add method, close function, and trigger rounding options
+        LOG_DEBUG(QString("AutoCompleteManager: Percentile method completion - method: '%1'").arg(completion));
+
+        // Add the method and close the function
+        replaceCurrentWord(completion + ")");
+
+        // Extract function name for rounding options context
+        QTextCursor cursor = m_editor->textCursor();
+        QString lineText = cursor.block().text();
+        QRegularExpression funcPattern(R"((perc5|perc95)\s*\()", QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatch match = funcPattern.match(lineText);
+        if (match.hasMatch()) {
+            QString functionName = match.captured(1).toLower();
+            m_currentContext = "rounding_options:" + functionName;
+            LOG_DEBUG(QString("AutoCompleteManager: Set rounding context for '%1'").arg(functionName));
+        }
+
+        // Trigger rounding options autocomplete after a short delay
+        QTimer::singleShot(50, this, &AutoCompleteManager::handleTextChanged);
     }
     else {
         // Unit or currency completion - implement 3-step conversion workflow

@@ -420,6 +420,9 @@ void HelpDialog::setupContent()
         "<tr><td>geomean(range)</td><td>Geometric mean</td><td>geomean(1-5)</td></tr>"
         "<tr><td>harmmean(range)</td><td>Harmonic mean</td><td>harmmean(1-5)</td></tr>"
         "<tr><td>sumsq(range)</td><td>Sum of squares</td><td>sumsq(1-5)</td></tr>"
+        "<tr><td>perc5(range, method)</td><td>5th percentile</td><td>perc5(1-10, nearest)</td></tr>"
+        "<tr><td>perc95(range, method)</td><td>95th percentile</td><td>perc95(1-10, linear)</td></tr>"
+        "<tr><td>meanfps(range)</td><td>Mean frames per second</td><td>meanfps(1-5)</td></tr>"
         "</table>"
 
         "<h3>Range Specifications:</h3>"

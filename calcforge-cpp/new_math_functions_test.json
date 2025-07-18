@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "tabs": [
+    {
+      "name": "Statistical Range Tests",
+      "content": "::: STATISTICAL FUNCTIONS - RANGE TESTS\n:::\n::: Test Data\n10\n20\n30\n20\n40\n50\n20\n:::\n::: Range Functions (using lines 4-10)\nmode(4-10)\nperc5(4-10)\nperc5(4-10, linear)\nperc5(4-10, nearest)\nperc95(4-10)\nperc95(4-10, linear)\nperc95(4-10, nearest)\nproduct(4,5,6)\nrange(4-10)\ngeomean(4,5,6)\nharmmean(4,5,6)\nsumsq(4,5,6)\n::: Expected: 20, 13, 13, 10, 47, 47, 50, 6000, 40, 18.17, 16.36, 1400"
+    },
+    {
+      "name": "Statistical Individual Tests",
+      "content": "::: STATISTICAL FUNCTIONS - INDIVIDUAL LINE TESTS\n:::\n::: Test Data\n2\n3\n4\n:::\n::: Individual Line Functions (using lines 4,5,6)\nproduct(4,5,6)\ngeomean(4,5,6)\nharmmean(4,5,6)\nsumsq(4,5,6)\n::: Expected: 24, 2.88, 2.77, 29"
+    },
+    {
+      "name": "Frame Rate Tests",
+      "content": "::: FRAME RATE TESTS\n:::\n::: Frame Time Data (in seconds)\n0.0167\n0.0333\n0.0167\n0.0200\n:::\n::: Frame Rate Function (using lines 4-7)\nmeanfps(4-7)\n::: Expected: ~45.45 (harmonic mean of frame times)"
+    },
+    {
+      "name": "Fixed Parameter Functions",
+      "content": "::: FIXED PARAMETER FUNCTIONS (literal values)\n:::\n::: Power Functions\npow(2, 3)\npow(5, 2)\npow(10, 0.5)\npow(27, 1/3)\npow(4, 0.5)\n::: Expected: 8, 25, 3.1623, 3, 2\n:::\n::: Factorial Functions\nfactorial(0)\nfactorial(1)\nfactorial(5)\nfactorial(10)\nfactorial(3)\n::: Expected: 1, 1, 120, 3628800, 6\n:::\n::: GCD Functions\ngcd(12, 8)\ngcd(48, 18)\ngcd(100, 25)\ngcd(15, 10)\n::: Expected: 4, 6, 25, 5\n:::\n::: LCM Functions\nlcm(12, 8)\nlcm(15, 20)\nlcm(7, 13)\nlcm(6, 9)\n::: Expected: 24, 60, 91, 18"
+    },
+    {
+      "name": "Trigonometric Functions",
+      "content": "::: TRIGONOMETRIC FUNCTIONS (literal values)\n:::\n::: Inverse Trigonometric\nasin(0.5)\nasin(1)\nacos(0.5)\nacos(1)\natan(1)\natan(0)\n::: Expected: 0.5236, 1.5708, 1.0472, 0, 0.7854, 0\n:::\n::: Hyperbolic Functions\nsinh(1)\ncosh(1)\ntanh(1)\nasinh(1)\nacosh(2)\natanh(0.5)\n::: Expected: 1.1752, 1.5431, 0.7616, 0.8814, 1.3170, 0.5493\n:::\n::: Angle Conversion\ndegrees(pi)\ndegrees(pi/2)\nradians(180)\nradians(90)\nradians(45)\n::: Expected: 180, 90, 3.1416, 1.5708, 0.7854"
+    },
+    {
+      "name": "Logarithmic Functions",
+      "content": "::: LOGARITHMIC FUNCTIONS (literal values)\n:::\n::: Log Base 2\nlog2(8)\nlog2(16)\nlog2(1024)\nlog2(2)\n::: Expected: 3, 4, 10, 1"
+    }
+  ]
+}

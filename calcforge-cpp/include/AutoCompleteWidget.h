@@ -162,6 +162,7 @@ private:
     QString getContextType();
     bool isAfterNumber();
     bool isAtStartOfLine();
+    bool isAfterPercentileRange();
     bool isAfterConversionTo();
     QString getFunctionContext();
     QStringList getAvailableSheets();

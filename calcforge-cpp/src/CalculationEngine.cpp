@@ -16,17 +16,41 @@ CalculationEngine::CalculationEngine() : m_worksheetWidget(nullptr)
     m_constants["e"] = M_E;
     
     // Initialize mathematical functions
+    // Basic trigonometric functions
     m_functions["sin"] = [](double x) { return std::sin(x); };
     m_functions["cos"] = [](double x) { return std::cos(x); };
     m_functions["tan"] = [](double x) { return std::tan(x); };
-    m_functions["sqrt"] = [](double x) { return std::sqrt(x); };
-    m_functions["abs"] = [](double x) { return std::abs(x); };
+
+    // Inverse trigonometric functions
+    m_functions["asin"] = [](double x) { return std::asin(x); };
+    m_functions["acos"] = [](double x) { return std::acos(x); };
+    m_functions["atan"] = [](double x) { return std::atan(x); };
+
+    // Hyperbolic functions
+    m_functions["sinh"] = [](double x) { return std::sinh(x); };
+    m_functions["cosh"] = [](double x) { return std::cosh(x); };
+    m_functions["tanh"] = [](double x) { return std::tanh(x); };
+    m_functions["asinh"] = [](double x) { return std::asinh(x); };
+    m_functions["acosh"] = [](double x) { return std::acosh(x); };
+    m_functions["atanh"] = [](double x) { return std::atanh(x); };
+
+    // Logarithmic and exponential functions
     m_functions["log"] = [](double x) { return std::log(x); };
     m_functions["log10"] = [](double x) { return std::log10(x); };
+    m_functions["log2"] = [](double x) { return std::log2(x); };
     m_functions["exp"] = [](double x) { return std::exp(x); };
+    m_functions["sqrt"] = [](double x) { return std::sqrt(x); };
+
+    // Rounding and utility functions
+    m_functions["abs"] = [](double x) { return std::abs(x); };
     m_functions["floor"] = [](double x) { return std::floor(x); };
     m_functions["ceil"] = [](double x) { return std::ceil(x); };
-    // Note: round is handled separately as a multi-argument function
+
+    // Angle conversion functions
+    m_functions["degrees"] = [](double x) { return x * 180.0 / M_PI; };
+    m_functions["radians"] = [](double x) { return x * M_PI / 180.0; };
+
+    // Note: round, pow, factorial, gcd, lcm are handled separately as multi-argument functions
 }
 
 QString CalculationEngine::evaluateExpression(const QString &expression, int lineNumber)
@@ -499,6 +523,150 @@ double CalculationEngine::parseFunction(const QString &expr, int &pos)
         }
     }
 
+    // Check for pow function (two arguments)
+    if (name == "pow") {
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != '(') {
+            throw std::runtime_error("Function pow requires parentheses");
+        }
+        pos++; // Skip '('
+
+        double base = parseAddSub(expr, pos);
+
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != ',') {
+            throw std::runtime_error("Function pow requires two arguments: pow(base, exponent)");
+        }
+        pos++; // Skip ','
+
+        double exponent = parseAddSub(expr, pos);
+
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != ')') {
+            throw std::runtime_error("Missing closing parenthesis for function pow");
+        }
+        pos++; // Skip ')'
+
+        return std::pow(base, exponent);
+    }
+
+    // Check for factorial function (single argument, integer)
+    if (name == "factorial") {
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != '(') {
+            throw std::runtime_error("Function factorial requires parentheses");
+        }
+        pos++; // Skip '('
+
+        double value = parseAddSub(expr, pos);
+
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != ')') {
+            throw std::runtime_error("Missing closing parenthesis for function factorial");
+        }
+        pos++; // Skip ')'
+
+        // Check if value is a non-negative integer
+        if (value < 0 || value != std::floor(value)) {
+            throw std::runtime_error("Factorial requires a non-negative integer");
+        }
+
+        // Calculate factorial
+        int n = static_cast<int>(value);
+        if (n > 170) { // Prevent overflow (170! is close to double limit)
+            throw std::runtime_error("Factorial argument too large (max 170)");
+        }
+
+        double result = 1.0;
+        for (int i = 2; i <= n; ++i) {
+            result *= i;
+        }
+        return result;
+    }
+
+    // Check for gcd function (two arguments)
+    if (name == "gcd") {
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != '(') {
+            throw std::runtime_error("Function gcd requires parentheses");
+        }
+        pos++; // Skip '('
+
+        double a = parseAddSub(expr, pos);
+
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != ',') {
+            throw std::runtime_error("Function gcd requires two arguments: gcd(a, b)");
+        }
+        pos++; // Skip ','
+
+        double b = parseAddSub(expr, pos);
+
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != ')') {
+            throw std::runtime_error("Missing closing parenthesis for function gcd");
+        }
+        pos++; // Skip ')'
+
+        // Convert to integers and calculate GCD
+        long long ia = static_cast<long long>(std::abs(a));
+        long long ib = static_cast<long long>(std::abs(b));
+
+        // Euclidean algorithm
+        while (ib != 0) {
+            long long temp = ib;
+            ib = ia % ib;
+            ia = temp;
+        }
+
+        return static_cast<double>(ia);
+    }
+
+    // Check for lcm function (two arguments)
+    if (name == "lcm") {
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != '(') {
+            throw std::runtime_error("Function lcm requires parentheses");
+        }
+        pos++; // Skip '('
+
+        double a = parseAddSub(expr, pos);
+
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != ',') {
+            throw std::runtime_error("Function lcm requires two arguments: lcm(a, b)");
+        }
+        pos++; // Skip ','
+
+        double b = parseAddSub(expr, pos);
+
+        skipWhitespace(expr, pos);
+        if (pos >= expr.length() || expr[pos] != ')') {
+            throw std::runtime_error("Missing closing parenthesis for function lcm");
+        }
+        pos++; // Skip ')'
+
+        // Convert to integers and calculate LCM
+        long long ia = static_cast<long long>(std::abs(a));
+        long long ib = static_cast<long long>(std::abs(b));
+
+        if (ia == 0 || ib == 0) {
+            return 0.0;
+        }
+
+        // Calculate GCD first
+        long long gcd_val = ia;
+        long long temp_b = ib;
+        while (temp_b != 0) {
+            long long temp = temp_b;
+            temp_b = gcd_val % temp_b;
+            gcd_val = temp;
+        }
+
+        // LCM = (a * b) / GCD(a, b)
+        return static_cast<double>((ia / gcd_val) * ib);
+    }
+
     throw std::runtime_error("Unknown function or constant: " + name.toStdString());
 }
 
@@ -636,7 +804,7 @@ void CalculationEngine::updateLineValuesAfterChange(int insertionPoint, int line
 double CalculationEngine::handleStatisticalFunctions(const QString &expr, int lineNumber)
 {
     // Pattern to match statistical functions
-    QRegularExpression statPattern(R"(^(sum|mean|median|mode|min|max|count|product|variance|stdev|std|range|geomean|harmmean|sumsq)\s*\(\s*(.*?)\s*\)$)",
+    QRegularExpression statPattern(R"(^(sum|mean|median|mode|min|max|count|product|variance|stdev|std|range|geomean|harmmean|sumsq|perc5|perc95|meanfps)\s*\(\s*(.*?)\s*\)$)",
                                    QRegularExpression::CaseInsensitiveOption);
 
     QRegularExpressionMatch match = statPattern.match(expr.trimmed());
@@ -646,6 +814,7 @@ double CalculationEngine::handleStatisticalFunctions(const QString &expr, int li
 
     QString funcName = match.captured(1).toLower();
     QString rangeExpr = match.captured(2);
+    QString originalRangeExpr = rangeExpr; // Store original for percentile functions
 
     // Debug logging for R2 issue
     LOG_DEBUG(QString("STATISTICAL FUNCTION: %1, rangeExpr: '%2'").arg(funcName).arg(rangeExpr));
@@ -774,6 +943,52 @@ double CalculationEngine::handleStatisticalFunctions(const QString &expr, int li
                 sumSquares += value * value;
             }
             result = sumSquares;
+        }
+        else if (funcName == "mode") {
+            // Find the most frequently occurring value
+            QMap<double, int> frequency;
+            for (double value : values) {
+                frequency[value]++;
+            }
+
+            int maxCount = 0;
+            double modeValue = 0.0;
+            for (auto it = frequency.begin(); it != frequency.end(); ++it) {
+                if (it.value() > maxCount) {
+                    maxCount = it.value();
+                    modeValue = it.key();
+                }
+            }
+
+            // If all values appear only once, return the first value
+            if (maxCount == 1) {
+                result = values.isEmpty() ? 0.0 : values.first();
+            } else {
+                result = modeValue;
+            }
+        }
+        else if (funcName == "perc5") {
+            // 5th percentile with optional method parameter
+            result = calculatePercentile(values, 0.05, originalRangeExpr);
+        }
+        else if (funcName == "perc95") {
+            // 95th percentile with optional method parameter
+            result = calculatePercentile(values, 0.95, originalRangeExpr);
+        }
+        else if (funcName == "meanfps") {
+            // Mean frames per second (harmonic mean for frame times)
+            if (values.isEmpty()) {
+                result = 0.0;
+            } else {
+                double sum = 0.0;
+                for (double value : values) {
+                    if (value <= 0) {
+                        return std::numeric_limits<double>::quiet_NaN(); // Invalid frame time
+                    }
+                    sum += 1.0 / value; // Sum of reciprocals (1/frame_time = fps)
+                }
+                result = values.size() / sum; // Harmonic mean of frame times = mean fps
+            }
         }
 
         // Apply rounding if specified
@@ -927,9 +1142,61 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
         return values;
     }
 
-    // Handle range formats
-    if (trimmedRange.contains('-') && !trimmedRange.startsWith('-')) {
-        // Range format like "1-5"
+    // Handle comma-separated expressions first (may contain ranges)
+    if (trimmedRange.contains(',')) {
+        // Comma-separated format like "1,3,5" or "1,3,5,.2" (always line references for range functions)
+        QStringList parts = trimmedRange.split(',');
+        for (const QString &part : parts) {
+            QString trimmedPart = part.trimmed();
+
+            // Skip decimal rounding parameters (.digits) - they're handled elsewhere
+            if (QRegularExpression(R"(^\.(\d+)$)").match(trimmedPart).hasMatch()) {
+                continue;
+            }
+
+            // Skip method parameters for percentile functions
+            if (trimmedPart.toLower() == "linear" || trimmedPart.toLower() == "nearest") {
+                continue;
+            }
+
+            // Check if this part is a range (like "4-10")
+            if (trimmedPart.contains('-') && !trimmedPart.startsWith('-')) {
+                QStringList rangeParts = trimmedPart.split('-');
+                if (rangeParts.size() == 2) {
+                    bool ok1, ok2;
+                    int start = rangeParts[0].trimmed().toInt(&ok1);
+                    int end = rangeParts[1].trimmed().toInt(&ok2);
+                    if (ok1 && ok2) {
+                        for (int i = start; i <= end; ++i) {
+                            if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
+                                values.append(getLineValue(i));
+                            }
+                        }
+                        continue; // Skip the rest of the processing for this part
+                    }
+                }
+            }
+
+            // Parse as line number (range functions always use line references)
+            bool ok;
+            int lineNum = trimmedPart.toInt(&ok);
+            if (ok && m_lineValues.contains(lineNum)) { // Only include lines that have been evaluated
+                values.append(getLineValue(lineNum));
+            } else if (ok) {
+                // Line number is valid but not yet evaluated - this can happen during dependency resolution
+                // For now, skip it (the function will be re-evaluated later)
+                LOG_DEBUG(QString("Line %1 not yet evaluated, skipping for now").arg(lineNum));
+            } else {
+                // Try to parse as a direct numeric value (for processed cross-sheet references like S.Sheet.LN1)
+                double numericValue = trimmedPart.toDouble(&ok);
+                if (ok) {
+                    values.append(numericValue);
+                }
+            }
+        }
+    }
+    else if (trimmedRange.contains('-') && !trimmedRange.startsWith('-')) {
+        // Range format like "1-5" (without commas)
         QStringList parts = trimmedRange.split('-');
         if (parts.size() == 2) {
             bool ok1, ok2;
@@ -940,31 +1207,6 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
                     if (m_lineValues.contains(i)) { // Only include lines that have been evaluated
                         values.append(getLineValue(i));
                     }
-                }
-            }
-        }
-    }
-    else if (trimmedRange.contains(',')) {
-        // Comma-separated format like "1,3,5" or "1,3,5,R2"
-        QStringList parts = trimmedRange.split(',');
-        for (const QString &part : parts) {
-            QString trimmedPart = part.trimmed();
-
-            // Skip decimal rounding parameters (.digits) - they're handled elsewhere
-            if (QRegularExpression(R"(^\.(\d+)$)").match(trimmedPart).hasMatch()) {
-                continue;
-            }
-
-            // Try to parse as a line number first
-            bool ok;
-            int lineNum = trimmedPart.toInt(&ok);
-            if (ok && m_lineValues.contains(lineNum)) { // Only include lines that have been evaluated
-                values.append(getLineValue(lineNum));
-            } else {
-                // Try to parse as a direct numeric value (for processed cross-sheet references)
-                double numericValue = trimmedPart.toDouble(&ok);
-                if (ok) {
-                    values.append(numericValue);
                 }
             }
         }
@@ -985,6 +1227,65 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
     }
 
     return values;
+}
+
+double CalculationEngine::calculatePercentile(const QList<double> &values, double percentile, const QString &rangeExpr)
+{
+    if (values.isEmpty()) {
+        return 0.0;
+    }
+
+    // Parse method parameter from range expression
+    QString method = "linear"; // default
+    QStringList parts = rangeExpr.split(',');
+
+    // Look for method parameter (second non-rounding parameter)
+    for (const QString &part : parts) {
+        QString trimmedPart = part.trimmed();
+
+        // Skip decimal rounding parameters (.digits)
+        if (QRegularExpression(R"(^\.(\d+)$)").match(trimmedPart).hasMatch()) {
+            continue;
+        }
+        // Skip numeric line references
+        bool isNumeric;
+        trimmedPart.toInt(&isNumeric);
+        if (isNumeric) {
+            continue;
+        }
+        // Skip range expressions like "4-10"
+        if (trimmedPart.contains('-')) {
+            continue;
+        }
+        // This should be the method parameter
+        if (trimmedPart.toLower() == "nearest" || trimmedPart.toLower() == "linear") {
+            method = trimmedPart.toLower();
+            break;
+        }
+    }
+
+    QList<double> sortedValues = values;
+    std::sort(sortedValues.begin(), sortedValues.end());
+
+    if (method == "nearest") {
+        // Nearest-rank method: return actual data value
+        int index = static_cast<int>(std::ceil(percentile * sortedValues.size())) - 1;
+        int maxIndex = static_cast<int>(sortedValues.size() - 1);
+        index = std::max(0, std::min(index, maxIndex));
+        return sortedValues[index];
+    } else {
+        // Linear interpolation method (default)
+        double index = percentile * (sortedValues.size() - 1);
+        int lowerIndex = static_cast<int>(std::floor(index));
+        int upperIndex = static_cast<int>(std::ceil(index));
+
+        if (lowerIndex == upperIndex) {
+            return sortedValues[lowerIndex];
+        } else {
+            double weight = index - lowerIndex;
+            return sortedValues[lowerIndex] * (1.0 - weight) + sortedValues[upperIndex] * weight;
+        }
+    }
 }
 
 QString CalculationEngine::handleUnitConversion(const QString &expr)

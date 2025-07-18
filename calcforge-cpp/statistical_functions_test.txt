@@ -1,0 +1,36 @@
+::: NEW STATISTICAL FUNCTIONS TEST
+:::
+::: Test Data
+10
+20
+30
+20
+40
+50
+20
+:::
+::: Using Range Syntax (above, below, ranges, individual lines)
+mode(above)
+perc5(1-7)
+perc95(1,3,5,7)
+product(4,5,6)
+range(above)
+geomean(4,5,6)
+harmmean(4,5,6)
+sumsq(4,5,6)
+::: Expected: 20, 10, 30, 2400, 40, 20, 26.46, 1400
+:::
+::: Statistical Functions (using direct values)
+mode(10, 20, 30, 20, 40, 50, 20)
+perc5(10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+perc95(10, 20, 30, 40, 50, 60, 70, 80, 90, 100)
+product(2, 3, 4)
+range(10, 50, 30, 20)
+geomean(4, 9, 16)
+harmmean(2, 4, 8)
+sumsq(3, 4, 5)
+::: Expected: 20, 14.5, 95.5, 24, 40, 8, 3.27, 50
+:::
+::: Frame Rate Test (meanfps with frame times)
+meanfps(0.0167, 0.0333, 0.0167, 0.0200)
+::: Expected: ~45.45 (harmonic mean of frame times)

@@ -231,6 +231,15 @@ private:
     QList<double> getValuesFromRange(const QString &rangeExpr, int currentLine);
 
     /**
+     * Calculate percentile with optional method parameter
+     * @param values List of values to calculate percentile from
+     * @param percentile Percentile value (0.05 for 5th percentile, 0.95 for 95th)
+     * @param rangeExpr Original range expression to parse method parameter
+     * @return Calculated percentile value
+     */
+    double calculatePercentile(const QList<double> &values, double percentile, const QString &rangeExpr);
+
+    /**
      * Extract numeric value from formatted result strings
      * Used for LN references to strip text endings from conversion results
      * @param result Formatted result string like "129 miles" or "85.63 Euros"
