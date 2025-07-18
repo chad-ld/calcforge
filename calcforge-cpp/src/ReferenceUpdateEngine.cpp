@@ -5,12 +5,15 @@
 
 ReferenceUpdateEngine::ReferenceUpdateEngine()
     : m_lnRegex(R"(\bLN(\d+)\b)", QRegularExpression::CaseInsensitiveOption)
-    , m_statisticalRegex(R"(\b(sum|mean|min|max|count|std|var)\s*\(\s*([^)]+)\s*\))", QRegularExpression::CaseInsensitiveOption)
+    , m_statisticalRegex(R"(\b(sum|mean|median|mode|min|max|count|product|variance|stdev|std|range|geomean|harmmean|sumsq|perc5|perc95|meanfps)\s*\(\s*([^)]+)\s*\))", QRegularExpression::CaseInsensitiveOption)
     , m_rangeRegex(R"(\b(\d+)\s*-\s*(\d+)\b)")
     , m_commaListRegex(R"(\b\d+\b)")
 {
-    // Initialize statistical function names
-    m_statisticalFunctions << "sum" << "mean" << "min" << "max" << "count" << "std" << "var";
+    // Initialize statistical function names - complete list matching CalculationEngine
+    m_statisticalFunctions << "sum" << "mean" << "median" << "mode" << "min" << "max"
+                          << "count" << "product" << "variance" << "stdev" << "std"
+                          << "range" << "geomean" << "harmmean" << "sumsq"
+                          << "perc5" << "perc95" << "meanfps";
 }
 
 bool ReferenceUpdateEngine::updateReferences(QStringList &content, const QList<LineChange> &changes)
