@@ -117,6 +117,7 @@ AutoCompleteDescriptionBox::AutoCompleteDescriptionBox(QWidget *parent)
     setupStyling();
     setWordWrap(true);
     setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    setTextFormat(Qt::RichText);  // Enable HTML/rich text support
     setText("Select a function to see its description");
 }
 
@@ -474,16 +475,16 @@ AutoCompleteManager::~AutoCompleteManager()
 void AutoCompleteManager::setupFunctions()
 {
     // Basic mathematical functions
-    m_functions["sqrt"] = AutoCompleteFunction("sqrt", "Square root function\nParameters: value\n<u>Examples:</u>\nsqrt(16)\nsqrt(LN5)", {"value"});
-    m_functions["abs"] = AutoCompleteFunction("abs", "Absolute value\nParameters: value\n<u>Examples:</u>\nabs(-5)\nabs(LN3)", {"value"});
-    m_functions["ceil"] = AutoCompleteFunction("ceil", "Round up to nearest integer\nParameters: value\n<u>Examples:</u>\nceil(3.2)\nceil(LN4)", {"value"});
-    m_functions["floor"] = AutoCompleteFunction("floor", "Round down to nearest integer\nParameters: value\n<u>Examples:</u>\nfloor(3.8)\nfloor(LN2)", {"value"});
-    m_functions["round"] = AutoCompleteFunction("round", "Round to specified decimal places\nParameters: value, decimals\n<u>Examples:</u>\nround(3.14159, 2)\nround(LN1, 3)", {"value", "decimals"});
+    m_functions["sqrt"] = AutoCompleteFunction("sqrt", "Square root function<br>Parameters: value<br><u><b>Examples:</b></u><br>sqrt(16)<br>sqrt(LN5)", {"value"});
+    m_functions["abs"] = AutoCompleteFunction("abs", "Absolute value<br>Parameters: value<br><u><b>Examples:</b></u><br>abs(-5)<br>abs(LN3)", {"value"});
+    m_functions["ceil"] = AutoCompleteFunction("ceil", "Round up to nearest integer<br>Parameters: value<br><u><b>Examples:</b></u><br>ceil(3.2)<br>ceil(LN4)", {"value"});
+    m_functions["floor"] = AutoCompleteFunction("floor", "Round down to nearest integer<br>Parameters: value<br><u><b>Examples:</b></u><br>floor(3.8)<br>floor(LN2)", {"value"});
+    m_functions["round"] = AutoCompleteFunction("round", "Round to specified decimal places<br>Parameters: value, decimals<br><u><b>Examples:</b></u><br>round(3.14159, 2)<br>round(LN1, 3)", {"value", "decimals"});
 
     // Trigonometric functions
-    m_functions["sin"] = AutoCompleteFunction("sin", "Sine function (radians)\nParameters: angle\n<u>Examples:</u>\nsin(pi/2)\nsin(radians(30))", {"angle"});
-    m_functions["cos"] = AutoCompleteFunction("cos", "Cosine function (radians)\nParameters: angle\n<u>Examples:</u>\ncos(0)\ncos(pi)", {"angle"});
-    m_functions["tan"] = AutoCompleteFunction("tan", "Tangent function (radians)\nParameters: angle\n<u>Examples:</u>\ntan(pi/4)\ntan(radians(45))", {"angle"});
+    m_functions["sin"] = AutoCompleteFunction("sin", "Sine function (radians)<br>Parameters: angle<br><u><b>Examples:</b></u><br>sin(pi/2)<br>sin(radians(30))", {"angle"});
+    m_functions["cos"] = AutoCompleteFunction("cos", "Cosine function (radians)<br>Parameters: angle<br><u><b>Examples:</b></u><br>cos(0)<br>cos(pi)", {"angle"});
+    m_functions["tan"] = AutoCompleteFunction("tan", "Tangent function (radians)<br>Parameters: angle<br><u><b>Examples:</b></u><br>tan(pi/4)<br>tan(radians(45))", {"angle"});
 
     // Inverse trigonometric functions
     m_functions["asin"] = AutoCompleteFunction("asin", "Inverse sine (arcsine) in radians\nParameters: value\n<u>Examples:</u>\nasin(0.5)\nasin(LN2)", {"value"});
@@ -1282,9 +1283,9 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
             if (m_units.contains(completion)) {
                 // Provide detailed descriptions for different unit types
                 if (completion.contains("square") || completion.contains("²") || completion.contains("acre") || completion.contains("hectare")) {
-                    description = QString("Area unit: %1\n<u>Examples:</u>\n1000 %2 to square meters\n5.5 %3 to acres").arg(completion).arg(completion).arg(completion);
+                    description = QString("Area unit: %1<br><u><b>Examples:</b></u><br>1000 %2 to square meters<br>5.5 %3 to acres").arg(completion).arg(completion).arg(completion);
                 } else if (completion.contains("cubic") || completion.contains("³") || completion.contains("cc")) {
-                    description = QString("Volume unit (cubic): %1\n<u>Examples:</u>\n500 %2 to liters\n100 %3 to cubic feet").arg(completion).arg(completion).arg(completion);
+                    description = QString("Volume unit (cubic): %1<br><u><b>Examples:</b></u><br>500 %2 to liters<br>100 %3 to cubic feet").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"liters", "gallons", "quarts", "pints", "cups", "milliliters", "fluid ounces", "l", "gal", "qt", "pt", "cup", "ml", "fl oz"}).contains(completion)) {
                     description = QString("Volume unit (liquid): %1\n<u>Examples:</u>\n2 %2 to gallons\n500 %3 to liters").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"meters", "kilometers", "miles", "yards", "feet", "inches", "centimeters", "millimeters", "m", "km", "mi", "yd", "ft", "in", "cm", "mm"}).contains(completion)) {
