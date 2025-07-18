@@ -674,6 +674,27 @@ void AutoCompleteManager::setupUnits()
     m_units << "seconds" << "minutes" << "hours" << "days" << "weeks" << "months" << "years";
     m_units << "s" << "min" << "h" << "d" << "w" << "mo" << "y";
 
+    // Power units
+    m_units << "watts" << "kilowatts" << "horsepower" << "british thermal unit per hour";
+    m_units << "watt" << "kilowatt" << "btu per hour" << "btu/h";
+    m_units << "W" << "kW" << "hp" << "BTU/h";
+
+    // Energy units
+    m_units << "joules" << "kilojoules" << "calories" << "kilocalories" << "british thermal unit" << "kilowatt hours";
+    m_units << "joule" << "kilojoule" << "calorie" << "kilocalorie" << "btu" << "kilowatt hour";
+    m_units << "J" << "kJ" << "cal" << "kcal" << "BTU" << "kWh";
+
+    // Velocity/Speed units
+    m_units << "meters per second" << "kilometers per hour" << "miles per hour" << "feet per second" << "knots" << "mach";
+    m_units << "metres per second" << "kilometres per hour" << "knot";
+    m_units << "m/s" << "km/h" << "mph" << "ft/s" << "kn" << "Ma";
+    m_units << "mps" << "kph" << "fps" << "kt";
+
+    // Pressure units
+    m_units << "pascals" << "kilopascals" << "bar" << "atmospheres" << "pounds per square inch" << "torr" << "millimeters of mercury";
+    m_units << "pascal" << "kilopascal" << "bars" << "atmosphere" << "millimeter of mercury";
+    m_units << "Pa" << "kPa" << "atm" << "psi" << "Torr" << "mmHg";
+
     // Conversion keywords
     m_units << "to";
 
@@ -1298,6 +1319,14 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
                     description = QString("Temperature unit: %1<br><u><b>Examples:</b></u><br>32 %2 to celsius<br>100 %3 to fahrenheit").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"seconds", "minutes", "hours", "days", "weeks", "months", "years", "s", "min", "h", "d", "w", "mo", "y"}).contains(completion)) {
                     description = QString("Time unit: %1<br><u><b>Examples:</b></u><br>3600 %2 to hours<br>7 %3 to weeks").arg(completion).arg(completion).arg(completion);
+                } else if (QStringList({"watts", "kilowatts", "horsepower", "british thermal unit per hour", "watt", "kilowatt", "btu per hour", "btu/h", "W", "kW", "hp", "BTU/h"}).contains(completion)) {
+                    description = QString("Power unit: %1<br><u><b>Examples:</b></u><br>1000 %2 to horsepower<br>50 %3 to kilowatts").arg(completion).arg(completion).arg(completion);
+                } else if (QStringList({"joules", "kilojoules", "calories", "kilocalories", "british thermal unit", "kilowatt hours", "joule", "kilojoule", "calorie", "kilocalorie", "btu", "kilowatt hour", "J", "kJ", "cal", "kcal", "BTU", "kWh"}).contains(completion)) {
+                    description = QString("Energy unit: %1<br><u><b>Examples:</b></u><br>1000 %2 to calories<br>100 %3 to joules").arg(completion).arg(completion).arg(completion);
+                } else if (QStringList({"meters per second", "kilometers per hour", "miles per hour", "feet per second", "knots", "mach", "metres per second", "kilometres per hour", "knot", "m/s", "km/h", "mph", "ft/s", "kn", "Ma", "mps", "kph", "fps", "kt"}).contains(completion)) {
+                    description = QString("Velocity unit: %1<br><u><b>Examples:</b></u><br>60 %2 to meters per second<br>100 %3 to kilometers per hour").arg(completion).arg(completion).arg(completion);
+                } else if (QStringList({"pascals", "kilopascals", "bar", "atmospheres", "pounds per square inch", "torr", "millimeters of mercury", "pascal", "kilopascal", "bars", "atmosphere", "millimeter of mercury", "Pa", "kPa", "atm", "psi", "Torr", "mmHg"}).contains(completion)) {
+                    description = QString("Pressure unit: %1<br><u><b>Examples:</b></u><br>100 %2 to bar<br>1 %3 to pascals").arg(completion).arg(completion).arg(completion);
                 } else {
                     description = QString("Unit: %1").arg(completion);
                 }

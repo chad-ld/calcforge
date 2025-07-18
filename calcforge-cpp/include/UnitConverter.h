@@ -105,6 +105,26 @@ private:
      * Initialize time units
      */
     void initializeTimeUnits();
+
+    /**
+     * Initialize power units
+     */
+    void initializePowerUnits();
+
+    /**
+     * Initialize energy units
+     */
+    void initializeEnergyUnits();
+
+    /**
+     * Initialize velocity/speed units
+     */
+    void initializeVelocityUnits();
+
+    /**
+     * Initialize pressure units
+     */
+    void initializePressureUnits();
     
     /**
      * Convert between units within the same category
@@ -136,7 +156,7 @@ private:
     /**
      * Get the category for a given unit
      * @param unit Unit abbreviation
-     * @return Category name (distance, weight, volume, temperature, time)
+     * @return Category name (distance, weight, volume, temperature, time, area, power, energy, velocity, pressure)
      */
     QString getUnitCategory(const QString &unit) const;
 
@@ -165,7 +185,19 @@ private:
     
     // Time: base unit is seconds
     QHash<QString, double> m_timeFactors;
-    
+
+    // Power: base unit is watts
+    QHash<QString, double> m_powerFactors;
+
+    // Energy: base unit is joules
+    QHash<QString, double> m_energyFactors;
+
+    // Velocity: base unit is meters per second
+    QHash<QString, double> m_velocityFactors;
+
+    // Pressure: base unit is pascals
+    QHash<QString, double> m_pressureFactors;
+
     // Temperature units (handled separately due to offset formulas)
     QHash<QString, QString> m_temperatureUnits;
 };

@@ -166,7 +166,7 @@ class CrossSheetReferenceManager
 - **Cross-Sheet LN Auto-Updates**: **FULLY IMPLEMENTED** - Updates LN references across ALL sheets when any sheet changes
 - **Circular Reference Detection**: **FULLY IMPLEMENTED** - Advanced cycle detection for cross-sheet dependencies
 - **Advanced Dependency Management**: **FULLY IMPLEMENTED** - Comprehensive cross-sheet dependency tracking
-- **Unit Conversion System**: Complete implementation with 6 categories (distance, weight, volume, temperature, time, area)
+- **Unit Conversion System**: Complete implementation with 10 categories (distance, weight, volume, temperature, time, area, power, energy, velocity, pressure)
 - **Date Functions (D)**: Complete professional date calculation system with multiple formats and business days
 - **Timecode Functions (TC)**: Complete timecode calculation system with drop frame support
 - **Aspect Ratio Functions (AR)**: Complete aspect ratio calculator for video/graphics
@@ -465,6 +465,10 @@ taskkill /F /IM CalcForge.exe
 - [x] **Temperature conversions**: Celsius, Fahrenheit, Kelvin with proper offset formulas
 - [x] **Time conversions**: seconds, minutes, hours, days, weeks
 - [x] **Area conversions**: square meters, square feet, square inches, square yards, square miles, acres, hectares
+- [x] **Power conversions**: watts, kilowatts, horsepower, BTU per hour
+- [x] **Energy conversions**: joules, kilojoules, calories, kilocalories, BTU, kilowatt hours
+- [x] **Velocity conversions**: meters per second, kilometers per hour, miles per hour, feet per second, knots, mach
+- [x] **Pressure conversions**: pascals, kilopascals, bar, atmospheres, psi, torr, millimeters of mercury
 
 #### **3.2 Special Functions** ✅ **COMPLETED**
 - [x] **D (Date) Function**: Complete date calculation system ✅ **COMPLETED**
@@ -792,7 +796,7 @@ target_link_libraries(CalcForge Qt6::Core Qt6::Widgets Qt6::Network)
 - [x] **Error handling system** (graceful fallbacks) ✅
 - [x] **LN reference system** (auto-updates, dependency tracking, evaluation order) ✅
 - [x] **Keyboard shortcuts** (navigation, font control, smart selection) ✅
-- [x] **Unit conversion system** (comprehensive distance, weight, volume, temperature, time, area) ✅
+- [x] **Unit conversion system** (comprehensive distance, weight, volume, temperature, time, area, power, energy, velocity, pressure) ✅
 - [x] **Date functions (D)** (complete date calculation system with business day support) ✅
 - [x] **Truncate/TR functions** (full implementation as round() aliases) ✅
 - [x] **Timecode functions (TC)** (complete timecode calculation system with drop frame support) ✅
@@ -857,13 +861,14 @@ target_link_libraries(CalcForge Qt6::Core Qt6::Widgets Qt6::Network)
 ### **Recent Achievements** 🏆
 - **January 2025**: Implemented complete calculation engine with recursive descent parser
 - **LN Variables with Special Functions**: Fixed LN reference processing to work with all special functions (unit conversions, currency, timecode, etc.)
-- **Area and Volume Conversions**: Added comprehensive area conversions (acres, hectares, square meters, etc.) and expanded volume conversions
+- **Extended Unit System**: Added comprehensive area conversions (acres, hectares, square meters, etc.) and expanded volume conversions
+- **Power, Energy, Velocity, Pressure Units**: Added 4 new unit categories with comprehensive conversion support and autocomplete integration
 - **UI Polish**: Custom tab system, synchronized scrolling, material design elements
 - **Performance**: Fast compilation with build-quick.bat, efficient memory usage
 - **Architecture**: Clean separation of concerns with CalculationEngine and Logger classes
 - **LN Reference Auto-Update System**: Complete spreadsheet-like auto-updating behavior for line references
 - **Mathematical Functions**: Core library including statistical functions (sum, mean, min, max, median, variance, stdev, etc.)
-- **Unit Conversion System**: Comprehensive implementation covering distance, weight, volume, temperature, time, and area
+- **Unit Conversion System**: Comprehensive implementation covering distance, weight, volume, temperature, time, area, power, energy, velocity, and pressure
 - **Date Functions (D)**: Complete professional date calculation system with multiple formats and business day support
 - **Truncate/TR Functions**: Efficient implementation as round() aliases for full compatibility
 - **Timecode Functions (TC)**: Complete timecode calculation system with drop frame support and multiple frame rates
@@ -1106,7 +1111,7 @@ percent(333, %, 1000, .2)       // → 33.30% (precision)
 - **Core Mathematical Operations**: All basic arithmetic with proper precedence
 - **Core Mathematical Functions**: sin, cos, tan, sqrt, abs, log, log10, exp, floor, ceil, round
 - **Statistical Functions**: sum, mean, min, max, count, product, range, median, variance, stdev, geomean, harmmean, sumsq
-- **Unit Conversion System**: Complete implementation with 6 categories (distance, weight, volume, temperature, time, area)
+- **Unit Conversion System**: Complete implementation with 10 categories (distance, weight, volume, temperature, time, area, power, energy, velocity, pressure)
 - **Date Functions (D)**: Complete professional date calculation system with multiple formats, business days, and inclusive/exclusive ranges
 - **Truncate/TR Functions**: Full implementation as efficient round() aliases
 - **Timecode Functions (TC)**: Complete timecode calculation system with drop frame support and multiple frame rates
@@ -1311,33 +1316,41 @@ modular_inverse(3, 11)              // Modular multiplicative inverse
 chinese_remainder([2,3,2], [3,5,7]) // Chinese remainder theorem
 ```
 
-#### **🌐 Extended Unit System** - **MEDIUM PRIORITY**
-**Effort Level**: Low (1 week) | **Impact**: Medium | **Complexity**: Low
+#### **🌐 Extended Unit System** - ✅ **COMPLETED**
+**Status**: ✅ **FULLY IMPLEMENTED** - Complete extended unit system with 4 new categories
 
-Expand unit conversion capabilities:
+CalcForge now includes comprehensive extended unit conversions:
 
 ```cpp
-// Power and energy units
-50 watts to horsepower              // Power conversions
-1000 joules to calories             // Energy conversions
-100 kwh to btu                      // Electrical energy
-1 horsepower to watts               // Mechanical power
+// Power conversions ✅ IMPLEMENTED
+1000 watts to horsepower            // Result: 1.341 horsepower
+100 horsepower to watts             // Result: 74,570 watts
+1000 BTU/h to watts                 // Result: 293.071 watts
 
-// Velocity and acceleration
-60 mph to meters per second         // Speed conversions
-9.8 m/s^2 to ft/s^2                // Acceleration
-mach 1 to mph                       // Supersonic speeds
+// Energy conversions ✅ IMPLEMENTED
+1000 joules to calories             // Result: 239.006 calories
+1 kilocalorie to joules             // Result: 4,184 joules
+1 kWh to joules                     // Result: 3,600,000 joules
 
-// Pressure and force
-1 atmosphere to pascals             // Pressure units
-100 psi to bar                      // Industrial pressure
-1 newton to pounds force            // Force conversions
+// Velocity conversions ✅ IMPLEMENTED
+60 mph to km/h                      // Result: 96.56 km/h
+30 m/s to mph                       // Result: 67.11 mph
+1 mach to m/s                       // Result: 343 m/s
 
-// Sound and electromagnetic
-100 decibels to watts per meter squared  // Sound intensity
-1 tesla to gauss                         // Magnetic field
-1 volt per meter to newtons per coulomb  // Electric field
+// Pressure conversions ✅ IMPLEMENTED
+14.7 psi to atmospheres             // Result: 1.0 atm
+1 bar to pascals                    // Result: 100,000 Pa
+760 torr to atmospheres             // Result: 1.0 atm
 ```
+
+**✅ Implemented Features**:
+- Power units: watts, kilowatts, horsepower, BTU per hour
+- Energy units: joules, kilojoules, calories, kilocalories, BTU, kilowatt hours
+- Velocity units: m/s, km/h, mph, ft/s, knots, mach
+- Pressure units: pascals, kilopascals, bar, atmospheres, psi, torr, mmHg
+- Complete autocomplete integration with detailed descriptions
+- LN variable support for all new unit types
+- Updated help documentation with examples
 
 ### **🔬 ADVANCED FEATURES - HIGH EFFORT**
 
@@ -1458,11 +1471,13 @@ exchange_rate("USD", "EUR")              // Live exchange rates
 
 **Phase 1 (Next 3 months)**: Matrix Operations + Data Visualization & Plotting
 **Phase 2 (Months 4-6)**: Advanced Statistics + Financial Mathematics
-**Phase 3 (Months 7-9)**: Extended Unit System + Advanced Number Theory
-**Phase 4 (Months 10-12)**: Symbolic Calculus System
-**Phase 5 (Year 2)**: Programming Constructs + Data Integration
+**Phase 3 (Months 7-9)**: Advanced Number Theory + Symbolic Calculus System
+**Phase 4 (Months 10-12)**: Programming Constructs + Data Integration
+**Phase 5 (Year 2)**: Advanced Features + Platform Expansion
 
-**✅ COMPLETED**: Solve for X System (Linear, Quadratic, Transcendental equations)
+**✅ COMPLETED**:
+- Solve for X System (Linear, Quadratic, Transcendental equations)
+- Extended Unit System (Power, Energy, Velocity, Pressure conversions)
 
 This roadmap would transform CalcForge from an advanced calculator into a comprehensive mathematical analysis and problem-solving platform, competing with tools like Mathematica, MATLAB, and Wolfram Alpha while maintaining its user-friendly worksheet interface.
 

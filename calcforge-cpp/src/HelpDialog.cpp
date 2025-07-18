@@ -357,6 +357,10 @@ void HelpDialog::setupContent()
         "<tr><td>LN3 meters to feet</td><td>Convert length from line 3</td><td>32.808 feet</td></tr>"
         "<tr><td>LN11 square meters to acres</td><td>Convert area from line 11</td><td>0.0229568 acres</td></tr>"
         "<tr><td>LN15 liters to gallons</td><td>Convert volume from line 15</td><td>2.16338 gallons</td></tr>"
+        "<tr><td>LN20 watts to horsepower</td><td>Convert power from line 20</td><td>1.34102 horsepower</td></tr>"
+        "<tr><td>LN25 joules to calories</td><td>Convert energy from line 25</td><td>239.006 calories</td></tr>"
+        "<tr><td>LN30 mph to km/h</td><td>Convert velocity from line 30</td><td>96.5606 km/h</td></tr>"
+        "<tr><td>LN35 psi to bar</td><td>Convert pressure from line 35</td><td>6.89476 bar</td></tr>"
         "<tr><td>percent(LN1%, LN2)</td><td>Calculate percentage using LN values</td><td>25% of 200 = 50</td></tr>"
         "</table>"
 
@@ -531,7 +535,8 @@ void HelpDialog::setupContent()
     // Unit Conversions
     addTopic("📏 Unit Conversions",
         "<h2>Unit Conversion System</h2>"
-        "<p>Convert between different units using natural language syntax.</p>"
+        "<p>Convert between different units using natural language syntax. CalcForge supports 10 unit categories:</p>"
+        "<p><b>Categories:</b> Distance, Weight, Volume, Temperature, Time, Area, Power, Energy, Velocity, Pressure</p>"
 
         "<h3>Conversion Syntax:</h3>"
         "<p><code>[number] [from_unit] to [to_unit]</code></p>"
@@ -590,6 +595,45 @@ void HelpDialog::setupContent()
         "<tr><td>2 hours to minutes</td><td>Convert hours to minutes</td></tr>"
         "<tr><td>7 days to weeks</td><td>Convert days to weeks</td></tr>"
         "<tr><td>3600 seconds to hours</td><td>Convert seconds to hours</td></tr>"
+        "</table>"
+
+        "<h3>Power Conversions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Example</th><th>Description</th></tr>"
+        "<tr><td>1000 watts to kilowatts</td><td>Convert W to kW</td></tr>"
+        "<tr><td>100 horsepower to watts</td><td>Convert hp to W</td></tr>"
+        "<tr><td>500 watts to horsepower</td><td>Convert W to hp</td></tr>"
+        "<tr><td>1000 BTU/h to watts</td><td>Convert BTU per hour to W</td></tr>"
+        "</table>"
+
+        "<h3>Energy Conversions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Example</th><th>Description</th></tr>"
+        "<tr><td>1000 joules to kilojoules</td><td>Convert J to kJ</td></tr>"
+        "<tr><td>1000 calories to joules</td><td>Convert cal to J</td></tr>"
+        "<tr><td>1 kilocalorie to calories</td><td>Convert kcal to cal</td></tr>"
+        "<tr><td>1 kWh to joules</td><td>Convert kilowatt hours to J</td></tr>"
+        "<tr><td>1 BTU to joules</td><td>Convert British thermal units to J</td></tr>"
+        "</table>"
+
+        "<h3>Velocity Conversions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Example</th><th>Description</th></tr>"
+        "<tr><td>60 mph to km/h</td><td>Convert miles per hour to km/h</td></tr>"
+        "<tr><td>30 m/s to mph</td><td>Convert meters per second to mph</td></tr>"
+        "<tr><td>100 knots to mph</td><td>Convert nautical speed to mph</td></tr>"
+        "<tr><td>1 mach to m/s</td><td>Convert mach number to m/s</td></tr>"
+        "<tr><td>10 ft/s to m/s</td><td>Convert feet per second to m/s</td></tr>"
+        "</table>"
+
+        "<h3>Pressure Conversions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Example</th><th>Description</th></tr>"
+        "<tr><td>100000 pascals to bar</td><td>Convert Pa to bar</td></tr>"
+        "<tr><td>1 atmosphere to pascals</td><td>Convert atm to Pa</td></tr>"
+        "<tr><td>14.7 psi to atmospheres</td><td>Convert pounds per square inch to atm</td></tr>"
+        "<tr><td>760 torr to atmospheres</td><td>Convert torr to atm</td></tr>"
+        "<tr><td>760 mmHg to torr</td><td>Convert millimeters of mercury to torr</td></tr>"
         "</table>");
 
     // Currency Conversions

@@ -99,6 +99,10 @@ void UnitConverter::initializeUnits()
     initializeVolumeUnits();
     initializeTemperatureUnits();
     initializeTimeUnits();
+    initializePowerUnits();
+    initializeEnergyUnits();
+    initializeVelocityUnits();
+    initializePressureUnits();
 }
 
 void UnitConverter::initializeDistanceUnits()
@@ -455,6 +459,216 @@ void UnitConverter::initializeTimeUnits()
     m_timeFactors["w"] = 604800.0;
 }
 
+void UnitConverter::initializePowerUnits()
+{
+    // Power unit abbreviations
+    m_unitAbbreviations["watt"] = "W";
+    m_unitAbbreviations["watts"] = "W";
+    m_unitAbbreviations["w"] = "W";
+    m_unitAbbreviations["W"] = "W";
+
+    m_unitAbbreviations["kilowatt"] = "kW";
+    m_unitAbbreviations["kilowatts"] = "kW";
+    m_unitAbbreviations["kw"] = "kW";
+    m_unitAbbreviations["kW"] = "kW";
+
+    m_unitAbbreviations["horsepower"] = "hp";
+    m_unitAbbreviations["hp"] = "hp";
+    m_unitAbbreviations["HP"] = "hp";
+
+    m_unitAbbreviations["british thermal unit per hour"] = "BTU/h";
+    m_unitAbbreviations["btu per hour"] = "BTU/h";
+    m_unitAbbreviations["btu/h"] = "BTU/h";
+    m_unitAbbreviations["BTU/h"] = "BTU/h";
+
+    // Display names
+    m_displayNames["W"] = "watts";
+    m_displayNames["kW"] = "kilowatts";
+    m_displayNames["hp"] = "horsepower";
+    m_displayNames["BTU/h"] = "BTU per hour";
+
+    // Categories
+    m_unitCategories["W"] = "power";
+    m_unitCategories["kW"] = "power";
+    m_unitCategories["hp"] = "power";
+    m_unitCategories["BTU/h"] = "power";
+
+    // Conversion factors to watts
+    m_powerFactors["W"] = 1.0;
+    m_powerFactors["kW"] = 1000.0;
+    m_powerFactors["hp"] = 745.7;  // Mechanical horsepower
+    m_powerFactors["BTU/h"] = 0.293071;  // BTU per hour to watts
+}
+
+void UnitConverter::initializeEnergyUnits()
+{
+    // Energy unit abbreviations
+    m_unitAbbreviations["joule"] = "J";
+    m_unitAbbreviations["joules"] = "J";
+    m_unitAbbreviations["j"] = "J";
+    m_unitAbbreviations["J"] = "J";
+
+    m_unitAbbreviations["kilojoule"] = "kJ";
+    m_unitAbbreviations["kilojoules"] = "kJ";
+    m_unitAbbreviations["kj"] = "kJ";
+    m_unitAbbreviations["kJ"] = "kJ";
+
+    m_unitAbbreviations["calorie"] = "cal";
+    m_unitAbbreviations["calories"] = "cal";
+    m_unitAbbreviations["cal"] = "cal";
+
+    m_unitAbbreviations["kilocalorie"] = "kcal";
+    m_unitAbbreviations["kilocalories"] = "kcal";
+    m_unitAbbreviations["kcal"] = "kcal";
+
+    m_unitAbbreviations["british thermal unit"] = "BTU";
+    m_unitAbbreviations["btu"] = "BTU";
+    m_unitAbbreviations["BTU"] = "BTU";
+
+    m_unitAbbreviations["kilowatt hour"] = "kWh";
+    m_unitAbbreviations["kilowatt hours"] = "kWh";
+    m_unitAbbreviations["kwh"] = "kWh";
+    m_unitAbbreviations["kWh"] = "kWh";
+
+    // Display names
+    m_displayNames["J"] = "joules";
+    m_displayNames["kJ"] = "kilojoules";
+    m_displayNames["cal"] = "calories";
+    m_displayNames["kcal"] = "kilocalories";
+    m_displayNames["BTU"] = "British thermal units";
+    m_displayNames["kWh"] = "kilowatt hours";
+
+    // Categories
+    m_unitCategories["J"] = "energy";
+    m_unitCategories["kJ"] = "energy";
+    m_unitCategories["cal"] = "energy";
+    m_unitCategories["kcal"] = "energy";
+    m_unitCategories["BTU"] = "energy";
+    m_unitCategories["kWh"] = "energy";
+
+    // Conversion factors to joules
+    m_energyFactors["J"] = 1.0;
+    m_energyFactors["kJ"] = 1000.0;
+    m_energyFactors["cal"] = 4.184;  // Thermochemical calorie
+    m_energyFactors["kcal"] = 4184.0;  // Kilocalorie
+    m_energyFactors["BTU"] = 1055.06;  // International Table BTU
+    m_energyFactors["kWh"] = 3600000.0;  // Kilowatt hour to joules
+}
+
+void UnitConverter::initializeVelocityUnits()
+{
+    // Velocity unit abbreviations
+    m_unitAbbreviations["meters per second"] = "m/s";
+    m_unitAbbreviations["metres per second"] = "m/s";
+    m_unitAbbreviations["m/s"] = "m/s";
+    m_unitAbbreviations["mps"] = "m/s";
+
+    m_unitAbbreviations["kilometers per hour"] = "km/h";
+    m_unitAbbreviations["kilometres per hour"] = "km/h";
+    m_unitAbbreviations["km/h"] = "km/h";
+    m_unitAbbreviations["kph"] = "km/h";
+
+    m_unitAbbreviations["miles per hour"] = "mph";
+    m_unitAbbreviations["mph"] = "mph";
+    m_unitAbbreviations["MPH"] = "mph";
+
+    m_unitAbbreviations["feet per second"] = "ft/s";
+    m_unitAbbreviations["ft/s"] = "ft/s";
+    m_unitAbbreviations["fps"] = "ft/s";
+
+    m_unitAbbreviations["knot"] = "kn";
+    m_unitAbbreviations["knots"] = "kn";
+    m_unitAbbreviations["kn"] = "kn";
+    m_unitAbbreviations["kt"] = "kn";
+
+    m_unitAbbreviations["mach"] = "Ma";
+    m_unitAbbreviations["Ma"] = "Ma";
+
+    // Display names
+    m_displayNames["m/s"] = "meters per second";
+    m_displayNames["km/h"] = "kilometers per hour";
+    m_displayNames["mph"] = "miles per hour";
+    m_displayNames["ft/s"] = "feet per second";
+    m_displayNames["kn"] = "knots";
+    m_displayNames["Ma"] = "mach";
+
+    // Categories
+    m_unitCategories["m/s"] = "velocity";
+    m_unitCategories["km/h"] = "velocity";
+    m_unitCategories["mph"] = "velocity";
+    m_unitCategories["ft/s"] = "velocity";
+    m_unitCategories["kn"] = "velocity";
+    m_unitCategories["Ma"] = "velocity";
+
+    // Conversion factors to meters per second
+    m_velocityFactors["m/s"] = 1.0;
+    m_velocityFactors["km/h"] = 0.277778;  // km/h to m/s
+    m_velocityFactors["mph"] = 0.44704;    // mph to m/s
+    m_velocityFactors["ft/s"] = 0.3048;    // ft/s to m/s
+    m_velocityFactors["kn"] = 0.514444;    // knots to m/s
+    m_velocityFactors["Ma"] = 343.0;       // Mach 1 at sea level (approximate)
+}
+
+void UnitConverter::initializePressureUnits()
+{
+    // Pressure unit abbreviations
+    m_unitAbbreviations["pascal"] = "Pa";
+    m_unitAbbreviations["pascals"] = "Pa";
+    m_unitAbbreviations["pa"] = "Pa";
+    m_unitAbbreviations["Pa"] = "Pa";
+
+    m_unitAbbreviations["kilopascal"] = "kPa";
+    m_unitAbbreviations["kilopascals"] = "kPa";
+    m_unitAbbreviations["kpa"] = "kPa";
+    m_unitAbbreviations["kPa"] = "kPa";
+
+    m_unitAbbreviations["bar"] = "bar";
+    m_unitAbbreviations["bars"] = "bar";
+
+    m_unitAbbreviations["atmosphere"] = "atm";
+    m_unitAbbreviations["atmospheres"] = "atm";
+    m_unitAbbreviations["atm"] = "atm";
+
+    m_unitAbbreviations["pounds per square inch"] = "psi";
+    m_unitAbbreviations["psi"] = "psi";
+    m_unitAbbreviations["PSI"] = "psi";
+
+    m_unitAbbreviations["torr"] = "Torr";
+    m_unitAbbreviations["Torr"] = "Torr";
+
+    m_unitAbbreviations["millimeter of mercury"] = "mmHg";
+    m_unitAbbreviations["millimeters of mercury"] = "mmHg";
+    m_unitAbbreviations["mmhg"] = "mmHg";
+    m_unitAbbreviations["mmHg"] = "mmHg";
+
+    // Display names
+    m_displayNames["Pa"] = "pascals";
+    m_displayNames["kPa"] = "kilopascals";
+    m_displayNames["bar"] = "bar";
+    m_displayNames["atm"] = "atmospheres";
+    m_displayNames["psi"] = "pounds per square inch";
+    m_displayNames["Torr"] = "torr";
+    m_displayNames["mmHg"] = "millimeters of mercury";
+
+    // Categories
+    m_unitCategories["Pa"] = "pressure";
+    m_unitCategories["kPa"] = "pressure";
+    m_unitCategories["bar"] = "pressure";
+    m_unitCategories["atm"] = "pressure";
+    m_unitCategories["psi"] = "pressure";
+    m_unitCategories["Torr"] = "pressure";
+    m_unitCategories["mmHg"] = "pressure";
+
+    // Conversion factors to pascals
+    m_pressureFactors["Pa"] = 1.0;
+    m_pressureFactors["kPa"] = 1000.0;
+    m_pressureFactors["bar"] = 100000.0;      // 1 bar = 100,000 Pa
+    m_pressureFactors["atm"] = 101325.0;      // 1 atmosphere = 101,325 Pa
+    m_pressureFactors["psi"] = 6894.76;       // 1 psi = 6,894.76 Pa
+    m_pressureFactors["Torr"] = 133.322;      // 1 Torr = 133.322 Pa
+    m_pressureFactors["mmHg"] = 133.322;      // 1 mmHg = 133.322 Pa (same as Torr)
+}
+
 double UnitConverter::convertWithinCategory(double value, const QString &fromUnit,
                                            const QString &toUnit, const QString &category)
 {
@@ -497,6 +711,38 @@ double UnitConverter::convertWithinCategory(double value, const QString &fromUni
         // Convert to base unit (seconds) then to target unit
         double baseValue = value * m_timeFactors[fromUnit];
         return baseValue / m_timeFactors[toUnit];
+    }
+    else if (category == "power") {
+        if (!m_powerFactors.contains(fromUnit) || !m_powerFactors.contains(toUnit)) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+        // Convert to base unit (watts) then to target unit
+        double baseValue = value * m_powerFactors[fromUnit];
+        return baseValue / m_powerFactors[toUnit];
+    }
+    else if (category == "energy") {
+        if (!m_energyFactors.contains(fromUnit) || !m_energyFactors.contains(toUnit)) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+        // Convert to base unit (joules) then to target unit
+        double baseValue = value * m_energyFactors[fromUnit];
+        return baseValue / m_energyFactors[toUnit];
+    }
+    else if (category == "velocity") {
+        if (!m_velocityFactors.contains(fromUnit) || !m_velocityFactors.contains(toUnit)) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+        // Convert to base unit (meters per second) then to target unit
+        double baseValue = value * m_velocityFactors[fromUnit];
+        return baseValue / m_velocityFactors[toUnit];
+    }
+    else if (category == "pressure") {
+        if (!m_pressureFactors.contains(fromUnit) || !m_pressureFactors.contains(toUnit)) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+        // Convert to base unit (pascals) then to target unit
+        double baseValue = value * m_pressureFactors[fromUnit];
+        return baseValue / m_pressureFactors[toUnit];
     }
 
     return std::numeric_limits<double>::quiet_NaN();
