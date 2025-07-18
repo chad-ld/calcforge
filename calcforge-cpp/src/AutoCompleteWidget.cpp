@@ -487,71 +487,71 @@ void AutoCompleteManager::setupFunctions()
     m_functions["tan"] = AutoCompleteFunction("tan", "Tangent function (radians)<br>Parameters: angle<br><u><b>Examples:</b></u><br>tan(pi/4)<br>tan(radians(45))", {"angle"});
 
     // Inverse trigonometric functions
-    m_functions["asin"] = AutoCompleteFunction("asin", "Inverse sine (arcsine) in radians\nParameters: value\n<u>Examples:</u>\nasin(0.5)\nasin(LN2)", {"value"});
-    m_functions["acos"] = AutoCompleteFunction("acos", "Inverse cosine (arccosine) in radians\nParameters: value\n<u>Examples:</u>\nacos(0.707)\nacos(LN3)", {"value"});
-    m_functions["atan"] = AutoCompleteFunction("atan", "Inverse tangent (arctangent) in radians\nParameters: value\n<u>Examples:</u>\natan(1)\natan(LN1)", {"value"});
+    m_functions["asin"] = AutoCompleteFunction("asin", "Inverse sine (arcsine) in radians<br>Parameters: value<br><u><b>Examples:</b></u><br>asin(0.5)<br>asin(LN2)", {"value"});
+    m_functions["acos"] = AutoCompleteFunction("acos", "Inverse cosine (arccosine) in radians<br>Parameters: value<br><u><b>Examples:</b></u><br>acos(0.707)<br>acos(LN3)", {"value"});
+    m_functions["atan"] = AutoCompleteFunction("atan", "Inverse tangent (arctangent) in radians<br>Parameters: value<br><u><b>Examples:</b></u><br>atan(1)<br>atan(LN1)", {"value"});
 
     // Hyperbolic functions
-    m_functions["sinh"] = AutoCompleteFunction("sinh", "Hyperbolic sine\nParameters: value\n<u>Examples:</u>\nsinh(1)\nsinh(LN2)", {"value"});
-    m_functions["cosh"] = AutoCompleteFunction("cosh", "Hyperbolic cosine\nParameters: value\n<u>Examples:</u>\ncosh(1)\ncosh(LN3)", {"value"});
-    m_functions["tanh"] = AutoCompleteFunction("tanh", "Hyperbolic tangent\nParameters: value\n<u>Examples:</u>\ntanh(1)\ntanh(LN1)", {"value"});
-    m_functions["asinh"] = AutoCompleteFunction("asinh", "Inverse hyperbolic sine\nParameters: value\n<u>Examples:</u>\nasinh(1.175)\nasinh(LN4)", {"value"});
-    m_functions["acosh"] = AutoCompleteFunction("acosh", "Inverse hyperbolic cosine\nParameters: value\n<u>Examples:</u>\nacosh(1.543)\nacosh(LN5)", {"value"});
-    m_functions["atanh"] = AutoCompleteFunction("atanh", "Inverse hyperbolic tangent\nParameters: value\n<u>Examples:</u>\natanh(0.762)\natanh(LN6)", {"value"});
+    m_functions["sinh"] = AutoCompleteFunction("sinh", "Hyperbolic sine<br>Parameters: value<br><u><b>Examples:</b></u><br>sinh(1)<br>sinh(LN2)", {"value"});
+    m_functions["cosh"] = AutoCompleteFunction("cosh", "Hyperbolic cosine<br>Parameters: value<br><u><b>Examples:</b></u><br>cosh(1)<br>cosh(LN3)", {"value"});
+    m_functions["tanh"] = AutoCompleteFunction("tanh", "Hyperbolic tangent<br>Parameters: value<br><u><b>Examples:</b></u><br>tanh(1)<br>tanh(LN1)", {"value"});
+    m_functions["asinh"] = AutoCompleteFunction("asinh", "Inverse hyperbolic sine<br>Parameters: value<br><u><b>Examples:</b></u><br>asinh(1.175)<br>asinh(LN4)", {"value"});
+    m_functions["acosh"] = AutoCompleteFunction("acosh", "Inverse hyperbolic cosine<br>Parameters: value<br><u><b>Examples:</b></u><br>acosh(1.543)<br>acosh(LN5)", {"value"});
+    m_functions["atanh"] = AutoCompleteFunction("atanh", "Inverse hyperbolic tangent<br>Parameters: value<br><u><b>Examples:</b></u><br>atanh(0.762)<br>atanh(LN6)", {"value"});
 
     // Logarithmic and exponential functions
-    m_functions["log"] = AutoCompleteFunction("log", "Natural logarithm (base e)\nParameters: value\n<u>Examples:</u>\nlog(e)\nlog(LN3)", {"value"});
-    m_functions["log10"] = AutoCompleteFunction("log10", "Base-10 logarithm\nParameters: value\n<u>Examples:</u>\nlog10(100)\nlog10(LN2)", {"value"});
-    m_functions["log2"] = AutoCompleteFunction("log2", "Base-2 logarithm\nParameters: value\n<u>Examples:</u>\nlog2(8)\nlog2(LN4)", {"value"});
-    m_functions["exp"] = AutoCompleteFunction("exp", "Exponential function (e^x)\nParameters: value\n<u>Examples:</u>\nexp(1)\nexp(LN1)", {"value"});
+    m_functions["log"] = AutoCompleteFunction("log", "Natural logarithm (base e)<br>Parameters: value<br><u><b>Examples:</b></u><br>log(e)<br>log(LN3)", {"value"});
+    m_functions["log10"] = AutoCompleteFunction("log10", "Base-10 logarithm<br>Parameters: value<br><u><b>Examples:</b></u><br>log10(100)<br>log10(LN2)", {"value"});
+    m_functions["log2"] = AutoCompleteFunction("log2", "Base-2 logarithm<br>Parameters: value<br><u><b>Examples:</b></u><br>log2(8)<br>log2(LN4)", {"value"});
+    m_functions["exp"] = AutoCompleteFunction("exp", "Exponential function (e^x)<br>Parameters: value<br><u><b>Examples:</b></u><br>exp(1)<br>exp(LN1)", {"value"});
 
     // Power and utility functions
-    m_functions["pow"] = AutoCompleteFunction("pow", "Power function (base^exponent)\nParameters: base, exponent\n<u>Examples:</u>\npow(2, 3)\npow(LN1, 2)", {"base", "exponent"});
-    m_functions["factorial"] = AutoCompleteFunction("factorial", "Factorial function (n!)\nParameters: n\n<u>Examples:</u>\nfactorial(5)\nfactorial(LN3)", {"n"});
+    m_functions["pow"] = AutoCompleteFunction("pow", "Power function (base^exponent)<br>Parameters: base, exponent<br><u><b>Examples:</b></u><br>pow(2, 3)<br>pow(LN1, 2)", {"base", "exponent"});
+    m_functions["factorial"] = AutoCompleteFunction("factorial", "Factorial function (n!)<br>Parameters: n<br><u><b>Examples:</b></u><br>factorial(5)<br>factorial(LN3)", {"n"});
 
     // Number theory functions
-    m_functions["gcd"] = AutoCompleteFunction("gcd", "Greatest common divisor\nParameters: a, b\n<u>Examples:</u>\ngcd(12, 8)\ngcd(LN1, LN2)", {"a", "b"});
-    m_functions["lcm"] = AutoCompleteFunction("lcm", "Least common multiple\nParameters: a, b\n<u>Examples:</u>\nlcm(12, 8)\nlcm(LN1, LN2)", {"a", "b"});
+    m_functions["gcd"] = AutoCompleteFunction("gcd", "Greatest common divisor<br>Parameters: a, b<br><u><b>Examples:</b></u><br>gcd(12, 8)<br>gcd(LN1, LN2)", {"a", "b"});
+    m_functions["lcm"] = AutoCompleteFunction("lcm", "Least common multiple<br>Parameters: a, b<br><u><b>Examples:</b></u><br>lcm(12, 8)<br>lcm(LN1, LN2)", {"a", "b"});
 
     // Angle conversion functions
-    m_functions["degrees"] = AutoCompleteFunction("degrees", "Convert radians to degrees\nParameters: radians\n<u>Examples:</u>\ndegrees(pi)\ndegrees(LN2)", {"radians"});
-    m_functions["radians"] = AutoCompleteFunction("radians", "Convert degrees to radians\nParameters: degrees\n<u>Examples:</u>\nradians(180)\nradians(LN1)", {"degrees"});
+    m_functions["degrees"] = AutoCompleteFunction("degrees", "Convert radians to degrees<br>Parameters: radians<br><u><b>Examples:</b></u><br>degrees(pi)<br>degrees(LN2)", {"radians"});
+    m_functions["radians"] = AutoCompleteFunction("radians", "Convert degrees to radians<br>Parameters: degrees<br><u><b>Examples:</b></u><br>radians(180)<br>radians(LN1)", {"degrees"});
 
     // Additional utility function
-    m_functions["truncate"] = AutoCompleteFunction("truncate", "Truncate to specified decimal places\nParameters: value, decimals\n<u>Examples:</u>\ntruncate(3.14159, 2)\ntruncate(LN1, 3)", {"value", "decimals"});
+    m_functions["truncate"] = AutoCompleteFunction("truncate", "Truncate to specified decimal places<br>Parameters: value, decimals<br><u><b>Examples:</b></u><br>truncate(3.14159, 2)<br>truncate(LN1, 3)", {"value", "decimals"});
 
     // Statistical functions
-    m_functions["sum"] = AutoCompleteFunction("sum", "Sum of values\nParameters: range\n<u>Examples:</u>\nsum(1-10)\nsum(above)", {"range"}, "statistical");
-    m_functions["mean"] = AutoCompleteFunction("mean", "Average of values\nParameters: range\n<u>Examples:</u>\nmean(1-10)\nmean(below, .2)", {"range"}, "statistical");
-    m_functions["min"] = AutoCompleteFunction("min", "Minimum value\nParameters: range\n<u>Examples:</u>\nmin(1-10)\nmin(above)", {"range"}, "statistical");
-    m_functions["max"] = AutoCompleteFunction("max", "Maximum value\nParameters: range\n<u>Examples:</u>\nmax(1-10)\nmax(below)", {"range"}, "statistical");
-    m_functions["count"] = AutoCompleteFunction("count", "Count of values\nParameters: range\n<u>Examples:</u>\ncount(1-10)\ncount(above)", {"range"}, "statistical");
-    m_functions["median"] = AutoCompleteFunction("median", "Median value\nParameters: range\n<u>Examples:</u>\nmedian(1-10)\nmedian(above)", {"range"}, "statistical");
-    m_functions["variance"] = AutoCompleteFunction("variance", "Variance of values\nParameters: range\n<u>Examples:</u>\nvariance(1-10)\nvariance(above, .3)", {"range"}, "statistical");
-    m_functions["stdev"] = AutoCompleteFunction("stdev", "Standard deviation\nParameters: range\n<u>Examples:</u>\nstdev(1-10)\nstdev(above, .2)", {"range"}, "statistical");
-    m_functions["mode"] = AutoCompleteFunction("mode", "Most frequent value\nParameters: range\n<u>Examples:</u>\nmode(1-10)\nmode(above)", {"range"}, "statistical");
-    m_functions["product"] = AutoCompleteFunction("product", "Product of values\nParameters: range\n<u>Examples:</u>\nproduct(1-5)\nproduct(above)", {"range"}, "statistical");
-    m_functions["range"] = AutoCompleteFunction("range", "Difference between max and min\nParameters: range\n<u>Examples:</u>\nrange(1-10)\nrange(below)", {"range"}, "statistical");
-    m_functions["geomean"] = AutoCompleteFunction("geomean", "Geometric mean\nParameters: range\n<u>Examples:</u>\ngeomean(1-10)\ngeomean(above, .2)", {"range"}, "statistical");
-    m_functions["harmmean"] = AutoCompleteFunction("harmmean", "Harmonic mean\nParameters: range\n<u>Examples:</u>\nharmmean(1-10)\nharmmean(above, .3)", {"range"}, "statistical");
-    m_functions["sumsq"] = AutoCompleteFunction("sumsq", "Sum of squares\nParameters: range\n<u>Examples:</u>\nsumsq(1-10)\nsumsq(above)", {"range"}, "statistical");
-    m_functions["perc5"] = AutoCompleteFunction("perc5", "5th percentile\nParameters: range, method\n<u>Examples:</u>\nperc5(1-10, linear)\nperc5(above, nearest)", {"range", "method"}, "statistical");
-    m_functions["perc95"] = AutoCompleteFunction("perc95", "95th percentile\nParameters: range, method\n<u>Examples:</u>\nperc95(1-10, linear)\nperc95(above, nearest)", {"range", "method"}, "statistical");
-    m_functions["meanfps"] = AutoCompleteFunction("meanfps", "Mean frames per second (harmonic mean for frame times)\nParameters: range\n<u>Examples:</u>\nmeanfps(1-10)\nmeanfps(above)", {"range"}, "statistical");
+    m_functions["sum"] = AutoCompleteFunction("sum", "Sum of values<br>Parameters: range<br><u><b>Examples:</b></u><br>sum(1-10)<br>sum(above)", {"range"}, "statistical");
+    m_functions["mean"] = AutoCompleteFunction("mean", "Average of values<br>Parameters: range<br><u><b>Examples:</b></u><br>mean(1-10)<br>mean(below, .2)", {"range"}, "statistical");
+    m_functions["min"] = AutoCompleteFunction("min", "Minimum value<br>Parameters: range<br><u><b>Examples:</b></u><br>min(1-10)<br>min(above)", {"range"}, "statistical");
+    m_functions["max"] = AutoCompleteFunction("max", "Maximum value<br>Parameters: range<br><u><b>Examples:</b></u><br>max(1-10)<br>max(below)", {"range"}, "statistical");
+    m_functions["count"] = AutoCompleteFunction("count", "Count of values<br>Parameters: range<br><u><b>Examples:</b></u><br>count(1-10)<br>count(above)", {"range"}, "statistical");
+    m_functions["median"] = AutoCompleteFunction("median", "Median value<br>Parameters: range<br><u><b>Examples:</b></u><br>median(1-10)<br>median(above)", {"range"}, "statistical");
+    m_functions["variance"] = AutoCompleteFunction("variance", "Variance of values<br>Parameters: range<br><u><b>Examples:</b></u><br>variance(1-10)<br>variance(above, .3)", {"range"}, "statistical");
+    m_functions["stdev"] = AutoCompleteFunction("stdev", "Standard deviation<br>Parameters: range<br><u><b>Examples:</b></u><br>stdev(1-10)<br>stdev(above, .2)", {"range"}, "statistical");
+    m_functions["mode"] = AutoCompleteFunction("mode", "Most frequent value<br>Parameters: range<br><u><b>Examples:</b></u><br>mode(1-10)<br>mode(above)", {"range"}, "statistical");
+    m_functions["product"] = AutoCompleteFunction("product", "Product of values<br>Parameters: range<br><u><b>Examples:</b></u><br>product(1-5)<br>product(above)", {"range"}, "statistical");
+    m_functions["range"] = AutoCompleteFunction("range", "Difference between max and min<br>Parameters: range<br><u><b>Examples:</b></u><br>range(1-10)<br>range(below)", {"range"}, "statistical");
+    m_functions["geomean"] = AutoCompleteFunction("geomean", "Geometric mean<br>Parameters: range<br><u><b>Examples:</b></u><br>geomean(1-10)<br>geomean(above, .2)", {"range"}, "statistical");
+    m_functions["harmmean"] = AutoCompleteFunction("harmmean", "Harmonic mean<br>Parameters: range<br><u><b>Examples:</b></u><br>harmmean(1-10)<br>harmmean(above, .3)", {"range"}, "statistical");
+    m_functions["sumsq"] = AutoCompleteFunction("sumsq", "Sum of squares<br>Parameters: range<br><u><b>Examples:</b></u><br>sumsq(1-10)<br>sumsq(above)", {"range"}, "statistical");
+    m_functions["perc5"] = AutoCompleteFunction("perc5", "5th percentile<br>Parameters: range, method<br><u><b>Examples:</b></u><br>perc5(1-10, linear)<br>perc5(above, nearest)", {"range", "method"}, "statistical");
+    m_functions["perc95"] = AutoCompleteFunction("perc95", "95th percentile<br>Parameters: range, method<br><u><b>Examples:</b></u><br>perc95(1-10, linear)<br>perc95(above, nearest)", {"range", "method"}, "statistical");
+    m_functions["meanfps"] = AutoCompleteFunction("meanfps", "Mean frames per second (harmonic mean for frame times)<br>Parameters: range<br><u><b>Examples:</b></u><br>meanfps(1-10)<br>meanfps(above)", {"range"}, "statistical");
 
     // Special functions
-    m_functions["TC"] = AutoCompleteFunction("TC", "Timecode calculation\nParameters: framerate, timecode\n<u>Examples:</u>\nTC(24, 100)\nTC(30, 00:01:00:00)", {"framerate", "timecode"}, "special");
-    m_functions["AR"] = AutoCompleteFunction("AR", "Aspect ratio calculation\nParameters: dimensions\n<u>Examples:</u>\nAR(1920x1080, ?x720)\nAR(16x9, ?x1080)", {"dimensions"}, "special");
-    m_functions["D"] = AutoCompleteFunction("D", "Date calculation\nParameters: date_expression\n<u>Examples:</u>\nD(July 4, 2023 + 30)\nD(July 4, 2023 W+ 5)", {"date_expression"}, "special");
-    m_functions["percent"] = AutoCompleteFunction("percent", "Percentage calculation\nParameters: value, operation, value2\n<u>Examples:</u>\npercent(25%, 1000)\npercent(1000, +, 25%)", {"value", "operation", "value2"}, "special");
-    m_functions["solve"] = AutoCompleteFunction("solve", "Solve equations for unknown variables\nSupports linear, quadratic, and transcendental equations\nParameters: equation, method, rounding\n<u>Examples:</u>\nsolve(X + 2 = 5)\nsolve(X^2 - 4*X + 3 = 0, quadratic)", {"equation", "method", "rounding"}, "special");
+    m_functions["TC"] = AutoCompleteFunction("TC", "Timecode calculation<br>Parameters: framerate, timecode<br><u><b>Examples:</b></u><br>TC(24, 100)<br>TC(30, 00:01:00:00)", {"framerate", "timecode"}, "special");
+    m_functions["AR"] = AutoCompleteFunction("AR", "Aspect ratio calculation<br>Parameters: dimensions<br><u><b>Examples:</b></u><br>AR(1920x1080, ?x720)<br>AR(16x9, ?x1080)", {"dimensions"}, "special");
+    m_functions["D"] = AutoCompleteFunction("D", "Date calculation<br>Parameters: date_expression<br><u><b>Examples:</b></u><br>D(July 4, 2023 + 30)<br>D(July 4, 2023 W+ 5)", {"date_expression"}, "special");
+    m_functions["percent"] = AutoCompleteFunction("percent", "Percentage calculation<br>Parameters: value, operation, value2<br><u><b>Examples:</b></u><br>percent(25%, 1000)<br>percent(1000, +, 25%)", {"value", "operation", "value2"}, "special");
+    m_functions["solve"] = AutoCompleteFunction("solve", "Solve equations for unknown variables<br>Supports linear, quadratic, and transcendental equations<br>Parameters: equation, method, rounding<br><u><b>Examples:</b></u><br>solve(X + 2 = 5)<br>solve(X^2 - 4*X + 3 = 0, quadratic)", {"equation", "method", "rounding"}, "special");
 
     // Cross-sheet function
-    m_functions["S"] = AutoCompleteFunction("S", "Cross-sheet reference\nParameters: sheet, reference\n<u>Examples:</u>\nS.Sheet1.LN5\nS.Conversions.LN2", {"sheet", "reference"}, "reference");
+    m_functions["S"] = AutoCompleteFunction("S", "Cross-sheet reference<br>Parameters: sheet, reference<br><u><b>Examples:</b></u><br>S.Sheet1.LN5<br>S.Conversions.LN2", {"sheet", "reference"}, "reference");
 
     // Constants
-    m_functions["pi"] = AutoCompleteFunction("pi", "Mathematical constant π (3.14159...)\n<u>Examples:</u>\npi\nsin(pi/2)", {}, "constant");
-    m_functions["e"] = AutoCompleteFunction("e", "Mathematical constant e (2.71828...)\n<u>Examples:</u>\ne\nlog(e)", {}, "constant");
+    m_functions["pi"] = AutoCompleteFunction("pi", "Mathematical constant π (3.14159...)<br><u><b>Examples:</b></u><br>pi<br>sin(pi/2)", {}, "constant");
+    m_functions["e"] = AutoCompleteFunction("e", "Mathematical constant e (2.71828...)<br><u><b>Examples:</b></u><br>e<br>log(e)", {}, "constant");
 
     // Setup parameter templates for statistical functions
     QStringList statParams = {"above", "below", "1-10", "1,2,3,4,5"};
@@ -1287,20 +1287,20 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
                 } else if (completion.contains("cubic") || completion.contains("³") || completion.contains("cc")) {
                     description = QString("Volume unit (cubic): %1<br><u><b>Examples:</b></u><br>500 %2 to liters<br>100 %3 to cubic feet").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"liters", "gallons", "quarts", "pints", "cups", "milliliters", "fluid ounces", "l", "gal", "qt", "pt", "cup", "ml", "fl oz"}).contains(completion)) {
-                    description = QString("Volume unit (liquid): %1\n<u>Examples:</u>\n2 %2 to gallons\n500 %3 to liters").arg(completion).arg(completion).arg(completion);
+                    description = QString("Volume unit (liquid): %1<br><u><b>Examples:</b></u><br>2 %2 to gallons<br>500 %3 to liters").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"meters", "kilometers", "miles", "yards", "feet", "inches", "centimeters", "millimeters", "m", "km", "mi", "yd", "ft", "in", "cm", "mm"}).contains(completion)) {
-                    description = QString("Distance unit: %1\n<u>Examples:</u>\n100 %2 to meters\n5 %3 to kilometers").arg(completion).arg(completion).arg(completion);
+                    description = QString("Distance unit: %1<br><u><b>Examples:</b></u><br>100 %2 to meters<br>5 %3 to kilometers").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"pounds", "kilograms", "grams", "ounces", "tons", "lbs", "kg", "g", "oz", "t"}).contains(completion)) {
-                    description = QString("Weight unit: %1\n<u>Examples:</u>\n10 %2 to kilograms\n500 %3 to pounds").arg(completion).arg(completion).arg(completion);
+                    description = QString("Weight unit: %1<br><u><b>Examples:</b></u><br>10 %2 to kilograms<br>500 %3 to pounds").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"celsius", "fahrenheit", "kelvin", "C", "F", "K"}).contains(completion)) {
-                    description = QString("Temperature unit: %1\n<u>Examples:</u>\n32 %2 to celsius\n100 %3 to fahrenheit").arg(completion).arg(completion).arg(completion);
+                    description = QString("Temperature unit: %1<br><u><b>Examples:</b></u><br>32 %2 to celsius<br>100 %3 to fahrenheit").arg(completion).arg(completion).arg(completion);
                 } else if (QStringList({"seconds", "minutes", "hours", "days", "weeks", "months", "years", "s", "min", "h", "d", "w", "mo", "y"}).contains(completion)) {
-                    description = QString("Time unit: %1\n<u>Examples:</u>\n3600 %2 to hours\n7 %3 to weeks").arg(completion).arg(completion).arg(completion);
+                    description = QString("Time unit: %1<br><u><b>Examples:</b></u><br>3600 %2 to hours<br>7 %3 to weeks").arg(completion).arg(completion).arg(completion);
                 } else {
                     description = QString("Unit: %1").arg(completion);
                 }
             } else if (m_currencies.contains(completion)) {
-                description = QString("Currency: %1\n<u>Examples:</u>\n100 USD to %2\n50 %3 to EUR").arg(completion).arg(completion).arg(completion);
+                description = QString("Currency: %1<br><u><b>Examples:</b></u><br>100 USD to %2<br>50 %3 to EUR").arg(completion).arg(completion).arg(completion);
             }
         }
         else if (context == "function_param") {
