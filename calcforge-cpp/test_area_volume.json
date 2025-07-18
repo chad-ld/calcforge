@@ -1,0 +1,9 @@
+{
+    "version": "1.0",
+    "tabs": [
+        {
+            "name": "Area & Volume Test",
+            "content": "::: AREA CONVERSIONS TEST\n::: Testing the new area conversion units\n\n::: Area conversions from example worksheet\n1000 square feet to square meters\n500 cubic inches to liters\n2.5 acres to square kilometers\n\n::: Additional area conversions\n1 square meter to square feet\n1 acre to square meters\n1 hectare to acres\n100 square inches to square feet\n1 square mile to acres\n\n::: VOLUME CONVERSIONS TEST\n::: Testing cubic volume units\n\n::: Cubic conversions\n1 cubic meter to liters\n1000 cubic centimeters to liters\n1 cubic foot to liters\n100 cubic inches to cubic feet\n1 cubic yard to cubic meters\n\n::: Mixed volume conversions\n1 gallon to cubic inches\n1 liter to cubic centimeters\n1000 milliliters to cubic centimeters\n\n::: VERIFICATION CALCULATIONS\n::: Manual verification of conversions\n::: 1 square foot = 0.092903 square meters\n1 * 0.092903\n\n::: 1 cubic inch = 0.0163871 liters\n1 * 0.0163871\n\n::: 1 acre = 4046.86 square meters\n1 * 4046.86"
+        }
+    ]
+}

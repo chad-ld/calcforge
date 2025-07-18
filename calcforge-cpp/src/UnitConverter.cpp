@@ -94,6 +94,7 @@ QString UnitConverter::getAbbreviation(const QString &unitName) const
 void UnitConverter::initializeUnits()
 {
     initializeDistanceUnits();
+    initializeAreaUnits();
     initializeWeightUnits();
     initializeVolumeUnits();
     initializeTemperatureUnits();
@@ -157,6 +158,83 @@ void UnitConverter::initializeDistanceUnits()
     m_distanceFactors["in"] = 0.0254;
     m_distanceFactors["cm"] = 0.01;
     m_distanceFactors["mm"] = 0.001;
+}
+
+void UnitConverter::initializeAreaUnits()
+{
+    // Area unit abbreviations
+    m_unitAbbreviations["square meter"] = "m²";
+    m_unitAbbreviations["square meters"] = "m²";
+    m_unitAbbreviations["sq m"] = "m²";
+    m_unitAbbreviations["m²"] = "m²";
+    m_unitAbbreviations["m^2"] = "m²";
+
+    m_unitAbbreviations["square kilometer"] = "km²";
+    m_unitAbbreviations["square kilometers"] = "km²";
+    m_unitAbbreviations["sq km"] = "km²";
+    m_unitAbbreviations["km²"] = "km²";
+    m_unitAbbreviations["km^2"] = "km²";
+
+    m_unitAbbreviations["square foot"] = "ft²";
+    m_unitAbbreviations["square feet"] = "ft²";
+    m_unitAbbreviations["sq ft"] = "ft²";
+    m_unitAbbreviations["ft²"] = "ft²";
+    m_unitAbbreviations["ft^2"] = "ft²";
+
+    m_unitAbbreviations["square inch"] = "in²";
+    m_unitAbbreviations["square inches"] = "in²";
+    m_unitAbbreviations["sq in"] = "in²";
+    m_unitAbbreviations["in²"] = "in²";
+    m_unitAbbreviations["in^2"] = "in²";
+
+    m_unitAbbreviations["square yard"] = "yd²";
+    m_unitAbbreviations["square yards"] = "yd²";
+    m_unitAbbreviations["sq yd"] = "yd²";
+    m_unitAbbreviations["yd²"] = "yd²";
+    m_unitAbbreviations["yd^2"] = "yd²";
+
+    m_unitAbbreviations["square mile"] = "mi²";
+    m_unitAbbreviations["square miles"] = "mi²";
+    m_unitAbbreviations["sq mi"] = "mi²";
+    m_unitAbbreviations["mi²"] = "mi²";
+    m_unitAbbreviations["mi^2"] = "mi²";
+
+    m_unitAbbreviations["acre"] = "acre";
+    m_unitAbbreviations["acres"] = "acre";
+
+    m_unitAbbreviations["hectare"] = "ha";
+    m_unitAbbreviations["hectares"] = "ha";
+    m_unitAbbreviations["ha"] = "ha";
+
+    // Display names
+    m_displayNames["m²"] = "square meters";
+    m_displayNames["km²"] = "square kilometers";
+    m_displayNames["ft²"] = "square feet";
+    m_displayNames["in²"] = "square inches";
+    m_displayNames["yd²"] = "square yards";
+    m_displayNames["mi²"] = "square miles";
+    m_displayNames["acre"] = "acres";
+    m_displayNames["ha"] = "hectares";
+
+    // Categories
+    m_unitCategories["m²"] = "area";
+    m_unitCategories["km²"] = "area";
+    m_unitCategories["ft²"] = "area";
+    m_unitCategories["in²"] = "area";
+    m_unitCategories["yd²"] = "area";
+    m_unitCategories["mi²"] = "area";
+    m_unitCategories["acre"] = "area";
+    m_unitCategories["ha"] = "area";
+
+    // Conversion factors to square meters
+    m_areaFactors["m²"] = 1.0;
+    m_areaFactors["km²"] = 1000000.0;  // 1 km² = 1,000,000 m²
+    m_areaFactors["ft²"] = 0.092903;   // 1 ft² = 0.092903 m²
+    m_areaFactors["in²"] = 0.00064516; // 1 in² = 0.00064516 m²
+    m_areaFactors["yd²"] = 0.836127;   // 1 yd² = 0.836127 m²
+    m_areaFactors["mi²"] = 2589988.11; // 1 mi² = 2,589,988.11 m²
+    m_areaFactors["acre"] = 4046.86;   // 1 acre = 4,046.86 m²
+    m_areaFactors["ha"] = 10000.0;     // 1 hectare = 10,000 m²
 }
 
 void UnitConverter::initializeWeightUnits()
@@ -229,7 +307,39 @@ void UnitConverter::initializeVolumeUnits()
     m_unitAbbreviations["fluid ounces"] = "fl oz";
     m_unitAbbreviations["fl oz"] = "fl oz";
     m_unitAbbreviations["floz"] = "fl oz";
-    
+
+    // Cubic volume units
+    m_unitAbbreviations["cubic meter"] = "m³";
+    m_unitAbbreviations["cubic meters"] = "m³";
+    m_unitAbbreviations["cu m"] = "m³";
+    m_unitAbbreviations["m³"] = "m³";
+    m_unitAbbreviations["m^3"] = "m³";
+
+    m_unitAbbreviations["cubic foot"] = "ft³";
+    m_unitAbbreviations["cubic feet"] = "ft³";
+    m_unitAbbreviations["cu ft"] = "ft³";
+    m_unitAbbreviations["ft³"] = "ft³";
+    m_unitAbbreviations["ft^3"] = "ft³";
+
+    m_unitAbbreviations["cubic inch"] = "in³";
+    m_unitAbbreviations["cubic inches"] = "in³";
+    m_unitAbbreviations["cu in"] = "in³";
+    m_unitAbbreviations["in³"] = "in³";
+    m_unitAbbreviations["in^3"] = "in³";
+
+    m_unitAbbreviations["cubic yard"] = "yd³";
+    m_unitAbbreviations["cubic yards"] = "yd³";
+    m_unitAbbreviations["cu yd"] = "yd³";
+    m_unitAbbreviations["yd³"] = "yd³";
+    m_unitAbbreviations["yd^3"] = "yd³";
+
+    m_unitAbbreviations["cubic centimeter"] = "cm³";
+    m_unitAbbreviations["cubic centimeters"] = "cm³";
+    m_unitAbbreviations["cu cm"] = "cm³";
+    m_unitAbbreviations["cm³"] = "cm³";
+    m_unitAbbreviations["cm^3"] = "cm³";
+    m_unitAbbreviations["cc"] = "cm³";
+
     // Display names
     m_displayNames["L"] = "liters";
     m_displayNames["gal"] = "gallons";
@@ -238,7 +348,12 @@ void UnitConverter::initializeVolumeUnits()
     m_displayNames["cup"] = "cups";
     m_displayNames["mL"] = "milliliters";
     m_displayNames["fl oz"] = "fluid ounces";
-    
+    m_displayNames["m³"] = "cubic meters";
+    m_displayNames["ft³"] = "cubic feet";
+    m_displayNames["in³"] = "cubic inches";
+    m_displayNames["yd³"] = "cubic yards";
+    m_displayNames["cm³"] = "cubic centimeters";
+
     // Categories
     m_unitCategories["L"] = "volume";
     m_unitCategories["gal"] = "volume";
@@ -247,7 +362,12 @@ void UnitConverter::initializeVolumeUnits()
     m_unitCategories["cup"] = "volume";
     m_unitCategories["mL"] = "volume";
     m_unitCategories["fl oz"] = "volume";
-    
+    m_unitCategories["m³"] = "volume";
+    m_unitCategories["ft³"] = "volume";
+    m_unitCategories["in³"] = "volume";
+    m_unitCategories["yd³"] = "volume";
+    m_unitCategories["cm³"] = "volume";
+
     // Conversion factors to liters
     m_volumeFactors["L"] = 1.0;
     m_volumeFactors["gal"] = 3.78541;  // US gallon
@@ -256,6 +376,13 @@ void UnitConverter::initializeVolumeUnits()
     m_volumeFactors["cup"] = 0.236588; // US cup
     m_volumeFactors["mL"] = 0.001;
     m_volumeFactors["fl oz"] = 0.0295735; // US fluid ounce
+
+    // Cubic volume units (converted to liters)
+    m_volumeFactors["m³"] = 1000.0;      // 1 m³ = 1,000 L
+    m_volumeFactors["ft³"] = 28.3168;    // 1 ft³ = 28.3168 L
+    m_volumeFactors["in³"] = 0.0163871;  // 1 in³ = 0.0163871 L
+    m_volumeFactors["yd³"] = 764.555;    // 1 yd³ = 764.555 L
+    m_volumeFactors["cm³"] = 0.001;      // 1 cm³ = 0.001 L (same as mL)
 }
 
 void UnitConverter::initializeTemperatureUnits()
@@ -338,6 +465,14 @@ double UnitConverter::convertWithinCategory(double value, const QString &fromUni
         // Convert to base unit (meters) then to target unit
         double baseValue = value * m_distanceFactors[fromUnit];
         return baseValue / m_distanceFactors[toUnit];
+    }
+    else if (category == "area") {
+        if (!m_areaFactors.contains(fromUnit) || !m_areaFactors.contains(toUnit)) {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+        // Convert to base unit (square meters) then to target unit
+        double baseValue = value * m_areaFactors[fromUnit];
+        return baseValue / m_areaFactors[toUnit];
     }
     else if (category == "weight") {
         if (!m_weightFactors.contains(fromUnit) || !m_weightFactors.contains(toUnit)) {

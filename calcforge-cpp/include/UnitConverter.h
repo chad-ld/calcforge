@@ -26,7 +26,7 @@ struct UnitConversionResult {
 /**
  * Comprehensive unit conversion system for CalcForge C++
  * Replaces Python Pint library functionality with native C++ implementation
- * Supports distance, weight, volume, temperature, and time conversions
+ * Supports distance, area, weight, volume (including cubic units), temperature, and time conversions
  */
 class UnitConverter
 {
@@ -80,7 +80,12 @@ private:
      * Initialize distance/length units
      */
     void initializeDistanceUnits();
-    
+
+    /**
+     * Initialize area units
+     */
+    void initializeAreaUnits();
+
     /**
      * Initialize weight/mass units
      */
@@ -148,7 +153,10 @@ private:
     // Conversion factors to base units for each category
     // Distance: base unit is meters
     QHash<QString, double> m_distanceFactors;
-    
+
+    // Area: base unit is square meters
+    QHash<QString, double> m_areaFactors;
+
     // Weight: base unit is kilograms
     QHash<QString, double> m_weightFactors;
     
