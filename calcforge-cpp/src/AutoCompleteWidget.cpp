@@ -1251,7 +1251,9 @@ QStringList AutoCompleteManager::getDescriptions(const QStringList &completions,
             if (m_functions.contains(completion)) {
                 const AutoCompleteFunction &func = m_functions[completion];
                 description = func.description;
-                if (!func.parameters.isEmpty()) {
+                // Only add parameters if the description doesn't already contain HTML formatting
+                // (HTML-formatted descriptions already include parameters)
+                if (!func.parameters.isEmpty() && !description.contains("<br>")) {
                     description += QString("\nParameters: %1").arg(func.parameters.join(", "));
                 }
             }
