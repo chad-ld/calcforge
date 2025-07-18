@@ -366,7 +366,7 @@ void HelpDialog::setupContent()
     // Mathematical Functions
     addTopic("📐 Mathematical Functions",
         "<h2>Built-in Mathematical Functions</h2>"
-        "<p>CalcForge includes 26 verified mathematical functions with autocomplete support.</p>"
+        "<p>CalcForge includes 30+ verified mathematical functions with autocomplete support.</p>"
 
         "<h3>Basic Functions:</h3>"
         "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
@@ -384,6 +384,20 @@ void HelpDialog::setupContent()
         "<tr><td>sin(x)</td><td>Sine</td><td>sin(pi/2)</td><td>Radians</td></tr>"
         "<tr><td>cos(x)</td><td>Cosine</td><td>cos(0)</td><td>Radians</td></tr>"
         "<tr><td>tan(x)</td><td>Tangent</td><td>tan(pi/4)</td><td>Radians</td></tr>"
+        "<tr><td>asin(x)</td><td>Inverse sine</td><td>asin(0.5)</td><td>Returns radians</td></tr>"
+        "<tr><td>acos(x)</td><td>Inverse cosine</td><td>acos(0.707)</td><td>Returns radians</td></tr>"
+        "<tr><td>atan(x)</td><td>Inverse tangent</td><td>atan(1)</td><td>Returns radians</td></tr>"
+        "</table>"
+
+        "<h3>Hyperbolic Functions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Function</th><th>Description</th><th>Example</th><th>Result</th></tr>"
+        "<tr><td>sinh(x)</td><td>Hyperbolic sine</td><td>sinh(1)</td><td>1.175</td></tr>"
+        "<tr><td>cosh(x)</td><td>Hyperbolic cosine</td><td>cosh(1)</td><td>1.543</td></tr>"
+        "<tr><td>tanh(x)</td><td>Hyperbolic tangent</td><td>tanh(1)</td><td>0.762</td></tr>"
+        "<tr><td>asinh(x)</td><td>Inverse hyperbolic sine</td><td>asinh(1.175)</td><td>1</td></tr>"
+        "<tr><td>acosh(x)</td><td>Inverse hyperbolic cosine</td><td>acosh(1.543)</td><td>1</td></tr>"
+        "<tr><td>atanh(x)</td><td>Inverse hyperbolic tangent</td><td>atanh(0.762)</td><td>1</td></tr>"
         "</table>"
 
         "<h3>Logarithmic Functions:</h3>"
@@ -391,7 +405,20 @@ void HelpDialog::setupContent()
         "<tr><th>Function</th><th>Description</th><th>Example</th><th>Result</th></tr>"
         "<tr><td>log(x)</td><td>Natural logarithm</td><td>log(e)</td><td>1</td></tr>"
         "<tr><td>log10(x)</td><td>Base-10 logarithm</td><td>log10(100)</td><td>2</td></tr>"
+        "<tr><td>log2(x)</td><td>Base-2 logarithm</td><td>log2(8)</td><td>3</td></tr>"
         "<tr><td>exp(x)</td><td>e^x</td><td>exp(1)</td><td>2.718...</td></tr>"
+        "</table>"
+
+        "<h3>Utility Functions:</h3>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Function</th><th>Description</th><th>Example</th><th>Result</th></tr>"
+        "<tr><td>degrees(x)</td><td>Radians to degrees</td><td>degrees(pi)</td><td>180</td></tr>"
+        "<tr><td>radians(x)</td><td>Degrees to radians</td><td>radians(180)</td><td>3.14159</td></tr>"
+        "<tr><td>factorial(x)</td><td>Factorial</td><td>factorial(5)</td><td>120</td></tr>"
+        "<tr><td>pow(x, y)</td><td>x raised to power y</td><td>pow(2, 3)</td><td>8</td></tr>"
+        "<tr><td>gcd(x, y)</td><td>Greatest common divisor</td><td>gcd(12, 8)</td><td>4</td></tr>"
+        "<tr><td>lcm(x, y)</td><td>Least common multiple</td><td>lcm(12, 8)</td><td>24</td></tr>"
+        "<tr><td>truncate(x, d)</td><td>Truncate to d decimals</td><td>truncate(3.14159, 2)</td><td>3.14</td></tr>"
         "</table>");
 
     // Statistical Functions
@@ -422,8 +449,17 @@ void HelpDialog::setupContent()
         "<tr><td>sumsq(range)</td><td>Sum of squares</td><td>sumsq(1-5)</td></tr>"
         "<tr><td>perc5(range, method)</td><td>5th percentile</td><td>perc5(1-10, nearest)</td></tr>"
         "<tr><td>perc95(range, method)</td><td>95th percentile</td><td>perc95(1-10, linear)</td></tr>"
+        "<tr><td>mode(range)</td><td>Most frequent value</td><td>mode(1-10)</td></tr>"
         "<tr><td>meanfps(range)</td><td>Mean frames per second</td><td>meanfps(1-5)</td></tr>"
         "</table>"
+
+        "<h3>Percentile Methods:</h3>"
+        "<p>The perc5 and perc95 functions support two calculation methods:</p>"
+        "<ul>"
+        "<li><b>linear:</b> Linear interpolation between data points (default)</li>"
+        "<li><b>nearest:</b> Uses the nearest data point value</li>"
+        "</ul>"
+        "<p>Example: <code>perc95(1-20, linear)</code> or <code>perc5(above, nearest)</code></p>"
 
         "<h3>Range Specifications:</h3>"
         "<ul>"
@@ -452,6 +488,14 @@ void HelpDialog::setupContent()
         "<li><b>Step 1:</b> Type '100 m' → Select first unit</li>"
         "<li><b>Step 2:</b> Becomes '100 m to ' → Select target unit</li>"
         "<li><b>Step 3:</b> Final result: '100 m to ft'</li>"
+        "</ol>"
+
+        "<h3>Solve Function Autocomplete (4 Steps):</h3>"
+        "<ol>"
+        "<li><b>Step 1:</b> Type 'solve' → Select solve function</li>"
+        "<li><b>Step 2:</b> Enter equation → Type equation like 'X^2 - 4*X + 3 = 0'</li>"
+        "<li><b>Step 3:</b> Select method → Choose 'linear', 'quadratic', or 'transcendental'</li>"
+        "<li><b>Step 4:</b> Choose rounding → Select 'no rounding' or 'rounding' (.2 decimals)</li>"
         "</ol>"
 
         "<h3>Cross-Sheet References:</h3>"
@@ -584,7 +628,32 @@ void HelpDialog::setupContent()
         "<tr><td>Business Days</td><td>D(July 4, 2023 W+ 5)</td><td>Add 5 business days</td></tr>"
         "<tr><td>Date Diff</td><td>D(July 4, 2023 - June 1, 2023)</td><td>Days between dates</td></tr>"
         "<tr><td>Business Diff</td><td>D(July 4, 2023 W- June 1, 2023)</td><td>Business days between</td></tr>"
-        "</table>");
+        "</table>"
+
+        "<h3>Equation Solving:</h3>"
+        "<p>Professional equation solver using the solve function with 4-step autocomplete:</p>"
+        "<table border='1' cellpadding='5' style='border-collapse: collapse;'>"
+        "<tr><th>Method</th><th>Example</th><th>Description</th></tr>"
+        "<tr><td>Linear</td><td>solve(X + 2 = 5)</td><td>X = 3 (automatic method detection)</td></tr>"
+        "<tr><td>Linear</td><td>solve(3*X + 4 = 16, linear)</td><td>X = 4 (explicit method)</td></tr>"
+        "<tr><td>Quadratic</td><td>solve(X^2 - 4*X + 3 = 0, quadratic)</td><td>X = 1, X = 3</td></tr>"
+        "<tr><td>Quadratic</td><td>solve(X² - 1 = 0, quadratic)</td><td>X = 1, X = -1 (Unicode support)</td></tr>"
+        "<tr><td>Trigonometric</td><td>solve(sin(X) = 0.5, transcendental)</td><td>X = 30° (0.524 rad), X = 150° (2.618 rad)</td></tr>"
+        "<tr><td>Logarithmic</td><td>solve(log(X) = 2, transcendental)</td><td>X = 7.389 (e²)</td></tr>"
+        "<tr><td>Exponential</td><td>solve(exp(X) = 10, transcendental)</td><td>X = 2.303 (ln(10))</td></tr>"
+        "<tr><td>With Rounding</td><td>solve(X^2 - 2*X - 1 = 0, quadratic, .3)</td><td>X = 2.414, X = -0.414</td></tr>"
+        "</table>"
+
+        "<h3>Solve Function Features:</h3>"
+        "<ul>"
+        "<li><b>4-Step Autocomplete:</b> Function → Equation → Method → Rounding</li>"
+        "<li><b>Three Methods:</b> linear, quadratic, transcendental</li>"
+        "<li><b>Automatic Detection:</b> Linear equations work without specifying method</li>"
+        "<li><b>Multiple Solutions:</b> Quadratic equations show all real solutions</li>"
+        "<li><b>Degrees & Radians:</b> Trigonometric solutions in both formats</li>"
+        "<li><b>Error Handling:</b> Clear messages for invalid equations or no solutions</li>"
+        "<li><b>Unicode Support:</b> Use X² or X^2 for quadratic terms</li>"
+        "</ul>");
 
     // Keyboard Shortcuts
     addTopic("⌨️ Keyboard Shortcuts",
