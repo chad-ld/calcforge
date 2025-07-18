@@ -1,0 +1,85 @@
+CalcForge v4.0 - C++ Native Windows Version
+===========================================
+
+Build Information:
+- Version: 4.0
+- Build Date: 2025-07-18
+- Platform: Windows 64-bit
+- Compiler: MSVC 2022
+- Qt Version: 6.9.1
+
+Features Included:
+✅ Mathematical Functions (30+ functions)
+✅ Statistical Functions (15+ functions)
+✅ LN Reference System with Auto-Updates
+✅ Cross-Sheet References (S.SheetName.LN#)
+✅ Unit Conversions (6 categories: distance, weight, volume, temperature, time, area)
+✅ Currency Conversions (157+ currencies with live API updates)
+✅ Date Functions (D) with business day support
+✅ Timecode Functions (TC) with drop frame support
+✅ Aspect Ratio Functions (AR) for video/graphics
+✅ Percentage Functions (percent) with 4 calculation phases
+✅ Solve Functions for equations
+✅ Syntax Highlighting
+✅ Autocomplete System
+✅ File Operations (save/load worksheets)
+✅ Keyboard Shortcuts
+✅ Material Design UI
+✅ Synchronized Scrolling
+✅ Tab System with close buttons
+✅ Help System with comprehensive documentation
+
+Recent Updates:
+- Fixed LN variables to work with unit conversions and all special functions
+- Added comprehensive area conversions (acres, hectares, square meters, etc.)
+- Expanded volume conversions (cubic meters, cubic feet, cubic inches, etc.)
+- Added time conversions (seconds, minutes, hours, days, weeks)
+- Updated help documentation with all new conversion types
+- Enhanced LN variable examples in help system
+
+Unit Conversion Categories:
+1. Distance/Length: meters, kilometers, miles, yards, feet, inches, centimeters, millimeters
+2. Weight/Mass: pounds, kilograms, grams, ounces, tons
+3. Volume: liters, gallons, quarts, pints, cups, milliliters, cubic meters, cubic feet, cubic inches, cubic yards, cubic centimeters
+4. Temperature: Celsius, Fahrenheit, Kelvin
+5. Time: seconds, minutes, hours, days, weeks
+6. Area: square meters, square kilometers, square feet, square inches, square yards, square miles, acres, hectares
+
+Mathematical Functions:
+- Basic: +, -, *, /, ^, sqrt, abs, round, ceil, floor
+- Trigonometric: sin, cos, tan, asin, acos, atan
+- Hyperbolic: sinh, cosh, tanh, asinh, acosh, atanh
+- Logarithmic: log, log10, log2, exp
+- Utility: factorial, gcd, lcm, pow, degrees, radians
+
+Statistical Functions:
+- Basic: sum, mean, median, min, max, count
+- Advanced: variance, stdev, range, product, geomean, harmmean, sumsq
+- Percentiles: perc5, perc10, perc25, perc75, perc90, perc95
+- Special: mode, meanfps
+
+File Contents:
+- CalcForge.exe (Main application)
+- Qt6 Libraries (Core, Gui, Widgets, Network, Pdf, Svg)
+- Platform plugins for Windows
+- Image format plugins (GIF, ICO, JPEG, PDF, SVG)
+- Network plugins for currency updates
+- Sample worksheet files
+- Exchange rate data
+- API key template
+- This documentation
+
+System Requirements:
+- Windows 10/11 (64-bit)
+- 4GB RAM minimum
+- 50MB disk space
+- Internet connection for currency updates (optional)
+
+Installation:
+No installation required - this is a portable application.
+Simply extract and run CalcForge.exe.
+
+Support:
+- Built-in help system (click ? button)
+- Comprehensive examples in sample worksheets
+- Detailed logs in logs/ folder
