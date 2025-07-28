@@ -7,44 +7,7 @@
 #include <QRegularExpression>
 #include <stdexcept>
 #include "CalcForgeResult.h"
-
-/**
- * Date calculation result structure
- * Contains the result value and any error information
- */
-struct DateResult {
-    QString value;
-    bool isValid;
-    QString errorMessage;
-
-    DateResult() : isValid(false) {}
-    DateResult(const QString& val) : value(val), isValid(true) {}
-    DateResult(const QString& error, bool) : isValid(false), errorMessage(error) {}
-};
-
-/**
- * Date range result structure for date differences
- * Contains the number of days and the unit type
- */
-struct DateRangeResult {
-    int days;
-    QString unit;
-    bool isValid;
-    QString errorMessage;
-
-    DateRangeResult() : days(0), isValid(false) {}
-    DateRangeResult(int d, const QString& u) : days(d), unit(u), isValid(true) {}
-    DateRangeResult(const QString& error, bool) : days(0), isValid(false), errorMessage(error) {}
-};
-
-/**
- * Custom exception for date errors
- */
-class DateError : public std::runtime_error {
-public:
-    explicit DateError(const QString& message) 
-        : std::runtime_error(message.toStdString()) {}
-};
+#include "CalcForgeException.h"
 
 /**
  * Comprehensive date calculation system for CalcForge C++
@@ -67,7 +30,7 @@ public:
      * Parse a date string in various formats
      * @param dateStr Date string to parse
      * @return QDate object
-     * @throws DateError if parsing fails
+     * @throws DateException if parsing fails
      */
     QDate parseDate(const QString &dateStr);
     

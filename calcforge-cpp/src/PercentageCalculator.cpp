@@ -22,7 +22,7 @@ PercentageResult PercentageCalculator::calculateExpression(const QString &expres
     QRegularExpressionMatch match = m_percentFunctionPattern.match(expr);
     if (!match.hasMatch()) {
         LOG_DEBUG(QString("Not a percent() function call: %1").arg(expr));
-        return PercentageResult(); // Invalid result
+        return PercentageResult::error("Not a percent() function call"); // Invalid result
     }
 
     // Extract and parse function arguments
@@ -67,7 +67,7 @@ PercentageResult PercentageCalculator::calculateExpression(const QString &expres
 PercentageResult PercentageCalculator::parsePercentFunction(const QStringList &args)
 {
     if (args.size() < 2) {
-        return PercentageResult("percent() function requires at least 2 arguments");
+        return PercentageResult::error("percent() function requires at least 2 arguments");
     }
 
     // Determine calculation type based on argument count and second argument
@@ -83,7 +83,7 @@ PercentageResult PercentageCalculator::parsePercentFunction(const QStringList &a
             // percent(25%, 1000) → 25% of 1000
             return calculateBasicPercentage(arg1, arg2);
         } else {
-            return PercentageResult("Invalid arguments for basic percentage: first argument must be percentage, second must be value");
+            return PercentageResult::error("Invalid arguments for basic percentage: first argument must be percentage, second must be value");
         }
     }
 
@@ -95,14 +95,14 @@ PercentageResult PercentageCalculator::parsePercentFunction(const QStringList &a
             double whole = parseNumericValue(args[2], isPercentage3);
 
             if (isPercentage1 || isPercentage3) {
-                return PercentageResult("Invalid arguments for reverse percentage: values cannot include % symbol");
+                return PercentageResult::error("Invalid arguments for reverse percentage: values cannot include % symbol");
             }
 
             int precision = -1;
             if (args.size() >= 4) {
                 precision = parsePrecision(args[3]);
                 if (precision == -1) {
-                    return PercentageResult("Invalid precision specifier: " + args[3]);
+                    return PercentageResult::error("Invalid precision specifier: " + args[3]);
                 }
             }
 
@@ -116,7 +116,7 @@ PercentageResult PercentageCalculator::parsePercentFunction(const QStringList &a
             double percentage = parseNumericValue(args[2], isPercentage3);
 
             if (isPercentage1 || !isPercentage3) {
-                return PercentageResult("Invalid arguments for percentage increase: first argument must be value, third must be percentage");
+                return PercentageResult::error("Invalid arguments for percentage increase: first argument must be value, third must be percentage");
             }
 
             return calculatePercentageIncrease(value, percentage);
@@ -129,7 +129,7 @@ PercentageResult PercentageCalculator::parsePercentFunction(const QStringList &a
             double percentage = parseNumericValue(args[2], isPercentage3);
 
             if (isPercentage1 || !isPercentage3) {
-                return PercentageResult("Invalid arguments for percentage decrease: first argument must be value, third must be percentage");
+                return PercentageResult::error("Invalid arguments for percentage decrease: first argument must be value, third must be percentage");
             }
 
             return calculatePercentageDecrease(value, percentage);
@@ -142,14 +142,14 @@ PercentageResult PercentageCalculator::parsePercentFunction(const QStringList &a
             double newValue = parseNumericValue(args[2], isPercentage3);
 
             if (isPercentage1 || isPercentage3) {
-                return PercentageResult("Invalid arguments for percentage change: values cannot include % symbol");
+                return PercentageResult::error("Invalid arguments for percentage change: values cannot include % symbol");
             }
 
             int precision = -1;
             if (args.size() >= 4) {
                 precision = parsePrecision(args[3]);
                 if (precision == -1) {
-                    return PercentageResult("Invalid precision specifier: " + args[3]);
+                    return PercentageResult::error("Invalid precision specifier: " + args[3]);
                 }
             }
 
@@ -157,91 +157,84 @@ PercentageResult PercentageCalculator::parsePercentFunction(const QStringList &a
         }
 
         else {
-            return PercentageResult("Unknown operation: " + secondArg + ". Valid operations: %, +, -, increase, decrease, to, change");
+            return PercentageResult::error("Unknown operation: " + secondArg + ". Valid operations: %, +, -, increase, decrease, to, change");
         }
     }
 
-    return PercentageResult("Invalid number of arguments for percent() function");
+    return PercentageResult::error("Invalid number of arguments for percent() function");
 }
 
 PercentageResult PercentageCalculator::calculateBasicPercentage(double percentage, double value)
 {
     if (!validateNumericValue(percentage, "percentage") || !validateNumericValue(value, "value")) {
-        return PercentageResult("Invalid numeric values for basic percentage calculation");
+        return PercentageResult::error("Invalid numeric values for basic percentage calculation");
     }
 
     double result = (percentage / 100.0) * value;
     LOG_DEBUG(QString("Basic percentage: %1% of %2 = %3").arg(percentage).arg(value).arg(result));
-    return PercentageResult(result, "", PercentageType::BASIC);
+    return PercentageResult::success(result);
 }
 
 PercentageResult PercentageCalculator::calculateReversePercentage(double part, double whole, int precision)
 {
     if (!validateNumericValue(part, "part value") || !validateNumericValue(whole, "whole value")) {
-        return PercentageResult("Invalid numeric values for reverse percentage calculation");
+        return PercentageResult::error("Invalid numeric values for reverse percentage calculation");
     }
 
     if (whole == 0.0) {
-        return PercentageResult("Cannot calculate percentage: division by zero");
+        return PercentageResult::error("Cannot calculate percentage: division by zero");
     }
 
     double result = (part / whole) * 100.0;
     LOG_DEBUG(QString("Reverse percentage: %1 is %2% of %3").arg(part).arg(result).arg(whole));
-    return PercentageResult(result, "%", PercentageType::REVERSE);
+    return PercentageResult::success(result);
 }
 
 PercentageResult PercentageCalculator::calculatePercentageIncrease(double value, double percentage)
 {
     if (!validateNumericValue(value, "base value") || !validateNumericValue(percentage, "percentage")) {
-        return PercentageResult("Invalid numeric values for percentage increase calculation");
+        return PercentageResult::error("Invalid numeric values for percentage increase calculation");
     }
 
     double result = value * (1.0 + percentage / 100.0);
     LOG_DEBUG(QString("Percentage increase: %1 + %2% = %3").arg(value).arg(percentage).arg(result));
-    return PercentageResult(result, "", PercentageType::INCREASE);
+    return PercentageResult::success(result);
 }
 
 PercentageResult PercentageCalculator::calculatePercentageDecrease(double value, double percentage)
 {
     if (!validateNumericValue(value, "base value") || !validateNumericValue(percentage, "percentage")) {
-        return PercentageResult("Invalid numeric values for percentage decrease calculation");
+        return PercentageResult::error("Invalid numeric values for percentage decrease calculation");
     }
 
     double result = value * (1.0 - percentage / 100.0);
     LOG_DEBUG(QString("Percentage decrease: %1 - %2% = %3").arg(value).arg(percentage).arg(result));
-    return PercentageResult(result, "", PercentageType::DECREASE);
+    return PercentageResult::success(result);
 }
 
 PercentageResult PercentageCalculator::calculatePercentageChange(double oldValue, double newValue, int precision)
 {
     if (!validateNumericValue(oldValue, "old value") || !validateNumericValue(newValue, "new value")) {
-        return PercentageResult("Invalid numeric values for percentage change calculation");
+        return PercentageResult::error("Invalid numeric values for percentage change calculation");
     }
 
     if (oldValue == 0.0) {
-        return PercentageResult("Cannot calculate percentage change: division by zero");
+        return PercentageResult::error("Cannot calculate percentage change: division by zero");
     }
 
     double result = ((newValue - oldValue) / oldValue) * 100.0;
     LOG_DEBUG(QString("Percentage change: %1 to %2 = %3% change").arg(oldValue).arg(newValue).arg(result));
-    return PercentageResult(result, "%", PercentageType::CHANGE);
+    return PercentageResult::success(result);
 }
 
 QString PercentageCalculator::formatResult(const PercentageResult &result)
 {
-    if (!result.isValid) {
-        return QString("Error: %1").arg(result.errorMessage);
+    if (!result.isValid()) {
+        return QString("Error: %1").arg(result.errorMessage());
     }
 
-    // Determine precision based on result type
-    int precision = -1;
-    if (result.type == PercentageType::REVERSE || result.type == PercentageType::CHANGE) {
-        // For percentage results, we might want to apply custom precision
-        // This will be handled by the individual calculation methods
-    }
-
-    QString formattedValue = formatNumericValue(result.value, precision);
-    return QString("%1%2").arg(formattedValue).arg(result.unit);
+    QString formattedValue = formatNumericValue(result.value(), -1);
+    return formattedValue;
 }
 
 double PercentageCalculator::parseNumericValue(const QString &str, bool &isPercentage)

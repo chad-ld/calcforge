@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QRegularExpression>
+#include "CalcForgeResult.h"
 
 /**
  * Percentage calculation types for percent() function
@@ -15,23 +16,7 @@ enum class PercentageType {
     CHANGE      // percent(1000, to, 1200) → 20%
 };
 
-/**
- * Percentage calculation result structure
- * Contains the calculated value and formatting information
- */
-struct PercentageResult {
-    double value;
-    QString unit;           // "%" for percentage results, empty for raw numbers
-    bool isValid;
-    QString errorMessage;
-    PercentageType type;
-
-    PercentageResult() : value(0.0), isValid(false), type(PercentageType::BASIC) {}
-    PercentageResult(double val, const QString& unitStr, PercentageType calcType)
-        : value(val), unit(unitStr), isValid(true), type(calcType) {}
-    PercentageResult(const QString& error)
-        : value(0.0), isValid(false), errorMessage(error), type(PercentageType::BASIC) {}
-};
+// PercentageResult is now defined as: CalcForgeResult<double> in CalcForgeResult.h
 
 /**
  * Comprehensive percentage calculation system for CalcForge C++

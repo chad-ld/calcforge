@@ -20,7 +20,7 @@ AspectRatioResult AspectRatioCalculator::AR(const QString &originalDimensions, c
         
         // Validate original dimensions (both must be known)
         if (original.widthUnknown || original.heightUnknown) {
-            return AspectRatioResult("Error: Original dimensions must be fully specified (no '?' allowed)", false);
+            return AspectRatioResult::error("Error: Original dimensions must be fully specified (no '?' allowed)");
         }
         
         // Calculate aspect ratio from original dimensions
@@ -46,19 +46,19 @@ AspectRatioResult AspectRatioCalculator::AR(const QString &originalDimensions, c
         }
         else {
             // This should be caught by validateTargetDimensions, but just in case
-            return AspectRatioResult("Error: Exactly one dimension must be '?' to solve for", false);
+            return AspectRatioResult::error("Error: Exactly one dimension must be '?' to solve for");
         }
         
         // Format and return result
         QString result = formatDimensions(resultWidth, resultHeight);
-        return AspectRatioResult(result);
+        return AspectRatioResult::success(result);
         
-    } catch (const AspectRatioError &e) {
+    } catch (const AspectRatioException &e) {
         LOG_DEBUG(QString("Aspect ratio calculation error: %1").arg(e.what()));
-        return AspectRatioResult(QString("Error: %1").arg(e.what()), false);
+        return AspectRatioResult::error(QString("Error: %1").arg(e.what()));
     } catch (const std::exception &e) {
         LOG_DEBUG(QString("Aspect ratio calculation error: %1").arg(e.what()));
-        return AspectRatioResult(QString("Error: %1").arg(e.what()), false);
+        return AspectRatioResult::error(QString("Error: %1").arg(e.what()));
     }
 }
 
@@ -67,7 +67,7 @@ Dimensions AspectRatioCalculator::parseDimensions(const QString &dimensionStr)
     QRegularExpressionMatch match = m_dimensionPattern.match(dimensionStr);
     
     if (!match.hasMatch()) {
-        throw AspectRatioError(QString("Invalid dimension format: %1. Expected format like '1920x1080', '?x2000', or '1280x?'").arg(dimensionStr));
+        throw AspectRatioException(QString("Invalid dimension format: %1. Expected format like '1920x1080', '?x2000', or '1280x?'").arg(dimensionStr));
     }
     
     QString widthStr = match.captured(1);
@@ -83,7 +83,7 @@ Dimensions AspectRatioCalculator::parseDimensions(const QString &dimensionStr)
         bool ok;
         dims.width = widthStr.toDouble(&ok);
         if (!ok || dims.width <= 0) {
-            throw AspectRatioError(QString("Invalid width value: %1. Must be a positive number").arg(widthStr));
+            throw AspectRatioException(QString("Invalid width value: %1. Must be a positive number").arg(widthStr));
         }
         dims.widthUnknown = false;
     }
@@ -96,7 +96,7 @@ Dimensions AspectRatioCalculator::parseDimensions(const QString &dimensionStr)
         bool ok;
         dims.height = heightStr.toDouble(&ok);
         if (!ok || dims.height <= 0) {
-            throw AspectRatioError(QString("Invalid height value: %1. Must be a positive number").arg(heightStr));
+            throw AspectRatioException(QString("Invalid height value: %1. Must be a positive number").arg(heightStr));
         }
         dims.heightUnknown = false;
     }
@@ -107,7 +107,7 @@ Dimensions AspectRatioCalculator::parseDimensions(const QString &dimensionStr)
 double AspectRatioCalculator::calculateAspectRatio(double width, double height)
 {
     if (height == 0) {
-        throw AspectRatioError("Height cannot be zero when calculating aspect ratio");
+        throw AspectRatioException("Height cannot be zero when calculating aspect ratio");
     }
     
     return width / height;
@@ -116,7 +116,7 @@ double AspectRatioCalculator::calculateAspectRatio(double width, double height)
 double AspectRatioCalculator::solveForWidth(double height, double aspectRatio)
 {
     if (height <= 0) {
-        throw AspectRatioError("Height must be positive when solving for width");
+        throw AspectRatioException("Height must be positive when solving for width");
     }
     
     return height * aspectRatio;
@@ -125,11 +125,11 @@ double AspectRatioCalculator::solveForWidth(double height, double aspectRatio)
 double AspectRatioCalculator::solveForHeight(double width, double aspectRatio)
 {
     if (width <= 0) {
-        throw AspectRatioError("Width must be positive when solving for height");
+        throw AspectRatioException("Width must be positive when solving for height");
     }
     
     if (aspectRatio == 0) {
-        throw AspectRatioError("Aspect ratio cannot be zero when solving for height");
+        throw AspectRatioException("Aspect ratio cannot be zero when solving for height");
     }
     
     return width / aspectRatio;
@@ -162,7 +162,7 @@ void AspectRatioCalculator::validateTargetDimensions(const Dimensions &target)
     bool hasNeitherUnknown = !target.widthUnknown && !target.heightUnknown;
     
     if (!hasUnknown || hasBothUnknown) {
-        throw AspectRatioError("Exactly one dimension must be '?' to solve for. Found: " +
+        throw AspectRatioException("Exactly one dimension must be '?' to solve for. Found: " +
                               QString(target.widthUnknown ? "width=?" : "width=known") + ", " +
                               QString(target.heightUnknown ? "height=?" : "height=known"));
     }

@@ -10,29 +10,8 @@
 #include <QTimer>
 #include <QRegularExpression>
 #include <stdexcept>
-
-/**
- * Exception class for currency conversion errors
- */
-class CurrencyError : public std::runtime_error
-{
-public:
-    explicit CurrencyError(const QString &message) 
-        : std::runtime_error(message.toStdString()) {}
-};
-
-/**
- * Result structure for currency conversion operations
- */
-struct CurrencyResult
-{
-    QString value;
-    bool isValid;
-    QString errorMessage;
-    
-    CurrencyResult(const QString &val = "", bool valid = true, const QString &error = "")
-        : value(val), isValid(valid), errorMessage(error) {}
-};
+#include "CalcForgeResult.h"
+#include "CalcForgeException.h"
 
 /**
  * Comprehensive currency conversion system for CalcForge C++

@@ -62,17 +62,17 @@ DateResult DateCalculator::D(const QString &expression)
     try {
         QString expr = expression.trimmed();
         if (expr.isEmpty()) {
-            return DateResult("Error: Empty date expression", false);
+            return DateResult::error("Error: Empty date expression");
         }
         
         return handleDateArithmetic(expr);
         
-    } catch (const DateError &e) {
+    } catch (const DateException &e) {
         LOG_DEBUG(QString("Date calculation error: %1").arg(e.what()));
-        return DateResult(QString("Error: %1").arg(e.what()), false);
+        return DateResult::error(QString("Error: %1").arg(e.what()));
     } catch (const std::exception &e) {
         LOG_DEBUG(QString("Date calculation error: %1").arg(e.what()));
-        return DateResult(QString("Error: %1").arg(e.what()), false);
+        return DateResult::error(QString("Error: %1").arg(e.what()));
     }
 }
 
@@ -97,10 +97,10 @@ QDate DateCalculator::parseDate(const QString &dateStr)
     
     // Check if it looks like a date but is invalid (e.g., July 32, February 30)
     if (dateStr.contains(QRegularExpression(R"([A-Za-z]+\s+\d+,?\s*\d{4})"))) {
-        throw DateError("Date doesn't exist on calendar");
+        throw DateException("Date doesn't exist on calendar");
     }
 
-    throw DateError(QString("Invalid date expression format"));
+    throw DateException(QString("Invalid date expression format"));
 }
 
 QDate DateCalculator::parseContinuousFormat(const QString &dateStr)
@@ -210,7 +210,7 @@ DateResult DateCalculator::handleDateArithmetic(const QString &expression)
                 int days = countBusinessDays(date1, date2, isExclusive);
                 // Always show positive result for date differences
                 days = std::abs(days);
-                return DateResult(QString("%1 Business Days").arg(days));
+                return DateResult::success(QString("%1 Business Days").arg(days));
             } else {
                 int days = date1.daysTo(date2);
                 // Always show positive result for date differences
@@ -219,10 +219,10 @@ DateResult DateCalculator::handleDateArithmetic(const QString &expression)
                 if (!isExclusive) {
                     days += 1;
                 }
-                return DateResult(QString("%1 Days").arg(days));
+                return DateResult::success(QString("%1 Days").arg(days));
             }
-        } catch (const DateError &e) {
-            return DateResult(QString("Error: %1").arg(e.what()), false);
+        } catch (const DateException &e) {
+            return DateResult::error(QString("Error: %1").arg(e.what()));
         }
     }
     
@@ -261,9 +261,9 @@ DateResult DateCalculator::handleDateArithmetic(const QString &expression)
 
             LOG_DEBUG(QString("Result after %1%2 days: %3").arg(operation).arg(days).arg(result.toString()));
 
-            return DateResult(formatDate(result));
-        } catch (const DateError &e) {
-            return DateResult(QString("Error: %1").arg(e.what()), false);
+            return DateResult::success(formatDate(result));
+        } catch (const DateException &e) {
+            return DateResult::error(QString("Error: %1").arg(e.what()));
         }
     }
     
@@ -273,13 +273,13 @@ DateResult DateCalculator::handleDateArithmetic(const QString &expression)
         try {
             QString dateStr = singleMatch.captured(1).trimmed();
             QDate date = parseDate(dateStr);
-            return DateResult(formatDate(date));
-        } catch (const DateError &e) {
-            return DateResult(QString("Error: %1").arg(e.what()), false);
+            return DateResult::success(formatDate(date));
+        } catch (const DateException &e) {
+            return DateResult::error(QString("Error: %1").arg(e.what()));
         }
     }
     
-    return DateResult("Error: Invalid date expression format", false);
+    return DateResult::error("Error: Invalid date expression format");
 }
 
 QDate DateCalculator::addBusinessDays(const QDate &startDate, int days)

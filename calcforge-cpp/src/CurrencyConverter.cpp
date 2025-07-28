@@ -51,13 +51,13 @@ CurrencyResult CurrencyConverter::convertExpression(const QString &expression)
         QString fromCurrency, toCurrency;
         
         if (!parseExpression(expression, amount, fromCurrency, toCurrency)) {
-            return CurrencyResult("", false, "Invalid currency conversion format");
+            return CurrencyResult::error("Invalid currency conversion format");
         }
         
         return convert(amount, fromCurrency, toCurrency);
         
-    } catch (const CurrencyError &e) {
-        return CurrencyResult("", false, QString::fromStdString(e.what()));
+    } catch (const CurrencyException &e) {
+        return CurrencyResult::error(QString::fromStdString(e.what()));
     }
 }
 
@@ -68,28 +68,28 @@ CurrencyResult CurrencyConverter::convert(double amount, const QString &fromCurr
         QString toCode = normalizeCurrencyCode(toCurrency);
         
         if (fromCode.isEmpty()) {
-            return CurrencyResult("", false, QString("Unsupported currency: %1").arg(fromCurrency));
+            return CurrencyResult::error(QString("Unsupported currency: %1").arg(fromCurrency));
         }
         
         if (toCode.isEmpty()) {
-            return CurrencyResult("", false, QString("Unsupported currency: %1").arg(toCurrency));
+            return CurrencyResult::error(QString("Unsupported currency: %1").arg(toCurrency));
         }
         
         double rate = getExchangeRate(fromCode, toCode);
         if (rate < 0) {
-            return CurrencyResult("", false, "Exchange rate not available");
+            return CurrencyResult::error("Exchange rate not available");
         }
         
         double result = amount * rate;
-        QString formattedResult = formatCurrencyResult(result, toCode);
+        QString displayName = getCurrencyDisplayName(toCode);
         
         LOG_DEBUG(QString("Currency conversion: %1 %2 -> %3 %4 (rate: %5)")
                   .arg(amount).arg(fromCode).arg(result).arg(toCode).arg(rate));
         
-        return CurrencyResult(formattedResult);
+        return CurrencyResult::success(std::make_pair(result, displayName));
         
-    } catch (const CurrencyError &e) {
-        return CurrencyResult("", false, QString::fromStdString(e.what()));
+    } catch (const CurrencyException &e) {
+        return CurrencyResult::error(QString::fromStdString(e.what()));
     }
 }
 
@@ -340,12 +340,12 @@ bool CurrencyConverter::parseExpression(const QString &expression, double &amoun
 
     // Check for invalid amount format
     if (!ok) {
-        throw CurrencyError(QString("Invalid amount '%1' - must be a valid number").arg(amountStr));
+        throw CurrencyException(QString("Invalid amount '%1' - must be a valid number").arg(amountStr));
     }
 
     // Check for negative amount
     if (amount < 0) {
-        throw CurrencyError(QString("Invalid amount '%1' - amount cannot be negative").arg(amount));
+        throw CurrencyException(QString("Invalid amount '%1' - amount cannot be negative").arg(amount));
     }
 
     fromCurrency = match.captured(2).trimmed();

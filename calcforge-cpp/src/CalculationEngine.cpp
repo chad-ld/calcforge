@@ -1356,10 +1356,11 @@ QString CalculationEngine::handleUnitConversion(const QString &expr)
 {
     UnitConversionResult result = m_unitConverter.convertExpression(expr);
 
-    if (result.isValid) {
+    if (result.isValid()) {
         // Format the result similar to the Python/Electron versions
-        QString formattedValue = formatResult(result.value);
-        return QString("%1 %2").arg(formattedValue).arg(result.unit);
+        auto valuePair = result.value();
+        QString formattedValue = formatResult(valuePair.first);
+        return QString("%1 %2").arg(formattedValue).arg(valuePair.second);
     }
 
     // If unit conversion failed, return empty string to allow currency conversion to try
@@ -1396,10 +1397,10 @@ QString CalculationEngine::handleTimecodeFunction(const QString &expr)
         }
 
         TimecodeResult result = m_timecodeCalculator.TC(fps, timecodeExpr);
-        if (result.isValid) {
-            return result.value;
+        if (result.isValid()) {
+            return result.value();
         } else {
-            return result.errorMessage;
+            return result.errorMessage();
         }
     }
 
@@ -1428,10 +1429,10 @@ QString CalculationEngine::handleAspectRatioFunction(const QString &expr)
         removeQuotes(targetDims);
 
         AspectRatioResult result = m_aspectRatioCalculator.AR(originalDims, targetDims);
-        if (result.isValid) {
-            return result.dimensions;
+        if (result.isValid()) {
+            return result.value();
         } else {
-            return result.errorMessage;
+            return result.errorMessage();
         }
     }
 
@@ -1458,12 +1459,12 @@ QString CalculationEngine::handleDateFunction(const QString &expr)
         }
 
         DateResult result = m_dateCalculator.D(dateExpr);
-        if (result.isValid) {
-            LOG_DEBUG(QString("D function successful: '%1' -> '%2'").arg(dateExpr, result.value));
-            return result.value;
+        if (result.isValid()) {
+            LOG_DEBUG(QString("D function successful: '%1' -> '%2'").arg(dateExpr, result.value()));
+            return result.value();
         } else {
-            LOG_DEBUG(QString("D function failed: '%1' -> '%2'").arg(dateExpr, result.errorMessage));
-            return result.errorMessage;
+            LOG_DEBUG(QString("D function failed: '%1' -> '%2'").arg(dateExpr, result.errorMessage()));
+            return result.errorMessage();
         }
     }
 
@@ -1484,12 +1485,13 @@ QString CalculationEngine::handleCurrencyConversion(const QString &expr)
         LOG_DEBUG(QString("Expression contains 'to' - attempting currency conversion"));
 
         CurrencyResult result = m_currencyConverter.convertExpression(expr);
-        if (result.isValid) {
-            LOG_DEBUG(QString("Currency conversion successful: %1").arg(result.value));
-            return result.value;
+        if (result.isValid()) {
+            auto currencyPair = result.value();
+            LOG_DEBUG(QString("Currency conversion successful: %1 %2").arg(currencyPair.first).arg(currencyPair.second));
+            return QString("%1 %2").arg(currencyPair.first).arg(currencyPair.second);
         } else {
-            LOG_DEBUG(QString("Currency conversion failed: %1").arg(result.errorMessage));
-            return QString("Error: %1").arg(result.errorMessage);
+            LOG_DEBUG(QString("Currency conversion failed: %1").arg(result.errorMessage()));
+            return QString("Error: %1").arg(result.errorMessage());
         }
     }
 
@@ -1518,14 +1520,14 @@ QString CalculationEngine::handlePercentageCalculation(const QString &expr)
     // Pass to percentage calculator
     PercentageResult result = m_percentageCalculator.calculateExpression(processedExpr);
 
-    if (result.isValid) {
-        QString formattedResult = m_percentageCalculator.formatResult(result);
+    if (result.isValid()) {
+        QString formattedResult = QString::number(result.value());
         LOG_DEBUG(QString("Percentage calculation successful: %1").arg(formattedResult));
         return formattedResult;
     } else {
-        LOG_DEBUG(QString("Percentage calculation failed: %1").arg(result.errorMessage));
+        LOG_DEBUG(QString("Percentage calculation failed: %1").arg(result.errorMessage()));
         // Return error for failed percent() function calls since they were explicitly requested
-        return QString("Error: %1").arg(result.errorMessage);
+        return QString("Error: %1").arg(result.errorMessage());
     }
 }
 

@@ -5,6 +5,7 @@
 #include <QRegularExpression>
 #include <stdexcept>
 #include "CalcForgeResult.h"
+#include "CalcForgeException.h"
 
 /**
  * Dimension structure for parsing and calculations

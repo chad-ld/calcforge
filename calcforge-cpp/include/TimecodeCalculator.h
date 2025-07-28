@@ -7,6 +7,7 @@
 #include <cmath>
 #include <stdexcept>
 #include "CalcForgeResult.h"
+#include "CalcForgeException.h"
 
 /**
  * Timecode parsing structure

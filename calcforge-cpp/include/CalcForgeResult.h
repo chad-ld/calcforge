@@ -24,7 +24,9 @@ public:
     explicit CalcForgeResult(const T& value) 
         : m_value(value), m_isValid(true) {}
     
-    explicit CalcForgeResult(const QString& errorMessage) 
+    // Error constructor - uses tag dispatch to avoid ambiguity with T=QString
+    struct ErrorTag {};
+    CalcForgeResult(ErrorTag, const QString& errorMessage) 
         : m_isValid(false), m_errorMessage(errorMessage) {}
     
     // Copy constructor and assignment operator
@@ -64,7 +66,7 @@ public:
     }
     
     static CalcForgeResult<T> error(const QString& errorMessage) {
-        return CalcForgeResult<T>(errorMessage);
+        return CalcForgeResult<T>(ErrorTag{}, errorMessage);
     }
 
 private:

@@ -76,7 +76,7 @@ UnitConversionResult UnitConverter::convert(double value, const QString &fromUni
     // Get display name for result
     QString displayName = getDisplayName(toAbbr);
 
-    return makeUnitResult(convertedValue, displayName);
+    return UnitConversionResult::success(std::make_pair(convertedValue, displayName));
 }
 
 bool UnitConverter::isValidUnit(const QString &unit) const

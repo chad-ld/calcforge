@@ -15,7 +15,7 @@ TimecodeResult TimecodeCalculator::TC(double fps, const QString &expression)
 {
     try {
         if (fps <= 0) {
-            return TimecodeResult("Framerate must be positive", false);
+            return TimecodeResult::error("Framerate must be positive");
         }
         
         QString expr = expression.trimmed();
@@ -25,26 +25,26 @@ TimecodeResult TimecodeCalculator::TC(double fps, const QString &expression)
             bool ok;
             int frames = expr.toInt(&ok);
             if (ok) {
-                return TimecodeResult(framesToTimecode(frames, fps));
+                return TimecodeResult::success(framesToTimecode(frames, fps));
             }
         }
         
         // If it's a single timecode without arithmetic, return frame count
         if (isTimecodeFormat(expr)) {
             int frames = timecodeToFrames(expr, fps);
-            return TimecodeResult(QString::number(frames));
+            return TimecodeResult::success(QString::number(frames));
         }
         
         // Handle timecode arithmetic
         QString result = evaluateTimecodeExpression(fps, expr);
-        return TimecodeResult(result);
+        return TimecodeResult::success(result);
         
-    } catch (const TimecodeError &e) {
+    } catch (const TimecodeException &e) {
         LOG_DEBUG(QString("Timecode calculation error: %1").arg(e.what()));
-        return TimecodeResult(QString("Error: %1").arg(e.what()), false);
+        return TimecodeResult::error(QString("Error: %1").arg(e.what()));
     } catch (const std::exception &e) {
         LOG_DEBUG(QString("Timecode calculation error: %1").arg(e.what()));
-        return TimecodeResult(QString("Error: %1").arg(e.what()), false);
+        return TimecodeResult::error(QString("Error: %1").arg(e.what()));
     }
 }
 
@@ -57,25 +57,25 @@ TimecodeComponents TimecodeCalculator::parseTimecode(const QString &timecodeStr)
     QStringList parts = normalized.split(':');
     
     if (parts.size() != 4) {
-        throw TimecodeError(QString("Invalid timecode format: %1. Expected HH:MM:SS:FF").arg(timecodeStr));
+        throw TimecodeException(QString("Invalid timecode format: %1. Expected HH:MM:SS:FF").arg(timecodeStr));
     }
     
     bool ok;
     int hours = parts[0].toInt(&ok);
-    if (!ok) throw TimecodeError(QString("Invalid hours in timecode: %1").arg(parts[0]));
+    if (!ok) throw TimecodeException(QString("Invalid hours in timecode: %1").arg(parts[0]));
     
     int minutes = parts[1].toInt(&ok);
-    if (!ok) throw TimecodeError(QString("Invalid minutes in timecode: %1").arg(parts[1]));
+    if (!ok) throw TimecodeException(QString("Invalid minutes in timecode: %1").arg(parts[1]));
     
     int seconds = parts[2].toInt(&ok);
-    if (!ok) throw TimecodeError(QString("Invalid seconds in timecode: %1").arg(parts[2]));
+    if (!ok) throw TimecodeException(QString("Invalid seconds in timecode: %1").arg(parts[2]));
     
     int frames = parts[3].toInt(&ok);
-    if (!ok) throw TimecodeError(QString("Invalid frames in timecode: %1").arg(parts[3]));
+    if (!ok) throw TimecodeException(QString("Invalid frames in timecode: %1").arg(parts[3]));
     
     // Validate ranges
     if (hours < 0 || minutes < 0 || minutes >= 60 || seconds < 0 || seconds >= 60 || frames < 0) {
-        throw TimecodeError(QString("Invalid timecode values in: %1").arg(timecodeStr));
+        throw TimecodeException(QString("Invalid timecode values in: %1").arg(timecodeStr));
     }
     
     return TimecodeComponents(hours, minutes, seconds, frames);
@@ -205,7 +205,7 @@ QString TimecodeCalculator::evaluateTimecodeExpression(double fps, const QString
     
     QStringList tokens = tokenizeExpression(expression);
     if (tokens.isEmpty()) {
-        throw TimecodeError("No valid timecode or numeric values found in expression");
+        throw TimecodeException("No valid timecode or numeric values found in expression");
     }
     
     double result = 0.0;
@@ -225,7 +225,7 @@ QString TimecodeCalculator::evaluateTimecodeExpression(double fps, const QString
             } else {
                 frames = token.toDouble(&ok);
                 if (!ok) {
-                    throw TimecodeError(QString("Invalid numeric value: %1").arg(token));
+                    throw TimecodeException(QString("Invalid numeric value: %1").arg(token));
                 }
             }
             
@@ -236,12 +236,12 @@ QString TimecodeCalculator::evaluateTimecodeExpression(double fps, const QString
                 result = applyOperation(result, frames, currentOp);
             }
         } catch (const std::exception &e) {
-            throw TimecodeError(QString("Error in timecode expression: %1").arg(e.what()));
+            throw TimecodeException(QString("Error in timecode expression: %1").arg(e.what()));
         }
     }
     
     if (!hasResult) {
-        throw TimecodeError("No valid timecode or numeric values found in expression");
+        throw TimecodeException("No valid timecode or numeric values found in expression");
     }
     
     return framesToTimecode(static_cast<int>(std::round(result)), fps);
@@ -266,7 +266,7 @@ void TimecodeCalculator::validateTimecode(const TimecodeComponents &components, 
     }
 
     if (components.frames >= maxFrames) {
-        throw TimecodeError(QString("Frame count %1 exceeds maximum for %2 fps (max: %3)")
+        throw TimecodeException(QString("Frame count %1 exceeds maximum for %2 fps (max: %3)")
                            .arg(components.frames).arg(fps).arg(maxFrames - 1));
     }
 }
@@ -321,10 +321,10 @@ double TimecodeCalculator::applyOperation(double left, double right, QChar opera
             return left * right;
         case '/':
             if (right == 0) {
-                throw TimecodeError("Division by zero in timecode expression");
+                throw TimecodeException("Division by zero in timecode expression");
             }
             return left / right;
         default:
-            throw TimecodeError(QString("Unknown operation: %1").arg(operation));
+            throw TimecodeException(QString("Unknown operation: %1").arg(operation));
     }
 }
