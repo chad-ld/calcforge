@@ -1,6 +1,10 @@
 {
     "tabs": [
         {
+            "content": "25000*.01",
+            "name": "Misc Calcs"
+        },
+        {
             "content": "::: BASIC MATHEMATICS\n5 + 3\n10 - 4\n7 * 6\n15 / 3\n2**3\n(2 + 3) * 4\n2 + 3 * 4\n-5\n\n::: MATHEMATICAL CONSTANTS\npi\ne\n\n::: BASIC MATHEMATICAL FUNCTIONS\nsqrt(16)\nsqrt(2)\nsin(0)\ncos(pi)\ntan(pi/4)\nlog(e)\nlog10(100)\nexp(1)\nabs(-5)\nceil(3.2)\nfloor(3.8)\nround(3.14159, 2)\n\n::: ADVANCED MATHEMATICAL FUNCTIONS\n::: Inverse trigonometric functions\nasin(0.5)\nacos(0.707)\natan(1)\n\n::: Hyperbolic functions\nsinh(1)\ncosh(1)\ntanh(1)\nasinh(1.175)\nacosh(1.543)\natanh(0.762)\n\n::: Utility functions\ndegrees(pi)\nradians(180)\nfactorial(5)\npow(2, 3)\ngcd(12, 8)\nlcm(12, 8)\nlog2(8)\ntruncate(3.14159, 2)\n\n::: SAMPLE DATA FOR STATISTICS\n10\n20\n30\n40\n50\n\n::: STATISTICAL FUNCTIONS\nsum(54-58)\nmean(54-58)\nmedian(54-58)\nmin(54-58)\nmax(54-58)\ncount(54-58)\nvariance(54-58)\nstdev(54-58)\nproduct(54-58)\nrange(54-58)\ngeomean(54-58)\nharmmean(54-58)\nsumsq(54-58)\nmode(54-58)\n\n::: ADVANCED STATISTICAL FUNCTIONS\nperc5(54-58)\nperc95(54-58)\n\n:::mean fps \n.29382\n.20392\n.20320\nmeanfps(81-83)\n\n::: STATISTICAL WITH ROUNDING\nmean(54-58)\nstdev(54-58)\n\n::: LN REFERENCES\n2000\n1.2948\nLN2\nLN3 * 2\nLN91 + LN93 + LN3\n\n::: SIMPLE FUNCTION CALLS\nsqrt(LN91)\nabs(LN81)\nround(LN92, 3)\n\n::: BASIC ARITHMETIC WITH LN\n(LN91 + LN93) / 2\nLN02 * LN33\nLN05 - LN06",
             "name": "Math & Statistics"
         },
@@ -19,10 +23,6 @@
         {
             "content": "::: ADVANCED MATHEMATICAL OPERATIONS\n::: Complex calculations combining multiple functions\nsqrt(pow(3, 2) + pow(4, 2))\nlog(exp(2) * exp(3))\nsin(degrees(pi/6))\ncos(radians(60))\n\n::: STATISTICAL ANALYSIS\n::: Sample dataset for advanced statistics\n15\n22\n18\n25\n30\n19\n27\n21\n24\n20\n\n::: Advanced statistical functions\nperc5(10-19)\nperc25(10-19, nearest)\nperc50(10-19, linear)\nperc75(10-19, nearest)\nperc95(10-19)\n\n::: Statistical analysis with rounding\nmean(10-19)\nstdev(10-19)\nvariance(10-19)\n\n::: COMPLEX UNIT CONVERSIONS\n::: Chained conversions\n100 fahrenheit to celsius\nLN23 celsius to kelvin\nLN24 kelvin to fahrenheit\n\n::: Area and volume conversions\n1000 square feet to square meters\n500 cubic inches to liters\n2.5 acres to square kilometers\n\n::: FINANCIAL CALCULATIONS\n::: Currency with percentage calculations\n1000 USD to EUR\npercent(LN46, +, 15%)\npercent(LN46, -, 8%)\n\n::: ENGINEERING CALCULATIONS\n::: Trigonometric engineering problems\nsin(radians(30)) * 100\ncos(radians(45)) * sqrt(2)\ntan(radians(60)) / sqrt(3)\n\n::: Logarithmic scaling\nlog10(1000)\nlog2(1024)\nlog(exp(5))\n\n::: CROSS-SHEET COMPLEX REFERENCES\n::: Advanced cross-sheet calculations\nS.Math & Statistics.LN2 + S.Conversions.LN2\nS.Equation Solving.LN6 * S.Special Functions.LN8\nsqrt(S.Math & Statistics.LN2) + LN7\n\n::: VERIFICATION AND TESTING\n::: Test mathematical identities\nsin(radians(30))\ncos(radians(60))\nLN48 - LN49\n\n::: Test percentage calculations\npercent(50%, 200)\npercent(100, %, 200)\n\n::: Test solve function results\nsolve(X + 5 = 12)\n7 + 5\nLN56 - LN57",
             "name": "Advanced Features"
-        },
-        {
-            "content": "100-20",
-            "name": "Misc Calcs"
         }
     ],
     "version": "2.0"
