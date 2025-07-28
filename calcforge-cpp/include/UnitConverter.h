@@ -5,30 +5,17 @@
 #include <QHash>
 #include <QRegularExpression>
 #include <cmath>
-
-/**
- * Unit conversion result structure
- * Contains the converted value and the target unit name for display
- */
-struct UnitConversionResult {
-    double value;
-    QString unit;
-    bool isValid;
-    QString errorMessage;
-
-    UnitConversionResult() : value(0.0), isValid(false) {}
-    UnitConversionResult(double val, const QString& unitName)
-        : value(val), unit(unitName), isValid(true) {}
-    UnitConversionResult(const QString& error)
-        : value(0.0), isValid(false), errorMessage(error) {}
-};
+#include "ICalculator.h"
+#include "CalcForgeResult.h"
 
 /**
  * Comprehensive unit conversion system for CalcForge C++
  * Replaces Python Pint library functionality with native C++ implementation
  * Supports distance, area, weight, volume (including cubic units), temperature, and time conversions
+ * 
+ * Now implements ICalculator interface for dependency injection support
  */
-class UnitConverter
+class UnitConverter : public ICalculator
 {
 public:
     UnitConverter();
@@ -69,6 +56,14 @@ public:
      * @return Standard abbreviation (e.g., "m", "ft")
      */
     QString getAbbreviation(const QString &unitName) const;
+
+    // ICalculator interface implementation
+    CalcForgeResult<QString> calculate(const QString& expression) override;
+    QString getType() const override;
+    bool canHandle(const QString& expression) const override;
+    QString getDescription() const override;
+    int getPriority() const override;
+    QStringList getExamples() const override;
 
 private:
     /**

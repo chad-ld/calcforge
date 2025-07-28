@@ -1,5 +1,8 @@
 #include "UnitConverter.h"
 #include "Logger.h"
+#include "CalcForgeResult.h"
+#include "CalcForgeException.h"
+#include "RegexUtils.h"
 #include <QDebug>
 #include <QRegularExpression>
 
@@ -19,7 +22,7 @@ UnitConversionResult UnitConverter::convertExpression(const QString &expression)
         double value = match.captured(1).toDouble(&ok);
         if (!ok) {
             LOG_DEBUG(QString("Invalid numeric value in unit conversion: %1").arg(match.captured(1)));
-            return UnitConversionResult(QString("Error: Invalid number '%1'").arg(match.captured(1)));
+            return makeUnitError(QString("Error: Invalid number '%1'").arg(match.captured(1)));
         }
 
         QString fromUnit = match.captured(2).trimmed().toLower();
@@ -28,7 +31,7 @@ UnitConversionResult UnitConverter::convertExpression(const QString &expression)
         return convert(value, fromUnit, toUnit);
     }
 
-    return UnitConversionResult();
+    return makeUnitError("Invalid conversion expression format");
 }
 
 UnitConversionResult UnitConverter::convert(double value, const QString &fromUnit, const QString &toUnit)
@@ -39,12 +42,12 @@ UnitConversionResult UnitConverter::convert(double value, const QString &fromUni
 
     if (fromAbbr.isEmpty()) {
         LOG_DEBUG(QString("Unknown from unit in conversion: %1").arg(fromUnit));
-        return UnitConversionResult(QString("Error: Unknown unit '%1'").arg(fromUnit));
+        return makeUnitError(QString("Error: Unknown unit '%1'").arg(fromUnit));
     }
 
     if (toAbbr.isEmpty()) {
         LOG_DEBUG(QString("Unknown to unit in conversion: %1").arg(toUnit));
-        return UnitConversionResult(QString("Error: Unknown unit '%1'").arg(toUnit));
+        return makeUnitError(QString("Error: Unknown unit '%1'").arg(toUnit));
     }
 
     // Check if units are in the same category
@@ -54,7 +57,7 @@ UnitConversionResult UnitConverter::convert(double value, const QString &fromUni
     if (fromCategory.isEmpty() || toCategory.isEmpty() || fromCategory != toCategory) {
         LOG_DEBUG(QString("Units not in same category: %1 (%2) to %3 (%4)")
                   .arg(fromUnit).arg(fromCategory).arg(toUnit).arg(toCategory));
-        return UnitConversionResult(QString("Error: Cannot convert %1 to %2 (different unit types)").arg(fromUnit).arg(toUnit));
+        return makeUnitError(QString("Error: Cannot convert %1 to %2 (different unit types)").arg(fromUnit).arg(toUnit));
     }
 
     double convertedValue;
@@ -67,13 +70,13 @@ UnitConversionResult UnitConverter::convert(double value, const QString &fromUni
     }
 
     if (std::isnan(convertedValue)) {
-        return UnitConversionResult(QString("Error: Conversion failed for %1 to %2").arg(fromUnit).arg(toUnit));
+        return makeUnitError(QString("Error: Conversion failed for %1 to %2").arg(fromUnit).arg(toUnit));
     }
 
     // Get display name for result
     QString displayName = getDisplayName(toAbbr);
 
-    return UnitConversionResult(convertedValue, displayName);
+    return makeUnitResult(convertedValue, displayName);
 }
 
 bool UnitConverter::isValidUnit(const QString &unit) const
@@ -786,4 +789,52 @@ QString UnitConverter::normalizeUnit(const QString &unit) const
 QString UnitConverter::getUnitCategory(const QString &unit) const
 {
     return m_unitCategories.value(unit, QString());
+}
+
+// ICalculator interface implementation
+CalcForgeResult<QString> UnitConverter::calculate(const QString& expression)
+{
+    UnitConversionResult result = convertExpression(expression);
+    
+    if (result.isValid()) {
+        auto unitPair = result.value();
+        QString formattedResult = QString("%1 %2").arg(unitPair.first).arg(unitPair.second);
+        return CalcForgeResult<QString>::success(formattedResult);
+    } else {
+        return CalcForgeResult<QString>::error(result.errorMessage());
+    }
+}
+
+QString UnitConverter::getType() const
+{
+    return "UnitConverter";
+}
+
+bool UnitConverter::canHandle(const QString& expression) const
+{
+    // Check if expression matches unit conversion pattern "X unit to unit"
+    QRegularExpression pattern(R"(^[\d.]+\s+.+?\s+to\s+.+?$)", QRegularExpression::CaseInsensitiveOption);
+    return pattern.match(expression.trimmed()).hasMatch();
+}
+
+QString UnitConverter::getDescription() const
+{
+    return "Converts between different units of measurement (length, area, weight, volume, temperature, time)";
+}
+
+int UnitConverter::getPriority() const
+{
+    return 10; // High priority - unit conversion should be checked early
+}
+
+QStringList UnitConverter::getExamples() const
+{
+    return {
+        "5 feet to meters",
+        "100 fahrenheit to celsius", 
+        "2.5 miles to kilometers",
+        "1000 square feet to square meters",
+        "500 grams to ounces",
+        "2 hours to minutes"
+    };
 }

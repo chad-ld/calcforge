@@ -6,6 +6,7 @@
 #include <QDate>
 #include <QRegularExpression>
 #include <stdexcept>
+#include "CalcForgeResult.h"
 
 /**
  * Date calculation result structure

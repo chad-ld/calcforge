@@ -6,20 +6,7 @@
 #include <QRegularExpression>
 #include <cmath>
 #include <stdexcept>
-
-/**
- * Timecode calculation result structure
- * Contains the result value and any error information
- */
-struct TimecodeResult {
-    QString value;
-    bool isValid;
-    QString errorMessage;
-
-    TimecodeResult() : isValid(false) {}
-    TimecodeResult(const QString& val) : value(val), isValid(true) {}
-    TimecodeResult(const QString& error, bool) : isValid(false), errorMessage(error) {}
-};
+#include "CalcForgeResult.h"
 
 /**
  * Timecode parsing structure

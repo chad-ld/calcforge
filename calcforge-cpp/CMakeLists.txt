@@ -60,6 +60,7 @@ set(SOURCES
     src/SyntaxHighlighter.cpp
     src/AutoCompleteWidget.cpp
     src/HelpDialog.cpp
+    src/RegexUtils.cpp
 )
 
 # Header files
@@ -84,6 +85,10 @@ set(HEADERS
     include/SyntaxHighlighter.h
     include/AutoCompleteWidget.h
     include/HelpDialog.h
+    include/CalcForgeResult.h
+    include/CalcForgeException.h
+    include/RegexUtils.h
+    include/ICalculator.h
 )
 
 # Windows resource file for icon

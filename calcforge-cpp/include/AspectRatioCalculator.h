@@ -4,20 +4,7 @@
 #include <QString>
 #include <QRegularExpression>
 #include <stdexcept>
-
-/**
- * Aspect ratio calculation result structure
- * Contains the result dimensions and any error information
- */
-struct AspectRatioResult {
-    QString dimensions;
-    bool isValid;
-    QString errorMessage;
-
-    AspectRatioResult() : isValid(false) {}
-    AspectRatioResult(const QString& dims) : dimensions(dims), isValid(true) {}
-    AspectRatioResult(const QString& error, bool) : isValid(false), errorMessage(error) {}
-};
+#include "CalcForgeResult.h"
 
 /**
  * Dimension structure for parsing and calculations

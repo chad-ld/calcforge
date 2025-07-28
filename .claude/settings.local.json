@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(tasklist)",
+      "Bash(run-calcforge.bat)",
+      "Bash(\"C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\" --build . --config Release)",
+      "Bash(\"C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\" --build . --config Release)"
+    ],
+    "deny": []
+  }
+}
