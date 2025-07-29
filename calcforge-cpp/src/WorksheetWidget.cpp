@@ -9,6 +9,9 @@
 #include "SyntaxHighlighter.h"
 #include "CustomTabWidget.h"
 #include "Logger.h"
+// Phase 3.2: Business logic separation
+#include "WorksheetModel.h"
+#include "CalculationService.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
@@ -133,6 +136,10 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
     , m_pendingSplitterState()
     , m_hasCrossSheetRefs(false)
     , m_settings(nullptr)
+    // Phase 3.2: Business logic separation
+    , m_model(std::make_unique<WorksheetModel>(this))
+    , m_calculationService(std::make_unique<CalculationService>(this))
+    // Legacy support
     , m_calculationEngine(nullptr)
     , m_dependencyTracker(std::make_unique<DependencyTracker>())
     , m_referenceAutoUpdater(std::make_unique<LNReferenceAutoUpdater>(this))
@@ -150,7 +157,10 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
     // Test the calculation engine
     QString testResult = m_calculationEngine->evaluateExpression("2 + 2", 1);
     LOG_INFO(QString("Calculation engine initialized - test: 2 + 2 = %1").arg(testResult));
-    
+
+    // Phase 3.2: Initialize business logic separation
+    setupBusinessLogic();
+
     // Setup UI
     setupUI();
     setupConnections();
@@ -165,6 +175,30 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
 WorksheetWidget::~WorksheetWidget()
 {
     delete m_calculationEngine;
+}
+
+void WorksheetWidget::setupBusinessLogic()
+{
+    // Phase 3.2: Set up business logic separation
+    LOG_DEBUG("WorksheetWidget: Setting up business logic separation");
+
+    // Connect model to calculation service
+    m_calculationService->setModel(m_model.get());
+
+    // Connect model signals to UI updates
+    connect(m_model.get(), &WorksheetModel::contentChanged, this, &WorksheetWidget::contentChanged);
+    connect(m_model.get(), &WorksheetModel::modificationStateChanged, this, [this](bool modified) {
+        m_isModified = modified;
+    });
+
+    // Connect calculation service signals
+    connect(m_calculationService.get(), &CalculationService::calculationCompleted, this, &WorksheetWidget::evaluateAndHighlight);
+    connect(m_calculationService.get(), &CalculationService::lineValueChanged, this, [this](int lineNumber, double value) {
+        // Update results display when line values change
+        // This will be implemented when we refactor the results display
+    });
+
+    LOG_DEBUG("WorksheetWidget: Business logic setup completed");
 }
 
 void WorksheetWidget::setupUI()
@@ -344,6 +378,10 @@ void WorksheetWidget::setupConnections()
 
 QString WorksheetWidget::getContent() const
 {
+    // Phase 3.2: Get content from model if available, otherwise from editor
+    if (m_model) {
+        return m_model->getContent();
+    }
     return m_editor->toPlainText();
 }
 
@@ -352,6 +390,12 @@ void WorksheetWidget::setContent(const QString &content)
     // Set flag to disable auto-updates during content loading
     m_isLoadingContent = true;
     LOG_DEBUG("WorksheetWidget::setContent - Set m_isLoadingContent = true");
+
+    // Phase 3.2: Update model first
+    if (m_model) {
+        m_model->setContent(content);
+        m_model->setModified(false);
+    }
 
     // Clear stored line values to prevent stale references
     if (m_calculationEngine) {
@@ -815,6 +859,10 @@ void WorksheetWidget::syncResultsToEditor(int value)
 
 double WorksheetWidget::getLineValue(int lineNumber) const
 {
+    // Phase 3.2: Get from model first, fallback to calculation engine
+    if (m_model && m_model->hasLineValue(lineNumber)) {
+        return m_model->getLineValue(lineNumber);
+    }
     if (m_calculationEngine) {
         return m_calculationEngine->getLineValue(lineNumber);
     }
@@ -823,6 +871,10 @@ double WorksheetWidget::getLineValue(int lineNumber) const
 
 bool WorksheetWidget::hasLineValue(int lineNumber) const
 {
+    // Phase 3.2: Check model first, fallback to calculation engine
+    if (m_model && m_model->hasLineValue(lineNumber)) {
+        return true;
+    }
     if (m_calculationEngine) {
         return m_calculationEngine->hasLineValue(lineNumber);
     }
@@ -831,11 +883,21 @@ bool WorksheetWidget::hasLineValue(int lineNumber) const
 
 QString WorksheetWidget::evaluateExpression(const QString &expression) const
 {
+    // Phase 3.2: Use calculation service first, fallback to calculation engine
+    if (m_calculationService) {
+        return m_calculationService->evaluateExpression(expression);
+    }
     if (m_calculationEngine) {
         // Use a temporary line number for tooltip evaluation
         return m_calculationEngine->evaluateExpression(expression, 0);
     }
     return QString();
+}
+
+CalculationEngine* WorksheetWidget::getCalculationEngine() const
+{
+    // Phase 3.2: Legacy support - return calculation engine for backward compatibility
+    return m_calculationEngine;
 }
 
 bool WorksheetWidget::hasCrossSheetReferences() const

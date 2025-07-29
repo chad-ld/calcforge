@@ -64,9 +64,12 @@ set(SOURCES
     src/CustomTabWidget.cpp
     # Phase 2 refactoring: Manager classes
     src/FileManager.cpp
-    src/TabManager.cpp  
+    src/TabManager.cpp
     src/CrossSheetNavigator.cpp
     src/WindowManager.cpp
+    # Phase 3.2 refactoring: Business logic separation
+    src/WorksheetModel.cpp
+    src/CalculationService.cpp
 )
 
 # Header files
@@ -96,11 +99,14 @@ set(HEADERS
     include/RegexUtils.h
     include/ICalculator.h
     include/CustomTabWidget.h
-    # Phase 2 refactoring: Manager classes  
+    # Phase 2 refactoring: Manager classes
     include/FileManager.h
     include/TabManager.h
     include/CrossSheetNavigator.h
     include/WindowManager.h
+    # Phase 3.2 refactoring: Business logic separation
+    include/WorksheetModel.h
+    include/CalculationService.h
 )
 
 # Windows resource file for icon

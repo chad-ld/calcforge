@@ -17,9 +17,14 @@ class DependencyTracker;
 class LNReferenceAutoUpdater;
 struct LineChange;
 
+// Phase 3.2: Business logic separation
+class WorksheetModel;
+class CalculationService;
+
 /**
  * Individual worksheet widget containing expression editor and results display
- * Equivalent to the Worksheet class in the Python version
+ * Phase 3.2: Now uses WorksheetModel and CalculationService for business logic separation
+ * UI-only responsibilities: display, user interaction, visual feedback
  */
 class WorksheetWidget : public QWidget
 {
@@ -39,14 +44,18 @@ public:
     ExpressionEditor* getEditor() const { return m_editor; }
     ResultsDisplay* getResults() const { return m_results; }
 
-    // Cross-sheet reference support
+    // Phase 3.2: Business logic access through model and service
+    WorksheetModel* getModel() const { return m_model.get(); }
+    CalculationService* getCalculationService() const { return m_calculationService.get(); }
+
+    // Cross-sheet reference support (delegated to model/service)
     double getLineValue(int lineNumber) const;
     bool hasLineValue(int lineNumber) const;
-    CalculationEngine* getCalculationEngine() const { return m_calculationEngine; }
+    CalculationEngine* getCalculationEngine() const; // Legacy support
     bool hasCrossSheetReferences() const;
     QString getCurrentSheetName() const;
 
-    // Expression evaluation for tooltips
+    // Expression evaluation for tooltips (delegated to service)
     QString evaluateExpression(const QString &expression) const;
     
     // Splitter state
@@ -74,6 +83,9 @@ private slots:
 
 private:
     void clearAllCrossSheetHighlighting();
+
+    // Phase 3.2: Business logic setup
+    void setupBusinessLogic();
 
 protected:
     void showEvent(QShowEvent *event) override;
@@ -130,10 +142,12 @@ private:
     // Settings
     QSettings *m_settings;
 
-    // Calculation engine
-    CalculationEngine *m_calculationEngine;
+    // Phase 3.2: Business logic separation
+    std::unique_ptr<WorksheetModel> m_model;
+    std::unique_ptr<CalculationService> m_calculationService;
 
-    // Dependency tracking for selective recalculation
+    // Legacy support (will be removed in future phases)
+    CalculationEngine *m_calculationEngine;
     std::unique_ptr<DependencyTracker> m_dependencyTracker;
 
     // LN Reference Auto-Update System
