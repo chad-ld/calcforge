@@ -23,7 +23,8 @@
       "Bash(awk:*)",
       "Bash(cp:*)",
       "Bash(dir:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

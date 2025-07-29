@@ -1222,6 +1222,11 @@ void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &cont
 {
     // Create new worksheet
     WorksheetWidget *worksheet = new WorksheetWidget(this);
+
+    // Set up cross-sheet support BEFORE setting content to ensure
+    // cross-sheet references work during initial evaluation
+    setupCrossSheetSupport(worksheet, tabName);
+
     worksheet->setContent(content);
 
     // Apply current global font size to loaded tab
@@ -1905,7 +1910,7 @@ void MainWindow::returnToPreviousLocation()
     }
 }
 
-void MainWindow::setupCrossSheetSupport(WorksheetWidget *worksheet)
+void MainWindow::setupCrossSheetSupport(WorksheetWidget *worksheet, const QString &sheetName)
 {
     if (!worksheet) {
         LOG_WARNING("setupCrossSheetSupport: worksheet is null");
@@ -1925,16 +1930,19 @@ void MainWindow::setupCrossSheetSupport(WorksheetWidget *worksheet)
     });
 
     // Set the current sheet name for error reporting
-    // Find the tab index for this worksheet to get its name
-    QString tabName = "Unknown";
-    for (int i = 0; i < m_tabWidget->count(); ++i) {
-        if (m_tabWidget->widget(i) == worksheet) {
-            tabName = m_tabWidget->tabText(i);
-            engine->setCurrentSheetName(tabName);
-            break;
+    QString tabName = sheetName;
+    if (tabName.isEmpty()) {
+        // Fallback: Find the tab index for this worksheet to get its name
+        tabName = "Unknown";
+        for (int i = 0; i < m_tabWidget->count(); ++i) {
+            if (m_tabWidget->widget(i) == worksheet) {
+                tabName = m_tabWidget->tabText(i);
+                break;
+            }
         }
     }
 
+    engine->setCurrentSheetName(tabName);
     LOG_DEBUG(QString("setupCrossSheetSupport: Set up cross-sheet support for sheet: %1").arg(tabName));
 }
 
@@ -2039,7 +2047,7 @@ void MainWindow::recalculateAllWorksheets()
         }
     }
 
-    // Phase B: Re-enable cross-sheet processing and recalculate sheets with cross-sheet references
+    // Phase B: Re-enable cross-sheet processing and recalculate ALL sheets
     LOG_DEBUG("Phase B: Cross-sheet calculations (cross-sheet enabled)");
     for (int i = 0; i < m_tabWidget->count(); ++i) {
         WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
@@ -2049,13 +2057,13 @@ void MainWindow::recalculateAllWorksheets()
             // Re-enable cross-sheet processing
             setupCrossSheetSupport(worksheet);
 
-            // Recalculate only if this sheet has cross-sheet references
+            // Recalculate ALL sheets, not just ones with outgoing cross-sheet references
+            // This is necessary because sheets that are referenced BY other sheets
+            // also need to be recalculated to provide correct values
             bool hasRefs = worksheet->hasCrossSheetReferences();
-            LOG_DEBUG(QString("Phase B: Sheet %1 has cross-sheet refs: %2").arg(tabName).arg(hasRefs ? "true" : "false"));
-            if (hasRefs) {
-                LOG_DEBUG(QString("Phase B: Force recalculating sheet %1").arg(tabName));
-                worksheet->forceRecalculation(); // Force recalculation
-            }
+            LOG_DEBUG(QString("Phase B: Sheet %1 has cross-sheet refs: %2, recalculating anyway").arg(tabName).arg(hasRefs ? "true" : "false"));
+            LOG_DEBUG(QString("Phase B: Force recalculating sheet %1").arg(tabName));
+            worksheet->forceRecalculation(); // Force recalculation of ALL sheets
         }
     }
 
@@ -2403,6 +2411,7 @@ void MainWindow::initializeManagers()
     
     LOG_DEBUG("MainWindow: Manager initialization completed");
 }
+ 
  
  
  

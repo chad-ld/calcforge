@@ -1,6 +1,7 @@
 #include "FileManager.h"
 #include "WorksheetWidget.h"
 #include "TabManager.h"
+#include "MainWindow.h"
 #include "Logger.h"
 
 #include <QFileDialog>
@@ -315,8 +316,27 @@ bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
             }
         }
     }
-    
+
     LOG_DEBUG(QString("FileManager: Loaded %1 worksheets from file").arg(m_tabManager->getTabCount()));
+
+    // Trigger cross-sheet recalculation after all worksheets are loaded
+    // This ensures cross-sheet references work correctly on startup
+    if (m_tabManager->getTabCount() > 0) {
+        // Get the MainWindow to trigger recalculation
+        QWidget* parent = qobject_cast<QWidget*>(this->parent());
+        while (parent && !qobject_cast<class MainWindow*>(parent)) {
+            parent = qobject_cast<QWidget*>(parent->parent());
+        }
+
+        if (parent) {
+            class MainWindow* mainWindow = qobject_cast<class MainWindow*>(parent);
+            if (mainWindow) {
+                mainWindow->triggerCrossSheetRecalculation();
+                LOG_DEBUG("FileManager: Triggered cross-sheet recalculation after loading worksheets");
+            }
+        }
+    }
+
     return true;
 }
 

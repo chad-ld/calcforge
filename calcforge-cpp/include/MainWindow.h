@@ -101,7 +101,7 @@ private:
     bool saveWorksheetsToFile(const QString &filePath);
     void restoreWindowState();
     void saveWindowState();
-    void setupCrossSheetSupport(WorksheetWidget *worksheet);
+    void setupCrossSheetSupport(WorksheetWidget *worksheet, const QString &sheetName = QString());
 
     // Phase 3: Recent files and file state now handled by FileManager
     // Recent files management - REMOVED

@@ -10,6 +10,7 @@
 
 class WorksheetWidget;
 class TabManager;
+class MainWindow;
 
 /**
  * FileManager handles all file I/O operations for CalcForge
