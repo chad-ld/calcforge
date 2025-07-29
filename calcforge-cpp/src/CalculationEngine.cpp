@@ -1045,21 +1045,20 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
 
                 int lineNumber = i + 1;  // Convert to 1-based line number
 
-                // Only count lines that contain actual numeric values, not expressions
-                // Check if the line content is a simple number (not an expression)
-                bool ok;
-                double numericValue = line.toDouble(&ok);
-                if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
-                    // This is a simple numeric value, count it
-                    if (m_lineValues.contains(lineNumber)) {
-                        // Use the calculated value if available (handles cases like 0292 -> 292)
-                        values.append(getLineValue(lineNumber));
-                    } else {
-                        // Use the parsed value
+                // Prioritize calculated values from m_lineValues (for conversions, etc.)
+                if (m_lineValues.contains(lineNumber)) {
+                    double calculatedValue = getLineValue(lineNumber);
+                    LOG_DEBUG(QString("Empty range adding calculated value %1 from line %2").arg(calculatedValue).arg(lineNumber));
+                    values.append(calculatedValue);
+                } else {
+                    // Fallback: try to parse line content as simple numeric value
+                    bool ok;
+                    double numericValue = line.toDouble(&ok);
+                    if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                        LOG_DEBUG(QString("Empty range adding parsed value %1 from line %2").arg(numericValue).arg(lineNumber));
                         values.append(numericValue);
                     }
                 }
-                // Skip lines with expressions (like count(below), sum(), etc.) even if they have calculated values
             }
         } else {
             // Fallback to old method if worksheet widget not available
@@ -1092,21 +1091,20 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
 
                 int lineNumber = i + 1;  // Convert to 1-based line number
 
-                // Only count lines that contain actual numeric values, not expressions
-                // Check if the line content is a simple number (not an expression)
-                bool ok;
-                double numericValue = line.toDouble(&ok);
-                if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
-                    // This is a simple numeric value, count it
-                    if (m_lineValues.contains(lineNumber)) {
-                        // Use the calculated value if available (handles cases like 0292 -> 292)
-                        values.append(getLineValue(lineNumber));
-                    } else {
-                        // Use the parsed value
+                // Prioritize calculated values from m_lineValues (for conversions, etc.)
+                if (m_lineValues.contains(lineNumber)) {
+                    double calculatedValue = getLineValue(lineNumber);
+                    LOG_DEBUG(QString("Above adding calculated value %1 from line %2").arg(calculatedValue).arg(lineNumber));
+                    values.append(calculatedValue);
+                } else {
+                    // Fallback: try to parse line content as simple numeric value
+                    bool ok;
+                    double numericValue = line.toDouble(&ok);
+                    if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                        LOG_DEBUG(QString("Above adding parsed value %1 from line %2").arg(numericValue).arg(lineNumber));
                         values.append(numericValue);
                     }
                 }
-                // Skip lines with expressions (like count(below), sum(), etc.) even if they have calculated values
             }
         } else {
             // Fallback to old method if worksheet widget not available
@@ -1138,21 +1136,20 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
 
                 int lineNumber = i + 1;  // Convert to 1-based line number
 
-                // Only count lines that contain actual numeric values, not expressions
-                // Check if the line content is a simple number (not an expression)
-                bool ok;
-                double numericValue = line.toDouble(&ok);
-                if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
-                    // This is a simple numeric value, count it
-                    if (m_lineValues.contains(lineNumber)) {
-                        // Use the calculated value if available (handles cases like 0292 -> 292)
-                        values.append(getLineValue(lineNumber));
-                    } else {
-                        // Use the parsed value
+                // Prioritize calculated values from m_lineValues (for conversions, etc.)
+                if (m_lineValues.contains(lineNumber)) {
+                    double calculatedValue = getLineValue(lineNumber);
+                    LOG_DEBUG(QString("Below adding calculated value %1 from line %2").arg(calculatedValue).arg(lineNumber));
+                    values.append(calculatedValue);
+                } else {
+                    // Fallback: try to parse line content as simple numeric value
+                    bool ok;
+                    double numericValue = line.toDouble(&ok);
+                    if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                        LOG_DEBUG(QString("Below adding parsed value %1 from line %2").arg(numericValue).arg(lineNumber));
                         values.append(numericValue);
                     }
                 }
-                // Skip lines with expressions (like count(below), sum(), etc.) even if they have calculated values
             }
         }
         return values;
@@ -1195,12 +1192,24 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
                                     QString line = lines[i - 1].trimmed(); // Convert to 0-based index
                                     LOG_DEBUG(QString("Comma range line %1: '%2'").arg(i).arg(line));
 
-                                    // Only count lines that contain actual numeric values, not expressions
-                                    bool ok;
-                                    double numericValue = line.toDouble(&ok);
-                                    if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
-                                        LOG_DEBUG(QString("Comma range adding value %1 from line %2").arg(numericValue).arg(i));
-                                        values.append(numericValue);
+                                    // Skip empty lines and comment lines
+                                    if (line.isEmpty() || line.startsWith(":::")) {
+                                        continue;
+                                    }
+
+                                    // Prioritize calculated values from m_lineValues (for conversions, etc.)
+                                    if (m_lineValues.contains(i)) {
+                                        double calculatedValue = getLineValue(i);
+                                        LOG_DEBUG(QString("Comma range adding calculated value %1 from line %2").arg(calculatedValue).arg(i));
+                                        values.append(calculatedValue);
+                                    } else {
+                                        // Fallback: try to parse line content as simple numeric value
+                                        bool ok;
+                                        double numericValue = line.toDouble(&ok);
+                                        if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                                            LOG_DEBUG(QString("Comma range adding parsed value %1 from line %2").arg(numericValue).arg(i));
+                                            values.append(numericValue);
+                                        }
                                     }
                                 }
                             }
@@ -1255,12 +1264,24 @@ QList<double> CalculationEngine::getValuesFromRange(const QString &rangeExpr, in
                             QString line = lines[i - 1].trimmed(); // Convert to 0-based index
                             LOG_DEBUG(QString("Range line %1: '%2'").arg(i).arg(line));
 
-                            // Only count lines that contain actual numeric values, not expressions
-                            bool ok;
-                            double numericValue = line.toDouble(&ok);
-                            if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
-                                LOG_DEBUG(QString("Range adding value %1 from line %2").arg(numericValue).arg(i));
-                                values.append(numericValue);
+                            // Skip empty lines and comment lines
+                            if (line.isEmpty() || line.startsWith(":::")) {
+                                continue;
+                            }
+
+                            // Prioritize calculated values from m_lineValues (for conversions, etc.)
+                            if (m_lineValues.contains(i)) {
+                                double calculatedValue = getLineValue(i);
+                                LOG_DEBUG(QString("Range adding calculated value %1 from line %2").arg(calculatedValue).arg(i));
+                                values.append(calculatedValue);
+                            } else {
+                                // Fallback: try to parse line content as simple numeric value
+                                bool ok;
+                                double numericValue = line.toDouble(&ok);
+                                if (ok && !line.isEmpty() && line.contains(QRegularExpression("[0-9]"))) {
+                                    LOG_DEBUG(QString("Range adding parsed value %1 from line %2").arg(numericValue).arg(i));
+                                    values.append(numericValue);
+                                }
                             }
                         }
                     }
