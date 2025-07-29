@@ -1,12 +1,27 @@
 @echo off
 setlocal enabledelayedexpansion
 
+REM Create build log file with timestamp
+for /f "tokens=2 delims==" %%a in ('wmic OS Get localdatetime /value') do set "dt=%%a"
+set "YY=%dt:~2,2%" & set "YYYY=%dt:~0,4%" & set "MM=%dt:~4,2%" & set "DD=%dt:~6,2%" & set "HH=%dt:~8,2%" & set "Min=%dt:~10,2%" & set "Sec=%dt:~12,2%"
+set "timestamp=%YYYY%-%MM%-%DD%_%HH%-%Min%-%Sec%"
+set "LOGFILE=build_log_%timestamp%.txt"
+
+REM Function to echo and log
+set "ECHOLOG=call :EchoLog"
+
 echo Building CalcForge C++ with MSVC...
+echo Building CalcForge C++ with MSVC... > "%LOGFILE%"
 echo.
+echo. >> "%LOGFILE%"
+echo Build log will be saved to: %LOGFILE%
+echo Build log will be saved to: %LOGFILE% >> "%LOGFILE%"
+echo.
+echo. >> "%LOGFILE%"
 
 REM Direct path to vcvarsall.bat
 echo Setting up MSVC environment...
-call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
+echo Setting up MSVC environment... >> "%LOGFILE%"
 
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Failed to set up MSVC environment!

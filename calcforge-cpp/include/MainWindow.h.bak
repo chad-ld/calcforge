@@ -19,12 +19,6 @@
 class WorksheetWidget;
 struct LineChange;
 
-// Phase 3: Manager classes for dependency injection
-class FileManager;
-class TabManager;
-class CrossSheetNavigator;
-class WindowManager;
-
 /**
  * Main application window for CalcForge C++
  * Manages tabs, menu bar, toolbar, and overall application state
@@ -63,12 +57,13 @@ private slots:
     void onLineNumberingChanged(const QString &sheetName, const QList<LineChange> &changes);
     void onValuesChanged(const QString &sheetName);
 
-    // Load/Save functionality - Phase 3: Now handled by managers
+    // Load/Save functionality
     void loadWorksheetFile();
     bool saveWorksheetFile();
     bool saveWorksheetFileAs();
     void showLoadDropdown();
     void showSaveDropdown();
+    void loadRecentFile(const QString &filePath);
     void toggleAlwaysOnTop(bool enabled);
 
 private:
@@ -77,9 +72,6 @@ private:
     void setupToolBar();
     void setupStatusBar();
     void setupShortcuts();
-    
-    // Phase 3: Manager initialization
-    void initializeManagers();
     void createInitialTab();
     void createResizeCorners();
     void updateCornerPositions();
@@ -98,9 +90,17 @@ private:
     void saveWindowState();
     void setupCrossSheetSupport(WorksheetWidget *worksheet);
 
-    // Phase 3: Recent files and file state now handled by FileManager
-    // Recent files management - REMOVED
-    // Unsaved changes tracking - REMOVED
+    // Recent files management
+    void addToRecentFiles(const QString &filePath);
+    void loadRecentFiles();
+    void saveRecentFiles();
+    void createInitialRecentFilesJson();
+    void updateRecentFilesMenu(QMenu *menu);
+
+    // Unsaved changes tracking
+    void markAsModified();
+    void markAsSaved();
+    bool hasUnsavedChanges() const;
 
     // Font management
     void increaseFontSize();
@@ -158,7 +158,14 @@ public:
     QPushButton *m_alwaysOnTopButton;
     QPushButton *m_helpButton;
 
-    // Note: Resize corners and edges now handled by WindowManager
+    // Resize corner indicators
+    QWidget *m_bottomLeftCorner;
+    QWidget *m_bottomRightCorner;
+
+    // Resize edge indicators
+    QWidget *m_leftEdgeIndicator;
+    QWidget *m_rightEdgeIndicator;
+    QWidget *m_bottomEdgeIndicator;
     
     // Menu and toolbar
     QMenuBar *m_menuBar;
@@ -177,15 +184,28 @@ public:
     QShortcut *m_decreaseFontShortcut;
     QShortcut *m_resetFontShortcut;
     
-    // Note: File state (current file, modified) now handled by FileManager
+    // Application state
+    QString m_currentFile;
+    bool m_isModified;
 
-    // Note: Recent files, window dragging/resizing now handled by managers
+    // Recent files management
+    QStringList m_recentFiles;
+    static const int MAX_RECENT_FILES = 10;
 
-    // Phase 3: Manager classes (dependency injection)
-    FileManager* m_fileManager;
-    TabManager* m_tabManager;
-    CrossSheetNavigator* m_crossSheetNavigator;
-    WindowManager* m_windowManager;
+    // Window dragging and resizing
+    QPoint m_dragPosition;
+    bool m_dragging;
+    bool m_resizing;
+    Qt::Edges m_resizeEdges;
+
+    // Cross-sheet navigation history (global)
+    struct NavigationHistory {
+        QString sheetName;
+        int lineNumber;
+        int cursorPosition;
+    };
+    NavigationHistory m_navigationHistory;
+    bool m_hasNavigationHistory;
 };
 
 #endif // MAINWINDOW_H

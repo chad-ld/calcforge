@@ -61,6 +61,11 @@ set(SOURCES
     src/AutoCompleteWidget.cpp
     src/HelpDialog.cpp
     src/RegexUtils.cpp
+    # Phase 2 refactoring: Manager classes
+    src/FileManager.cpp
+    src/TabManager.cpp  
+    src/CrossSheetNavigator.cpp
+    src/WindowManager.cpp
 )
 
 # Header files
@@ -89,6 +94,11 @@ set(HEADERS
     include/CalcForgeException.h
     include/RegexUtils.h
     include/ICalculator.h
+    # Phase 2 refactoring: Manager classes  
+    include/FileManager.h
+    include/TabManager.h
+    include/CrossSheetNavigator.h
+    include/WindowManager.h
 )
 
 # Windows resource file for icon

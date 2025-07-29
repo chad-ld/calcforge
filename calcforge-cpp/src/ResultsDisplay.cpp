@@ -267,13 +267,13 @@ void ResultsDisplay::updateLineCount(int lineCount)
         // Ensure we have enough results for all lines
         while (m_results.size() < lineCount) {
             m_results.append("");
-            LOG_DEBUG(QString("    Added empty result, size now: %1").arg(m_results.size()));
+            // LOG_DEBUG(QString("    Added empty result, size now: %1").arg(m_results.size())); // Commented out - too verbose
         }
 
         // Remove excess results
         while (m_results.size() > lineCount) {
             m_results.removeLast();
-            LOG_DEBUG(QString("    Removed excess result, size now: %1").arg(m_results.size()));
+            // LOG_DEBUG(QString("    Removed excess result, size now: %1").arg(m_results.size())); // Commented out - too verbose
         }
 
         LOG_DEBUG(QString("  Calling updateContent() with %1 results").arg(m_results.size()));
@@ -603,12 +603,12 @@ void ResultsDisplay::highlightCurrentLineWithLNReferences(int lineNumber, const 
     if (!referencedLNs.empty()) {
         // Highlight referenced LN lines with darker shades of their LN colors
         for (int lnNumber : referencedLNs) {
-            LOG_DEBUG(QString("  Processing LN reference: LN%1").arg(lnNumber));
+            // LOG_DEBUG(QString("  Processing LN reference: LN%1").arg(lnNumber)); // Commented out - too verbose
 
             // Find the line with this LN number (1-based line numbers)
             QTextBlock targetBlock = document()->findBlockByNumber(lnNumber - 1);
             bool blockValid = targetBlock.isValid();
-            LOG_DEBUG(QString("    Target block for line %1: %2").arg(lnNumber).arg(blockValid ? "VALID" : "INVALID"));
+            // LOG_DEBUG(QString("    Target block for line %1: %2").arg(lnNumber).arg(blockValid ? "VALID" : "INVALID")); // Commented out - too verbose
 
             if (blockValid) {
                 // Calculate LN color (same logic as syntax highlighter)
@@ -661,7 +661,7 @@ void ResultsDisplay::highlightCurrentLineWithLNReferences(int lineNumber, const 
         currentLineSelection.cursor = QTextCursor(currentBlock);
 
         extraSelections.append(currentLineSelection);
-        LOG_DEBUG(QString("  Added current line selection for line %1").arg(lineNumber));
+        // LOG_DEBUG(QString("  Added current line selection for line %1").arg(lineNumber)); // Commented out - too verbose
     } else {
         LOG_DEBUG(QString("  FAILED to add current line selection - block invalid for line %1").arg(lineNumber));
     }
@@ -745,19 +745,19 @@ void ResultsDisplay::highlightCurrentLineWithLNReferencesFromEditor(int lineNumb
     if (!referencedLNs.empty()) {
         // Highlight referenced LN lines with darker shades of their LN colors
         for (int lnNumber : referencedLNs) {
-            LOG_DEBUG(QString("  Processing LN reference: LN%1").arg(lnNumber));
+            // LOG_DEBUG(QString("  Processing LN reference: LN%1").arg(lnNumber)); // Commented out - too verbose
 
             // Find the line with this LN number (1-based line numbers)
             QTextBlock targetBlock = document()->findBlockByNumber(lnNumber - 1);
             bool blockValid = targetBlock.isValid();
-            LOG_DEBUG(QString("    Target block for line %1: %2").arg(lnNumber).arg(blockValid ? "VALID" : "INVALID"));
+            // LOG_DEBUG(QString("    Target block for line %1: %2").arg(lnNumber).arg(blockValid ? "VALID" : "INVALID")); // Commented out - too verbose
 
             if (blockValid) {
                 // Get LN color from the ExpressionEditor's syntax highlighter for consistency
                 QColor lnColor;
                 if (editor && editor->getSyntaxHighlighter()) {
                     lnColor = editor->getSyntaxHighlighter()->getLNColor(lnNumber);
-                    LOG_DEBUG(QString("    Got LN color from syntax highlighter: %1").arg(lnColor.name()));
+                    // LOG_DEBUG(QString("    Got LN color from syntax highlighter: %1").arg(lnColor.name())); // Commented out - too verbose
                 } else {
                     // Fallback to hardcoded colors if no syntax highlighter available
                     const QStringList colors = {
@@ -768,7 +768,7 @@ void ResultsDisplay::highlightCurrentLineWithLNReferencesFromEditor(int lineNumb
                     };
                     int colorIndex = (lnNumber - 1) % colors.size();
                     lnColor = QColor(colors[colorIndex]);
-                    LOG_DEBUG(QString("    Using fallback LN color: %1").arg(lnColor.name()));
+                    // LOG_DEBUG(QString("    Using fallback LN color: %1").arg(lnColor.name())); // Commented out - too verbose
                 }
 
                 // Create darker background color (reduce brightness by ~60%)

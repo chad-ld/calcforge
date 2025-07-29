@@ -10,12 +10,6 @@
 #include "HelpDialog.h"
 #include "Logger.h"
 
-// Phase 3: Manager classes
-#include "FileManager.h"
-#include "TabManager.h"
-#include "CrossSheetNavigator.h"
-#include "WindowManager.h"
-
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
@@ -82,6 +76,11 @@ MainWindow::MainWindow(QWidget *parent)
     , m_saveDropdownButton(nullptr)
     , m_alwaysOnTopButton(nullptr)
     , m_helpButton(nullptr)
+    , m_bottomLeftCorner(nullptr)
+    , m_bottomRightCorner(nullptr)
+    , m_leftEdgeIndicator(nullptr)
+    , m_rightEdgeIndicator(nullptr)
+    , m_bottomEdgeIndicator(nullptr)
     , m_menuBar(nullptr)
     , m_toolBar(nullptr)
     , m_statusBar(nullptr)
@@ -89,10 +88,11 @@ MainWindow::MainWindow(QWidget *parent)
     , m_increaseFontShortcut(nullptr)
     , m_decreaseFontShortcut(nullptr)
     , m_resetFontShortcut(nullptr)
-    , m_fileManager(nullptr)
-    , m_tabManager(nullptr)
-    , m_crossSheetNavigator(nullptr)
-    , m_windowManager(nullptr)
+    , m_isModified(false)
+    , m_dragging(false)
+    , m_resizing(false)
+    , m_resizeEdges(Qt::Edges())
+    , m_hasNavigationHistory(false)
 {
     // Initialize settings
     m_settings = new QSettings("CalcForge", "CalcForge", this);
@@ -123,9 +123,6 @@ MainWindow::MainWindow(QWidget *parent)
     // setupMenuBar();
     // setupToolBar();
     // setupStatusBar();
-    
-    // Phase 3: Initialize manager classes with dependency injection
-    initializeManagers();
 
     // Setup keyboard shortcuts
     setupShortcuts();
@@ -136,15 +133,21 @@ MainWindow::MainWindow(QWidget *parent)
     // Restore window state
     restoreWindowState();
 
+    // Load recent files
+    loadRecentFiles();
+
     // Load existing worksheets or create initial tab if none exist
-    if (m_fileManager) {
-        m_fileManager->loadWorksheets();
-    }
+    loadWorksheets();
 
     // Ensure we have at least one tab
     if (m_tabWidget->count() == 0) {
         createInitialTab();
+        // Set default current file to worksheets.json for new tabs
+        QString appDir = QCoreApplication::applicationDirPath();
+        m_currentFile = QDir(appDir).absoluteFilePath("worksheets.json");
+        markAsSaved(); // Start with saved state
     }
+    // Note: If tabs were loaded, m_currentFile is already set by loadWorksheetFromFile
 
     // Set always on top by default after window is shown
     QTimer::singleShot(100, this, [this]() {
@@ -155,6 +158,7 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     saveWindowState();
+    saveRecentFiles();
 }
 
 void MainWindow::setupUI()
@@ -525,13 +529,6 @@ void MainWindow::setupUI()
     if (tabBar) {
         // Force close buttons to be visible and styled
         tabBar->setTabsClosable(true);
-        // Configure tab bar for proper & character display
-        tabBar->setUsesScrollButtons(false);  
-        tabBar->setAutoHide(false);
-        // Disable tab text eliding and try to preserve & characters
-        tabBar->setElideMode(Qt::ElideNone);
-        // Try to disable mnemonics by setting a property
-        tabBar->setProperty("_q_no_mnemonic", true);
     }
 
     connect(m_tabWidget, &QTabWidget::tabBarDoubleClicked, this, &MainWindow::renameTab);
@@ -671,22 +668,113 @@ void MainWindow::createInitialTab()
 
 void MainWindow::addTab()
 {
-    // Phase 3: Delegate to TabManager
-    if (m_tabManager) {
-        auto result = m_tabManager->addTab();
-        if (!result.isValid()) {
-            LOG_DEBUG("MainWindow: Failed to add tab: " + result.errorMessage());
-        }
+    WorksheetWidget *worksheet = new WorksheetWidget(this);
+    int index = m_tabWidget->addTab(worksheet, QString("Sheet %1").arg(m_tabWidget->count() + 1));
+    m_tabWidget->setCurrentIndex(index);
+
+    // Apply current global font size to new tab
+    QFont editorFont = worksheet->getEditor()->font();
+    QFont resultsFont = worksheet->getResults()->font();
+    editorFont.setPixelSize(m_globalFontSize);
+    resultsFont.setPixelSize(m_globalFontSize);
+    worksheet->getEditor()->setFont(editorFont);
+    worksheet->getResults()->setFont(resultsFont);
+
+    // Connect font size signals from the expression editor
+    connect(worksheet->getEditor(), &ExpressionEditor::fontSizeIncreaseRequested,
+            this, &MainWindow::increaseFontSize);
+    connect(worksheet->getEditor(), &ExpressionEditor::fontSizeDecreaseRequested,
+            this, &MainWindow::decreaseFontSize);
+    connect(worksheet->getEditor(), &ExpressionEditor::fontSizeResetRequested,
+            this, &MainWindow::resetFontSize);
+
+    // Create custom close button for this tab
+    QTabBar *tabBar = m_tabWidget->tabBar();
+    if (tabBar) {
+        // Create a container widget to control positioning
+        QWidget *buttonContainer = new QWidget(this);
+        buttonContainer->setFixedSize(26, 20); // Even wider container for more right-side space
+
+        QPushButton *closeButton = new QPushButton("×", buttonContainer);
+        closeButton->setFixedSize(14, 14);  // Back to readable size
+        closeButton->move(0, 3); // Position flush left for close spacing to text
+        closeButton->setStyleSheet(
+            "QPushButton {"
+            "  background-color: #6B7280;"
+            "  border: 1px solid #6B7280;"
+            "  color: #ffffff;"
+            "  font-family: 'Arial', sans-serif;"
+            "  font-size: 9px;"
+            "  font-weight: bold;"
+            "  border-radius: 2px;"
+            "  padding: 0px;"
+            "  margin: 0px;"
+            "}"
+            "QPushButton:hover {"
+            "  background-color: #da3633;"
+            "  border-color: #da3633;"
+            "}"
+        );
+        closeButton->setToolTip("Close tab");
+
+        // Connect the button to close this specific tab
+        connect(closeButton, &QPushButton::clicked, [this, buttonContainer]() {
+            // Find which tab this close button belongs to
+            QTabBar *tabBar = m_tabWidget->tabBar();
+            for (int i = 0; i < tabBar->count(); ++i) {
+                if (tabBar->tabButton(i, QTabBar::RightSide) == buttonContainer) {
+                    closeTab(i);
+                    break;
+                }
+            }
+        });
+
+        // Set the container as the tab button
+        tabBar->setTabButton(index, QTabBar::RightSide, buttonContainer);
     }
+
+    // Set up cross-sheet reference support
+    setupCrossSheetSupport(worksheet);
+
+    // Always set splitter state (either restored or default)
+    LOG_DEBUG(QString("Setting splitter state for new tab - state size: %1 bytes").arg(m_splitterState.size()));
+    worksheet->setSplitterState(m_splitterState);
+
+    // Connect splitter changes to update global state and sync all tabs
+    connect(worksheet, &WorksheetWidget::splitterMoved, this, &MainWindow::onSplitterMoved);
+
+    // Connect line numbering changes for cross-sheet LN auto-updates
+    connect(worksheet, &WorksheetWidget::lineNumberingChanged, this, &MainWindow::onLineNumberingChanged);
+
+    // Connect value changes for cross-sheet recalculation
+    connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+
+    // Connect content changes to mark as modified
+    connect(worksheet, &WorksheetWidget::contentChanged, this, &MainWindow::markAsModified);
+
+    // Focus on the new worksheet
+    worksheet->getEditor()->setFocus();
 }
 
 void MainWindow::closeTab(int index)
 {
-    // Phase 3: Delegate to TabManager
-    if (m_tabManager) {
-        auto result = m_tabManager->closeTab(index);
-        if (!result.isValid()) {
-            LOG_DEBUG("MainWindow: Failed to close tab: " + result.errorMessage());
+    if (m_tabWidget->count() <= 1) {
+        // Don't close the last tab, just clear it
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(index));
+        if (worksheet) {
+            worksheet->setContent("");
+        }
+        return;
+    }
+    
+    WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(index));
+    if (worksheet && worksheet->isModified()) {
+        int ret = QMessageBox::question(this, "Close Tab",
+                                      "The worksheet has unsaved changes. Close anyway?",
+                                      QMessageBox::Yes | QMessageBox::No,
+                                      QMessageBox::No);
+        if (ret == QMessageBox::No) {
+            return;
         }
     }
     
@@ -785,9 +873,7 @@ void MainWindow::onSplitterMoved(const QByteArray &newState)
 void MainWindow::showHelp()
 {
     HelpDialog *helpDialog = new HelpDialog(this);
-    if (m_fileManager) {
-        helpDialog->setCurrentFilePath(m_fileManager->getCurrentFile());
-    }
+    helpDialog->setCurrentFilePath(m_currentFile);
     helpDialog->exec();
     helpDialog->deleteLater();
 }
@@ -861,61 +947,118 @@ void MainWindow::saveAsFile()
 
 void MainWindow::loadWorksheetFile()
 {
-    // Phase 3: Delegate to FileManager
-    if (m_fileManager) {
-        auto result = m_fileManager->loadWorksheetFile();
-        if (!result.isValid()) {
-            LOG_DEBUG("MainWindow: Failed to load worksheet: " + result.errorMessage());
-        }
+    // Determine default directory based on current file
+    QString defaultDir;
+    if (!m_currentFile.isEmpty() && QFile::exists(m_currentFile)) {
+        // Use the directory of the currently open file
+        QFileInfo currentFileInfo(m_currentFile);
+        defaultDir = currentFileInfo.absolutePath();
+    } else {
+        // Fallback to home directory if no current file
+        defaultDir = QDir::homePath();
     }
+
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        "Load CalcForge Worksheet",
+        defaultDir,
+        "CalcForge Files (*.json *.cf);;JSON Files (*.json);;All Files (*)"
+    );
+
+    if (fileName.isEmpty()) {
+        return; // User cancelled
+    }
+
+    loadRecentFile(fileName);
 }
 
 bool MainWindow::saveWorksheetFile()
 {
-    // Phase 3: Delegate to FileManager
-    if (m_fileManager) {
-        auto result = m_fileManager->saveWorksheetFile();
-        if (result.isValid()) {
-            return result.value();
-        } else {
-            LOG_DEBUG("MainWindow: Failed to save worksheet: " + result.errorMessage());
-            return false;
+    if (m_currentFile.isEmpty()) {
+        // If no current file, default to worksheets.json in app directory
+        QString appDir = QCoreApplication::applicationDirPath();
+        QString defaultPath = QDir(appDir).absoluteFilePath("worksheets.json");
+
+        if (saveWorksheetsToFile(defaultPath)) {
+            m_currentFile = defaultPath;
+            markAsSaved();
+            setWindowTitle("CalcForge v4.0");
+            QMessageBox::information(this, "File Saved",
+                QString("File saved successfully to '%1'").arg(QFileInfo(defaultPath).baseName()));
+            return true;
         }
+        return false;
+    }
+
+    // Save to current file
+    if (saveWorksheetsToFile(m_currentFile)) {
+        markAsSaved();
+        QMessageBox::information(this, "File Saved",
+            QString("File saved successfully to '%1'").arg(QFileInfo(m_currentFile).baseName()));
+        return true;
     }
     return false;
 }
 
 bool MainWindow::saveWorksheetFileAs()
 {
-    // Phase 3: Delegate to FileManager
-    if (m_fileManager) {
-        auto result = m_fileManager->saveWorksheetFileAs();
-        if (result.isValid()) {
-            return result.value();
+    // Determine default save location based on current file
+    QString defaultPath;
+    if (!m_currentFile.isEmpty() && QFile::exists(m_currentFile)) {
+        // Use the directory of the currently open file
+        QFileInfo currentFileInfo(m_currentFile);
+        QString currentDir = currentFileInfo.absolutePath();
+        QString baseName = currentFileInfo.baseName();
+
+        // Suggest a new name based on current file
+        if (baseName == "worksheets") {
+            defaultPath = QDir(currentDir).absoluteFilePath("calcforge-worksheet.json");
         } else {
-            LOG_DEBUG("MainWindow: Failed to save worksheet as: " + result.errorMessage());
-            return false;
+            defaultPath = QDir(currentDir).absoluteFilePath(baseName + "-copy.json");
         }
+    } else {
+        // Fallback to home directory if no current file
+        defaultPath = QDir::homePath() + "/calcforge-worksheet.json";
+    }
+
+    QString fileName = QFileDialog::getSaveFileName(
+        this,
+        "Save CalcForge Worksheet",
+        defaultPath,
+        "CalcForge Files (*.json *.cf);;JSON Files (*.json);;All Files (*)"
+    );
+
+    if (fileName.isEmpty()) {
+        return false; // User cancelled
+    }
+
+    // Ensure file has an extension
+    if (!fileName.contains('.')) {
+        fileName += ".json";
+    }
+
+    if (saveWorksheetsToFile(fileName)) {
+        m_currentFile = fileName;
+        addToRecentFiles(fileName); // Save As creates a new file location, so add to recent files
+        markAsSaved();
+        setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(fileName).baseName()));
+        QMessageBox::information(this, "File Saved",
+            QString("File saved successfully as '%1'").arg(QFileInfo(fileName).baseName()));
+        return true;
     }
     return false;
 }
 
 void MainWindow::showLoadDropdown()
 {
-    // Phase 3: Delegate to FileManager
-    if (!m_fileManager) {
-        return;
-    }
-    
-    QStringList recentFiles = m_fileManager->getRecentFiles();
-    if (recentFiles.isEmpty()) {
+    if (m_recentFiles.isEmpty()) {
         QMessageBox::information(this, "Recent Files", "No recent files available");
         return;
     }
 
     QMenu *menu = new QMenu(this);
 
-    for (const QString &filePath : recentFiles) {
+    for (const QString &filePath : m_recentFiles) {
         QFileInfo fileInfo(filePath);
         QString displayName = fileInfo.baseName();
         if (displayName.length() > 30) {
@@ -925,7 +1068,7 @@ void MainWindow::showLoadDropdown()
         QAction *action = menu->addAction(displayName);
         action->setToolTip(filePath);
         connect(action, &QAction::triggered, [this, filePath]() {
-            m_fileManager->loadRecentFile(filePath);
+            loadRecentFile(filePath);
         });
     }
 
@@ -950,7 +1093,106 @@ void MainWindow::showSaveDropdown()
     menu->deleteLater();
 }
 
-// Method removed - now handled by FileManager
+void MainWindow::loadRecentFile(const QString &filePath)
+{
+    QFile file(filePath);
+    if (!file.exists()) {
+        QMessageBox::warning(this, "File Not Found",
+            QString("The file '%1' could not be found.").arg(filePath));
+
+        // Remove from recent files
+        m_recentFiles.removeAll(filePath);
+        saveRecentFiles();
+        return;
+    }
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QMessageBox::warning(this, "Load Error",
+            QString("Failed to open file '%1': %2").arg(filePath, file.errorString()));
+        return;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        QMessageBox::warning(this, "Parse Error",
+            QString("Failed to parse JSON file: %1").arg(parseError.errorString()));
+        return;
+    }
+
+    if (!doc.isObject()) {
+        QMessageBox::warning(this, "Invalid Format",
+            "The file does not contain a valid CalcForge worksheet format.");
+        return;
+    }
+
+    // Clear existing tabs
+    while (m_tabWidget->count() > 0) {
+        m_tabWidget->removeTab(0);
+    }
+
+    QJsonObject root = doc.object();
+
+    // Load worksheets using the same logic as loadWorksheets()
+    if (root.contains("version") && root.contains("tabs") && root["tabs"].isArray()) {
+        // New format: load tabs in order from array
+        QJsonArray tabsArray = root["tabs"].toArray();
+
+        for (const QJsonValue &tabValue : tabsArray) {
+            if (!tabValue.isObject()) {
+                continue;
+            }
+
+            QJsonObject tabObject = tabValue.toObject();
+            if (!tabObject.contains("name") || !tabObject.contains("content")) {
+                continue;
+            }
+
+            QString tabName = tabObject["name"].toString();
+            QString content = tabObject["content"].toString();
+
+            loadSingleWorksheet(tabName, content);
+        }
+    } else {
+        // Legacy format: load tabs from object keys
+        for (auto it = root.begin(); it != root.end(); ++it) {
+            QString tabName = it.key();
+            QString content = it.value().toString();
+
+            loadSingleWorksheet(tabName, content);
+        }
+    }
+
+    // Ensure we have at least one tab
+    if (m_tabWidget->count() == 0) {
+        createInitialTab();
+    } else {
+        // Trigger coordinated cross-sheet calculation
+        recalculateAllWorksheets();
+
+        // Set focus to first tab
+        m_tabWidget->setCurrentIndex(0);
+        WorksheetWidget *firstWorksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
+        if (firstWorksheet) {
+            firstWorksheet->getEditor()->setFocus();
+        }
+    }
+
+    // Update application state
+    m_currentFile = filePath;
+    addToRecentFiles(filePath);
+    markAsSaved(); // File was just loaded, so it's saved
+    setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(filePath).baseName()));
+
+    QMessageBox::information(this, "Load Complete",
+        QString("Successfully loaded %1 worksheet(s) from '%2'")
+        .arg(m_tabWidget->count())
+        .arg(QFileInfo(filePath).baseName()));
+}
 
 void MainWindow::exitApplication()
 {
@@ -968,10 +1210,47 @@ void MainWindow::showAbout()
 
 void MainWindow::loadWorksheets()
 {
-    // Phase 3: Delegate to FileManager
-    if (m_fileManager) {
-        m_fileManager->loadWorksheets();
+    QString fileToLoad;
+    QString appDir = QCoreApplication::applicationDirPath();
+
+    // Priority 1: Try to load the most recent file from recent files list
+    if (!m_recentFiles.isEmpty()) {
+        QString mostRecentFile = m_recentFiles.first();
+        if (QFile::exists(mostRecentFile)) {
+            fileToLoad = mostRecentFile;
+            qDebug() << "Loading most recent file:" << mostRecentFile;
+        } else {
+            // Remove non-existent file from recent files
+            m_recentFiles.removeFirst();
+            saveRecentFiles();
+        }
     }
+
+    // Priority 2: If no recent file, try worksheets.json
+    if (fileToLoad.isEmpty()) {
+        QString worksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
+        if (QFile::exists(worksheetsPath)) {
+            fileToLoad = worksheetsPath;
+            qDebug() << "Loading default worksheets.json";
+        }
+    }
+
+    // Priority 3: If no worksheets.json, load example worksheets and save as worksheets.json
+    if (fileToLoad.isEmpty()) {
+        QString exampleWorksheetsPath = QDir(appDir).absoluteFilePath("example_worksheets.json");
+        if (QFile::exists(exampleWorksheetsPath)) {
+            loadExampleWorksheetsAndSave();
+            return;
+        } else {
+            // No files found, create initial tab
+            qDebug() << "No worksheet files found, creating initial tab";
+            return;
+        }
+    }
+
+    // Load the determined file
+    loadWorksheetFromFile(fileToLoad);
+
 }
 
 void MainWindow::loadWorksheetFromFile(const QString &filePath)
@@ -1039,17 +1318,18 @@ void MainWindow::loadWorksheetFromFile(const QString &filePath)
         }
     }
 
-    // Phase 3: FileManager handles its own state internally
-    if (m_fileManager) {
-        // FileManager manages current file and recent files internally
-        QString appDir = QCoreApplication::applicationDirPath();
-        QString defaultWorksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
-        if (filePath != defaultWorksheetsPath) {
-            m_fileManager->addToRecentFiles(filePath);
-            setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(filePath).baseName()));
-        } else {
-            setWindowTitle("CalcForge v4.0");
-        }
+    // Update current file and state
+    m_currentFile = filePath;
+    markAsSaved();
+
+    // Add to recent files if it's not the default worksheets.json
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString defaultWorksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
+    if (filePath != defaultWorksheetsPath) {
+        addToRecentFiles(filePath);
+        setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(filePath).baseName()));
+    } else {
+        setWindowTitle("CalcForge v4.0");
     }
 
     // After all worksheets are loaded, trigger coordinated cross-sheet calculation
@@ -1097,13 +1377,16 @@ void MainWindow::loadExampleWorksheetsAndSave()
     if (loadWorksheetContentFromFile(exampleWorksheetsPath)) {
         // Save them as worksheets.json to prevent overwriting the example file
         if (saveWorksheetsToFile(worksheetsPath)) {
-            // Phase 3: Delegate file operations to FileManager
-            if (m_fileManager) {
-                // FileManager handles file state internally
-                m_fileManager->addToRecentFiles(worksheetsPath);
-            }
+            m_currentFile = worksheetsPath;
+            markAsSaved();
             setWindowTitle("CalcForge v4.0");
             qDebug() << "Successfully saved example worksheets as worksheets.json";
+
+            // Create initial recent_files.json now that we have a worksheets.json
+            createInitialRecentFilesJson();
+
+            // Add the final worksheets.json to recent files (not the example file)
+            addToRecentFiles(worksheetsPath);
         } else {
             qWarning() << "Failed to save example worksheets as worksheets.json";
         }
@@ -1281,10 +1564,8 @@ void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &cont
     // Connect value changes for cross-sheet recalculation
     connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
 
-    // Connect content changes to FileManager (Phase 3 refactor)
-    if (m_fileManager) {
-        connect(worksheet, &WorksheetWidget::contentChanged, m_fileManager, &FileManager::markAsModified);
-    }
+    // Connect content changes to mark as modified
+    connect(worksheet, &WorksheetWidget::contentChanged, this, &MainWindow::markAsModified);
 }
 
 void MainWindow::loadExampleWorksheets()
@@ -1454,21 +1735,202 @@ bool MainWindow::saveWorksheetsToFile(const QString &filePath)
     return true;
 }
 
-// Method removed - now handled by FileManager
+void MainWindow::addToRecentFiles(const QString &filePath)
+{
+    // Remove if already exists (to move to top)
+    m_recentFiles.removeAll(filePath);
 
-// Method removed - now handled by FileManager
+    // Add to beginning
+    m_recentFiles.prepend(filePath);
 
-// Method removed - now handled by FileManager
+    // Limit to MAX_RECENT_FILES
+    while (m_recentFiles.size() > MAX_RECENT_FILES) {
+        m_recentFiles.removeLast();
+    }
 
-// Method removed - now handled by FileManager
+    saveRecentFiles();
+}
 
-// Method removed - now handled by FileManager
+void MainWindow::loadRecentFiles()
+{
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString recentFilesPath = QDir(appDir).absoluteFilePath("recent_files.json");
 
-// Method removed - now handled by FileManager
+    QFile file(recentFilesPath);
+    if (!file.exists()) {
+        // File doesn't exist yet, start with empty list
+        m_recentFiles.clear();
+        return;
+    }
 
-// Method removed - now handled by FileManager
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qDebug() << "Failed to open recent_files.json for reading:" << file.errorString();
+        m_recentFiles.clear();
+        return;
+    }
 
-// Method removed - now handled by FileManager
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        qDebug() << "Failed to parse recent_files.json:" << parseError.errorString();
+        m_recentFiles.clear();
+        return;
+    }
+
+    if (!doc.isObject()) {
+        qDebug() << "recent_files.json is not a valid JSON object";
+        m_recentFiles.clear();
+        return;
+    }
+
+    QJsonObject root = doc.object();
+    QJsonArray recentArray = root["recent_files"].toArray();
+
+    // Convert JSON array to QStringList and validate files
+    QStringList validFiles;
+    for (const QJsonValue &value : recentArray) {
+        QString filePath = value.toString();
+        if (!filePath.isEmpty() && QFile::exists(filePath)) {
+            validFiles.append(filePath);
+        }
+    }
+
+    m_recentFiles = validFiles;
+
+    // If we removed invalid files, save the cleaned list
+    if (validFiles.size() != recentArray.size()) {
+        saveRecentFiles();
+    }
+}
+
+void MainWindow::saveRecentFiles()
+{
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString recentFilesPath = QDir(appDir).absoluteFilePath("recent_files.json");
+
+    // Create JSON structure
+    QJsonObject root;
+    QJsonArray recentArray;
+
+    for (const QString &filePath : m_recentFiles) {
+        recentArray.append(filePath);
+    }
+
+    root["recent_files"] = recentArray;
+    root["last_updated"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    root["version"] = "1.0";
+
+    QJsonDocument doc(root);
+
+    QFile file(recentFilesPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qDebug() << "Failed to open recent_files.json for writing:" << file.errorString();
+        return;
+    }
+
+    file.write(doc.toJson(QJsonDocument::Indented));
+    file.close();
+
+    qDebug() << "Saved recent files to:" << recentFilesPath;
+}
+
+void MainWindow::createInitialRecentFilesJson()
+{
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString recentFilesPath = QDir(appDir).absoluteFilePath("recent_files.json");
+
+    // Only create if it doesn't already exist
+    if (QFile::exists(recentFilesPath)) {
+        return;
+    }
+
+    // Create initial JSON structure with empty recent files list
+    QJsonObject root;
+    QJsonArray recentArray; // Empty array
+
+    root["recent_files"] = recentArray;
+    root["last_updated"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    root["version"] = "1.0";
+    root["created"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+
+    QJsonDocument doc(root);
+
+    QFile file(recentFilesPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qDebug() << "Failed to create initial recent_files.json:" << file.errorString();
+        return;
+    }
+
+    file.write(doc.toJson(QJsonDocument::Indented));
+    file.close();
+
+    qDebug() << "Created initial recent_files.json at:" << recentFilesPath;
+}
+
+void MainWindow::updateRecentFilesMenu(QMenu *menu)
+{
+    menu->clear();
+
+    if (m_recentFiles.isEmpty()) {
+        QAction *noFilesAction = menu->addAction("No recent files");
+        noFilesAction->setEnabled(false);
+        return;
+    }
+
+    for (const QString &filePath : m_recentFiles) {
+        QFileInfo fileInfo(filePath);
+        QString displayName = fileInfo.baseName();
+        if (displayName.length() > 30) {
+            displayName = displayName.left(27) + "...";
+        }
+
+        QAction *action = menu->addAction(displayName);
+        action->setToolTip(filePath);
+        connect(action, &QAction::triggered, [this, filePath]() {
+            loadRecentFile(filePath);
+        });
+    }
+}
+
+void MainWindow::markAsModified()
+{
+    m_isModified = true;
+}
+
+void MainWindow::markAsSaved()
+{
+    m_isModified = false;
+
+    // Also mark all worksheets as saved
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+        if (worksheet) {
+            worksheet->setModified(false);
+        }
+    }
+}
+
+bool MainWindow::hasUnsavedChanges() const
+{
+    // Check global modified state
+    if (m_isModified) {
+        return true;
+    }
+
+    // Check if any individual worksheet has unsaved changes
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+        if (worksheet && worksheet->isModified()) {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 void MainWindow::toggleAlwaysOnTop(bool enabled)
 {
@@ -1525,12 +1987,8 @@ void MainWindow::saveWindowState()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    // Phase 3: Check for unsaved changes via FileManager
-    bool hasChanges = false;
-    if (m_fileManager) {
-        hasChanges = m_fileManager->hasUnsavedChanges();
-    }
-    if (hasChanges) {
+    // Check for unsaved changes
+    if (hasUnsavedChanges()) {
         QMessageBox msgBox(this);
         msgBox.setWindowTitle("Unsaved Changes");
         msgBox.setText("You have unsaved changes.");
@@ -1582,25 +2040,78 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 
 void MainWindow::mousePressEvent(QMouseEvent *event)
 {
-    // Phase 3: Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->handleMousePress(event);
+    if (event->button() == Qt::LeftButton) {
+        m_resizeEdges = getResizeEdges(event->pos());
+        if (m_resizeEdges != Qt::Edges()) {
+            m_resizing = true;
+        } else {
+            m_dragging = true;
+            m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
+        }
+        event->accept();
     }
 }
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event)
 {
-    // Phase 3: Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->handleMouseMove(event);
+    if (event->buttons() & Qt::LeftButton) {
+        if (m_resizing) {
+            // Handle window resizing
+            QRect geometry = this->geometry();
+            QPoint globalPos = event->globalPosition().toPoint();
+
+            if (m_resizeEdges & Qt::LeftEdge) {
+                int newWidth = geometry.right() - globalPos.x();
+                if (newWidth >= minimumWidth()) {
+                    geometry.setLeft(globalPos.x());
+                }
+            }
+            if (m_resizeEdges & Qt::RightEdge) {
+                geometry.setRight(globalPos.x());
+            }
+            if (m_resizeEdges & Qt::TopEdge) {
+                int newHeight = geometry.bottom() - globalPos.y();
+                if (newHeight >= minimumHeight()) {
+                    geometry.setTop(globalPos.y());
+                }
+            }
+            if (m_resizeEdges & Qt::BottomEdge) {
+                geometry.setBottom(globalPos.y());
+            }
+
+            setGeometry(geometry);
+        } else if (m_dragging) {
+            // Handle window dragging
+            move(event->globalPosition().toPoint() - m_dragPosition);
+        }
+        event->accept();
+    } else {
+        // Update cursor based on position when not dragging
+        Qt::Edges edges = getResizeEdges(event->pos());
+        if (edges & (Qt::LeftEdge | Qt::RightEdge) && edges & (Qt::TopEdge | Qt::BottomEdge)) {
+            if ((edges & Qt::LeftEdge && edges & Qt::TopEdge) || (edges & Qt::RightEdge && edges & Qt::BottomEdge)) {
+                setCursor(Qt::SizeFDiagCursor);
+            } else {
+                setCursor(Qt::SizeBDiagCursor);
+            }
+        } else if (edges & (Qt::LeftEdge | Qt::RightEdge)) {
+            setCursor(Qt::SizeHorCursor);
+        } else if (edges & (Qt::TopEdge | Qt::BottomEdge)) {
+            setCursor(Qt::SizeVerCursor);
+        } else {
+            setCursor(Qt::ArrowCursor);
+        }
     }
 }
 
 void MainWindow::mouseReleaseEvent(QMouseEvent *event)
 {
-    // Phase 3: Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->handleMouseRelease(event);
+    if (event->button() == Qt::LeftButton) {
+        m_dragging = false;
+        m_resizing = false;
+        m_resizeEdges = Qt::Edges();
+        setCursor(Qt::ArrowCursor);
+        event->accept();
     }
 }
 
@@ -1635,109 +2146,337 @@ bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 
         // ONLY handle Ctrl key combinations to avoid interfering with normal text input
         if (keyEvent->modifiers() & Qt::ControlModifier) {
+            logDebug(QString("CTRL KEY DETECTED: Ctrl+%1 (key code: %2, text: '%3')")
+                    .arg(QKeySequence(keyEvent->key()).toString())
+                    .arg(keyEvent->key())
+                    .arg(keyEvent->text()));
+
             if (keyEvent->key() == Qt::Key_Period || keyEvent->text() == ".") {
-                // Phase 3: Delegate to TabManager
-                if (m_tabManager) {
-                    m_tabManager->increaseFontSize();
-                }
+                logDebug("Triggering increaseFontSize from global event filter");
+                increaseFontSize();
                 return true; // Event handled
             } else if (keyEvent->key() == Qt::Key_Comma || keyEvent->text() == ",") {
-                // Phase 3: Delegate to TabManager
-                if (m_tabManager) {
-                    m_tabManager->decreaseFontSize();
-                }
+                logDebug(QString("Triggering decreaseFontSize from global event filter (key: %1, text: '%2')").arg(keyEvent->key()).arg(keyEvent->text()));
+                decreaseFontSize();
                 return true; // Event handled
             } else if (keyEvent->key() == Qt::Key_0) {
-                // Phase 3: Delegate to TabManager
-                if (m_tabManager) {
-                    m_tabManager->resetFontSize();
-                }
+                logDebug("Triggering resetFontSize from global event filter");
+                resetFontSize();
                 return true; // Event handled
             } else if (keyEvent->key() == Qt::Key_PageUp) {
-                // Phase 3: Delegate to TabManager
-                if (m_tabManager) {
-                    m_tabManager->previousTab();
-                }
+                logDebug("Triggering previous tab from Ctrl+PageUp");
+                previousTab();
                 return true; // Event handled
             } else if (keyEvent->key() == Qt::Key_PageDown) {
-                // Phase 3: Delegate to TabManager
-                if (m_tabManager) {
-                    m_tabManager->nextTab();
+                logDebug("Triggering next tab from Ctrl+PageDown");
+                nextTab();
+                return true; // Event handled
+            }
+        }
+
+        // Don't log or interfere with non-Ctrl keys to avoid input issues
+    }
+
+    // Handle mouse events on corner resize indicators
+    if (obj == m_bottomLeftCorner || obj == m_bottomRightCorner) {
+        if (event->type() == QEvent::MouseButtonPress ||
+            event->type() == QEvent::MouseMove ||
+            event->type() == QEvent::MouseButtonRelease) {
+
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+            QPoint globalPos = mouseEvent->globalPosition().toPoint();
+            QPoint localPos = mapFromGlobal(globalPos);
+
+            // Force diagonal resize edges based on which corner was clicked
+            Qt::Edges forcedEdges;
+            if (obj == m_bottomLeftCorner) {
+                forcedEdges = Qt::LeftEdge | Qt::BottomEdge;  // Bottom-left diagonal
+            } else {
+                forcedEdges = Qt::RightEdge | Qt::BottomEdge; // Bottom-right diagonal
+            }
+
+            // Create a new mouse event with forced diagonal resize edges
+            QMouseEvent newEvent(mouseEvent->type(), localPos, globalPos,
+                               mouseEvent->button(), mouseEvent->buttons(),
+                               mouseEvent->modifiers());
+
+            // Handle the event in the main window with forced edges
+            if (event->type() == QEvent::MouseButtonPress) {
+                m_resizeEdges = forcedEdges;  // Force diagonal resize
+                if (mouseEvent->button() == Qt::LeftButton) {
+                    m_resizing = true;
+                }
+            } else if (event->type() == QEvent::MouseMove) {
+                if (m_resizing) {
+                    mouseMoveEvent(&newEvent);
+                }
+            } else if (event->type() == QEvent::MouseButtonRelease) {
+                mouseReleaseEvent(&newEvent);
+            }
+            return true; // Event handled
+        }
+    }
+
+    // Handle mouse events on edge resize indicators
+    if (obj == m_leftEdgeIndicator || obj == m_rightEdgeIndicator || obj == m_bottomEdgeIndicator) {
+        if (event->type() == QEvent::MouseButtonPress ||
+            event->type() == QEvent::MouseMove ||
+            event->type() == QEvent::MouseButtonRelease) {
+
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+            QPoint globalPos = mouseEvent->globalPosition().toPoint();
+            QPoint localPos = mapFromGlobal(globalPos);
+
+            // Force single-axis resize edges based on which edge was clicked
+            Qt::Edges forcedEdges;
+            if (obj == m_leftEdgeIndicator) {
+                forcedEdges = Qt::LeftEdge;  // Left edge only
+            } else if (obj == m_rightEdgeIndicator) {
+                forcedEdges = Qt::RightEdge; // Right edge only
+            } else if (obj == m_bottomEdgeIndicator) {
+                forcedEdges = Qt::BottomEdge; // Bottom edge only
+            }
+
+            // Create a new mouse event with forced single-axis resize edges
+            QMouseEvent newEvent(mouseEvent->type(), localPos, globalPos,
+                               mouseEvent->button(), mouseEvent->buttons(),
+                               mouseEvent->modifiers());
+
+            // Handle the event in the main window with forced edges
+            if (event->type() == QEvent::MouseButtonPress) {
+                m_resizeEdges = forcedEdges;  // Force single-axis resize
+                if (mouseEvent->button() == Qt::LeftButton) {
+                    m_resizing = true;
+                }
+            } else if (event->type() == QEvent::MouseMove) {
+                if (m_resizing) {
+                    mouseMoveEvent(&newEvent);
+                }
+            } else if (event->type() == QEvent::MouseButtonRelease) {
+                mouseReleaseEvent(&newEvent);
+            }
+            return true; // Event handled
+        }
+    }
+
+    // Handle mouse events on central widget for window resizing
+    if (obj == m_centralWidget) {
+        if (event->type() == QEvent::MouseButtonPress ||
+            event->type() == QEvent::MouseMove ||
+            event->type() == QEvent::MouseButtonRelease) {
+
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+
+            // Check if we're near the window edges for resizing
+            QPoint globalPos = mouseEvent->globalPosition().toPoint();
+            QPoint localPos = mapFromGlobal(globalPos);
+            Qt::Edges edges = getResizeEdges(localPos);
+
+            // If near edges, let the main window handle the event
+            if (edges != Qt::Edges()) {
+                // Create a new mouse event with coordinates relative to main window
+                QMouseEvent newEvent(mouseEvent->type(), localPos, globalPos,
+                                   mouseEvent->button(), mouseEvent->buttons(),
+                                   mouseEvent->modifiers());
+
+                // Handle the event in the main window
+                if (event->type() == QEvent::MouseButtonPress) {
+                    mousePressEvent(&newEvent);
+                } else if (event->type() == QEvent::MouseMove) {
+                    mouseMoveEvent(&newEvent);
+                } else if (event->type() == QEvent::MouseButtonRelease) {
+                    mouseReleaseEvent(&newEvent);
                 }
                 return true; // Event handled
             }
         }
     }
 
-    // Phase 3: Window management is handled by WindowManager through mouse event delegation
-    // WindowManager handles events through the mouse event methods, not eventFilter
-
     return QMainWindow::eventFilter(obj, event);
 }
 
 void MainWindow::createResizeCorners()
 {
-    // Phase 3: Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->setupResizeCorners();
-    }
+    // Create bottom-left corner resize indicator
+    m_bottomLeftCorner = new QWidget(this);
+    m_bottomLeftCorner->setFixedSize(12, 12);
+    m_bottomLeftCorner->setStyleSheet(
+        "QWidget {"
+        "  background-color: #484F58;"
+        "  border: 1px solid #6B7280;"
+        "  border-radius: 2px;"
+        "}"
+        "QWidget:hover {"
+        "  background-color: #0c7ff2;"
+        "  border: 1px solid #0969DA;"
+        "}"
+    );
+    m_bottomLeftCorner->setCursor(Qt::SizeBDiagCursor);
+    m_bottomLeftCorner->setToolTip("Drag to resize window");
+    m_bottomLeftCorner->installEventFilter(this);  // Install event filter to handle resize
+
+    // Create bottom-right corner resize indicator
+    m_bottomRightCorner = new QWidget(this);
+    m_bottomRightCorner->setFixedSize(12, 12);
+    m_bottomRightCorner->setStyleSheet(
+        "QWidget {"
+        "  background-color: #484F58;"
+        "  border: 1px solid #6B7280;"
+        "  border-radius: 2px;"
+        "}"
+        "QWidget:hover {"
+        "  background-color: #0c7ff2;"
+        "  border: 1px solid #0969DA;"
+        "}"
+    );
+    m_bottomRightCorner->setCursor(Qt::SizeFDiagCursor);
+    m_bottomRightCorner->setToolTip("Drag to resize window");
+    m_bottomRightCorner->installEventFilter(this);  // Install event filter to handle resize
+
+    // Position corners (will be updated in resizeEvent)
+    updateCornerPositions();
 }
 
 void MainWindow::updateCornerPositions()
 {
-    // Phase 3: Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->updateCornerPositions();
+    if (m_bottomLeftCorner && m_bottomRightCorner) {
+        // Position bottom-left corner
+        m_bottomLeftCorner->move(4, height() - 16);
+
+        // Position bottom-right corner
+        m_bottomRightCorner->move(width() - 16, height() - 16);
     }
 }
 
 void MainWindow::createResizeEdges()
 {
-    // Phase 3: Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->setupResizeEdges();
-    }
+    // Create left edge resize indicator
+    m_leftEdgeIndicator = new QWidget(this);
+    m_leftEdgeIndicator->setFixedSize(6, 150); // Thicker vertical line
+    m_leftEdgeIndicator->setStyleSheet(
+        "QWidget {"
+        "  background-color: #484F58;"
+        "  border: none;"
+        "  border-radius: 1px;"
+        "}"
+        "QWidget:hover {"
+        "  background-color: #0c7ff2;"
+        "}"
+    );
+    m_leftEdgeIndicator->setCursor(Qt::SizeHorCursor);
+    m_leftEdgeIndicator->setToolTip("Drag to resize window width");
+    m_leftEdgeIndicator->installEventFilter(this);
+
+    // Create right edge resize indicator
+    m_rightEdgeIndicator = new QWidget(this);
+    m_rightEdgeIndicator->setFixedSize(6, 150); // Thicker vertical line
+    m_rightEdgeIndicator->setStyleSheet(
+        "QWidget {"
+        "  background-color: #484F58;"
+        "  border: none;"
+        "  border-radius: 1px;"
+        "}"
+        "QWidget:hover {"
+        "  background-color: #0c7ff2;"
+        "}"
+    );
+    m_rightEdgeIndicator->setCursor(Qt::SizeHorCursor);
+    m_rightEdgeIndicator->setToolTip("Drag to resize window width");
+    m_rightEdgeIndicator->installEventFilter(this);
+
+    // Create bottom edge resize indicator
+    m_bottomEdgeIndicator = new QWidget(this);
+    m_bottomEdgeIndicator->setFixedSize(150, 6); // Thicker horizontal line
+    m_bottomEdgeIndicator->setStyleSheet(
+        "QWidget {"
+        "  background-color: #484F58;"
+        "  border: none;"
+        "  border-radius: 1px;"
+        "}"
+        "QWidget:hover {"
+        "  background-color: #0c7ff2;"
+        "}"
+    );
+    m_bottomEdgeIndicator->setCursor(Qt::SizeVerCursor);
+    m_bottomEdgeIndicator->setToolTip("Drag to resize window height");
+    m_bottomEdgeIndicator->installEventFilter(this);
+
+    // Position edges (will be updated in resizeEvent)
+    updateEdgePositions();
 }
 
 void MainWindow::updateEdgePositions()
 {
-    // Phase 3: Delegate to WindowManager
-    if (m_windowManager) {
-        m_windowManager->updateEdgePositions();
+    if (m_leftEdgeIndicator && m_rightEdgeIndicator && m_bottomEdgeIndicator) {
+        // Position left edge indicator (centered vertically on left edge)
+        int leftY = (height() - m_leftEdgeIndicator->height()) / 2;
+        m_leftEdgeIndicator->move(1, leftY);
+
+        // Position right edge indicator (centered vertically on right edge)
+        int rightY = (height() - m_rightEdgeIndicator->height()) / 2;
+        m_rightEdgeIndicator->move(width() - 7, rightY);
+
+        // Position bottom edge indicator (centered horizontally on bottom edge)
+        int bottomX = (width() - m_bottomEdgeIndicator->width()) / 2;
+        m_bottomEdgeIndicator->move(bottomX, height() - 7);
     }
 }
 
 void MainWindow::applyGlobalFontSize()
 {
-    // Phase 3: Delegate to TabManager
-    if (m_tabManager) {
-        // TabManager handles font application to all tabs
-        m_tabManager->applyGlobalFontSize(14); // Default font size
+    // Apply global font size to all tabs
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+        if (worksheet) {
+            // Set font size directly using pixel size
+            QFont editorFont = worksheet->getEditor()->font();
+            QFont resultsFont = worksheet->getResults()->font();
+
+            editorFont.setPixelSize(m_globalFontSize);
+            resultsFont.setPixelSize(m_globalFontSize);
+
+            worksheet->getEditor()->setFont(editorFont);
+            worksheet->getResults()->setFont(resultsFont);
+
+            // Update line number areas by calling the existing methods
+            worksheet->getEditor()->updateLineNumberAreaWidth();
+            worksheet->getResults()->updateLineNumberAreaWidth();
+        }
     }
 }
 
 void MainWindow::increaseFontSize()
 {
-    // Phase 3: Delegate to TabManager
-    if (m_tabManager) {
-        m_tabManager->increaseFontSize();
+    logDebug("MainWindow::increaseFontSize() called");
+
+    // Increase global font size
+    if (m_globalFontSize < 32) { // Maximum pixel size
+        m_globalFontSize++;
+        logDebug(QString("Global font size increased to %1").arg(m_globalFontSize));
+        applyGlobalFontSize();
     }
 }
 
 void MainWindow::decreaseFontSize()
 {
-    // Phase 3: Delegate to TabManager
-    if (m_tabManager) {
-        m_tabManager->decreaseFontSize();
+    logDebug("MainWindow::decreaseFontSize() called");
+
+    // Decrease global font size
+    if (m_globalFontSize > 8) { // Minimum pixel size
+        m_globalFontSize--;
+        logDebug(QString("Global font size decreased to %1").arg(m_globalFontSize));
+        applyGlobalFontSize();
     }
 }
 
 void MainWindow::resetFontSize()
 {
-    // Phase 3: Delegate to TabManager
-    if (m_tabManager) {
-        m_tabManager->resetFontSize();
-    }
+    logDebug("MainWindow::resetFontSize() called");
+
+    // Reset global font size to default
+    m_globalFontSize = 17; // Default font size (15 base + 2 for pixel adjustment)
+    logDebug(QString("Global font size reset to %1").arg(m_globalFontSize));
+    applyGlobalFontSize();
 }
 
 void MainWindow::selectCurrentLine()
@@ -1845,35 +2584,97 @@ QString MainWindow::getTabName(int index) const
 
 void MainWindow::navigateToSheet(const QString &sheetName, int lineNumber, int cursorPosition)
 {
-    // Phase 3: Delegate to CrossSheetNavigator
-    if (m_crossSheetNavigator) {
-        m_crossSheetNavigator->navigateToSheet(sheetName, lineNumber, cursorPosition);
+    LOG_DEBUG(QString("=== MainWindow::navigateToSheet ==="));
+    LOG_DEBUG(QString("  Target: sheet='%1', line=%2, position=%3")
+              .arg(sheetName).arg(lineNumber).arg(cursorPosition));
+
+    // Find the target sheet
+    WorksheetWidget *targetSheet = getSheetByName(sheetName);
+    if (!targetSheet) {
+        LOG_DEBUG(QString("  Sheet '%1' not found").arg(sheetName));
+        return;
     }
+
+    // Switch to the target tab
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        if (m_tabWidget->widget(i) == targetSheet) {
+            LOG_DEBUG(QString("  Switching to tab %1").arg(i));
+            m_tabWidget->setCurrentIndex(i);
+            break;
+        }
+    }
+
+    // Position the cursor at the specified line and position
+    class ExpressionEditor *editor = targetSheet->getEditor();
+    if (editor) {
+        // Move to the specified line
+        QTextCursor cursor = editor->textCursor();
+        QTextBlock targetBlock = editor->document()->findBlockByNumber(lineNumber - 1); // Convert 1-based to 0-based
+
+        if (targetBlock.isValid()) {
+            cursor.setPosition(targetBlock.position());
+
+            // If a specific cursor position is specified, move to that position within the line
+            if (cursorPosition >= 0) {
+                int blockPosition = targetBlock.position();
+                int targetPosition = blockPosition + qMin(cursorPosition, targetBlock.length() - 1);
+                cursor.setPosition(targetPosition);
+                LOG_DEBUG(QString("  Positioned cursor at line %1, position %2 (absolute position %3)")
+                          .arg(lineNumber).arg(cursorPosition).arg(targetPosition));
+            } else {
+                LOG_DEBUG(QString("  Positioned cursor at line %1, start of line").arg(lineNumber));
+            }
+
+            editor->setTextCursor(cursor);
+            editor->setFocus(); // Give focus to the editor so highlighting works
+        } else {
+            LOG_DEBUG(QString("  Line %1 not found in target sheet").arg(lineNumber));
+        }
+    }
+
+    LOG_DEBUG(QString("=== END MainWindow::navigateToSheet ==="));
 }
 
 void MainWindow::saveNavigationHistory(const QString &sheetName, int lineNumber, int cursorPosition)
 {
-    // Phase 3: Delegate to CrossSheetNavigator
-    if (m_crossSheetNavigator) {
-        m_crossSheetNavigator->saveNavigationHistory(sheetName, lineNumber, cursorPosition);
-    }
+    LOG_DEBUG(QString("=== MainWindow::saveNavigationHistory ==="));
+    LOG_DEBUG(QString("  Saving: sheet='%1', line=%2, position=%3")
+              .arg(sheetName).arg(lineNumber).arg(cursorPosition));
+
+    m_navigationHistory.sheetName = sheetName;
+    m_navigationHistory.lineNumber = lineNumber;
+    m_navigationHistory.cursorPosition = cursorPosition;
+    m_hasNavigationHistory = true;
+
+    LOG_DEBUG(QString("=== END MainWindow::saveNavigationHistory ==="));
 }
 
 bool MainWindow::hasNavigationHistory() const
 {
-    // Phase 3: Delegate to CrossSheetNavigator
-    if (m_crossSheetNavigator) {
-        return m_crossSheetNavigator->hasNavigationHistory();
-    }
-    return false;
+    return m_hasNavigationHistory;
 }
 
 void MainWindow::returnToPreviousLocation()
 {
-    // Phase 3: Delegate to CrossSheetNavigator
-    if (m_crossSheetNavigator) {
-        m_crossSheetNavigator->returnToPreviousLocation();
+    LOG_DEBUG(QString("=== MainWindow::returnToPreviousLocation ==="));
+
+    if (!m_hasNavigationHistory) {
+        LOG_DEBUG("  No navigation history available");
+        return;
     }
+
+    LOG_DEBUG(QString("  Returning to: sheet='%1', line=%2, position=%3")
+              .arg(m_navigationHistory.sheetName)
+              .arg(m_navigationHistory.lineNumber)
+              .arg(m_navigationHistory.cursorPosition));
+
+    // Navigate back to the saved location
+    navigateToSheet(m_navigationHistory.sheetName, m_navigationHistory.lineNumber, m_navigationHistory.cursorPosition);
+
+    // Clear navigation history after use
+    m_hasNavigationHistory = false;
+
+    LOG_DEBUG(QString("=== END MainWindow::returnToPreviousLocation ==="));
 }
 
 void MainWindow::setupCrossSheetSupport(WorksheetWidget *worksheet)
@@ -2312,63 +3113,4 @@ QSet<QString> MainWindow::getReferencedSheets(const QString &sheetName) const
     }
 
     return referencedSheets;
-}
-
-// Phase 3: Manager initialization with dependency injection
-void MainWindow::initializeManagers()
-{
-    LOG_DEBUG("MainWindow: Initializing manager classes with dependency injection");
-    
-    // Create managers in dependency order (TabManager first, then FileManager)
-    m_tabManager = new TabManager(m_tabWidget, m_settings, this);
-    m_fileManager = new FileManager(m_tabWidget, m_tabManager, m_settings, this);
-    m_crossSheetNavigator = new CrossSheetNavigator(m_tabManager, this);
-    m_windowManager = new WindowManager(this, m_settings, this);
-    
-    // Connect manager signals to MainWindow slots
-    connect(m_fileManager, &FileManager::fileStateChanged, 
-            this, [this](bool hasUnsavedChanges) {
-                // Update window title to show modified state
-                QString title = "CalcForge";
-                if (hasUnsavedChanges) {
-                    title += " *";
-                }
-                setWindowTitle(title);
-            });
-    
-    connect(m_fileManager, &FileManager::currentFileChanged, 
-            this, [this](const QString& filePath) {
-                LOG_DEBUG("MainWindow: Current file changed to " + filePath);
-            });
-    
-    connect(m_tabManager, &TabManager::currentTabChanged,
-            this, [this](int index) {
-                LOG_DEBUG("MainWindow: Current tab changed to index " + QString::number(index));
-            });
-    
-    connect(m_crossSheetNavigator, &CrossSheetNavigator::navigationRequested,
-            this, [this](const QString& sheetName, int lineNumber, int cursorPosition) {
-                LOG_DEBUG(QString("MainWindow: Navigation requested to sheet %1, line %2")
-                         .arg(sheetName).arg(lineNumber));
-            });
-    
-    // Connect TabManager's worksheet setup signal to setup cross-sheet support
-    connect(m_tabManager, &TabManager::worksheetNeedsSetup,
-            this, [this](WorksheetWidget* worksheet, const QString& name) {
-                setupCrossSheetSupport(worksheet);
-                LOG_DEBUG("MainWindow: Cross-sheet support setup for worksheet '" + name + "'");
-            });
-    
-    // Initialize window manager components
-    m_windowManager->setupResizeCorners();
-    m_windowManager->setupResizeEdges();
-    m_windowManager->restoreWindowState();
-    
-    // Load initial worksheets through FileManager
-    m_fileManager->loadWorksheets();
-    
-    // Fix any existing tab names to handle & characters properly
-    m_tabManager->fixExistingTabNames();
-    
-    LOG_DEBUG("MainWindow: Manager initialization completed");
 }
