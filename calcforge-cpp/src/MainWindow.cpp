@@ -9,6 +9,7 @@
 #include "LineChangeDetector.h"
 #include "HelpDialog.h"
 #include "Logger.h"
+#include "CustomTabWidget.h"
 
 // Phase 3: Manager classes
 #include "FileManager.h"
@@ -35,6 +36,7 @@
 #include <QKeyEvent>
 #include <QTextBlock>
 #include <QInputDialog>
+#include <QDialog>
 #include <QLineEdit>
 #include <QTabBar>
 #include <QPainter>
@@ -93,6 +95,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_tabManager(nullptr)
     , m_crossSheetNavigator(nullptr)
     , m_windowManager(nullptr)
+    , m_isAlwaysOnTop(false)
 {
     // Initialize settings
     m_settings = new QSettings("CalcForge", "CalcForge", this);
@@ -469,8 +472,8 @@ void MainWindow::setupUI()
     tabRowLayout->setContentsMargins(0, 0, 0, 0);
     tabRowLayout->setSpacing(0);
 
-    // Create tab widget with custom styling (no separate tab bar widget)
-    m_tabWidget = new QTabWidget(this);
+    // Create custom tab widget with ampersand handling
+    m_tabWidget = new CustomTabWidget(this);
     m_tabWidget->setTabsClosable(false); // We'll create custom close buttons
     m_tabWidget->setMovable(true);
 
@@ -526,15 +529,20 @@ void MainWindow::setupUI()
         // Force close buttons to be visible and styled
         tabBar->setTabsClosable(true);
         // Configure tab bar for proper & character display
-        tabBar->setUsesScrollButtons(false);  
+        tabBar->setUsesScrollButtons(false);
         tabBar->setAutoHide(false);
         // Disable tab text eliding and try to preserve & characters
         tabBar->setElideMode(Qt::ElideNone);
-        // Try to disable mnemonics by setting a property
+        // More aggressive mnemonic disabling
         tabBar->setProperty("_q_no_mnemonic", true);
+        tabBar->setAttribute(Qt::WA_KeyboardFocusChange, false);
+        tabBar->setFocusPolicy(Qt::NoFocus);
+        // Try to disable mnemonics at the widget level
+        tabBar->setAttribute(Qt::WA_MacShowFocusRect, false);
+        tabBar->setProperty("showShortcutUnderline", false);
     }
 
-    connect(m_tabWidget, &QTabWidget::tabBarDoubleClicked, this, &MainWindow::renameTab);
+    // Note: Tab rename will be connected after TabManager is created in Phase 3
     connect(m_tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
 
     // Create a container for the tab bar
@@ -700,17 +708,30 @@ void MainWindow::renameTab(int index)
     }
 
     QString currentName = m_tabWidget->tabText(index);
+    // Un-escape ampersands to get the original name for the dialog
+    currentName.replace("&&", "&");
 
     bool ok;
-    QString newName = QInputDialog::getText(this,
-                                          "Rename Sheet",
-                                          "New name:",
-                                          QLineEdit::Normal,
-                                          currentName,
-                                          &ok);
+
+    // Create input dialog with proper flags to appear above always-on-top window
+    QInputDialog dialog(this);
+    dialog.setWindowTitle("Rename Sheet");
+    dialog.setLabelText("New name:");
+    dialog.setTextValue(currentName);
+    dialog.setInputMode(QInputDialog::TextInput);
+
+    // Set window flags to ensure dialog appears above always-on-top parent
+    dialog.setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+
+    // Show dialog and get result
+    ok = (dialog.exec() == QDialog::Accepted);
+    QString newName = ok ? dialog.textValue() : QString();
 
     if (ok && !newName.isEmpty() && newName != currentName) {
-        m_tabWidget->setTabText(index, newName);
+        // Escape ampersands to prevent mnemonic interpretation
+        QString escapedNewName = newName;
+        escapedNewName.replace("&", "&&");
+        m_tabWidget->setTabText(index, escapedNewName);
 
         // Mark as modified if needed
         WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(index));
@@ -1366,7 +1387,9 @@ void MainWindow::saveWorksheets()
 
     // Collect data from all tabs in their current order
     for (int i = 0; i < m_tabWidget->count(); ++i) {
+        // Get unescaped tab name
         QString tabName = m_tabWidget->tabText(i);
+        tabName.replace("&&", "&");  // Un-escape ampersands for saving
         WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
 
         if (worksheet) {
@@ -1412,7 +1435,9 @@ bool MainWindow::saveWorksheetsToFile(const QString &filePath)
 
     // Collect data from all tabs in their current order
     for (int i = 0; i < m_tabWidget->count(); ++i) {
+        // Get unescaped tab name
         QString tabName = m_tabWidget->tabText(i);
+        tabName.replace("&&", "&");  // Un-escape ampersands for saving
         WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
 
         if (worksheet) {
@@ -1472,18 +1497,7 @@ bool MainWindow::saveWorksheetsToFile(const QString &filePath)
 
 void MainWindow::toggleAlwaysOnTop(bool enabled)
 {
-#ifdef Q_OS_WIN
-    // Use Windows API directly to avoid Qt flicker
-    HWND hwnd = reinterpret_cast<HWND>(winId());
-    if (enabled) {
-        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-        qDebug() << "Always on top enabled (Windows API)";
-    } else {
-        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-        qDebug() << "Always on top disabled (Windows API)";
-    }
-#else
-    // Fallback to Qt method for other platforms
+    // Use Qt's WindowStaysOnTopHint instead of Windows API for better dialog compatibility
     Qt::WindowFlags flags = windowFlags();
 
     if (enabled) {
@@ -1495,8 +1509,23 @@ void MainWindow::toggleAlwaysOnTop(bool enabled)
     }
 
     setWindowFlags(flags);
-    show();
-#endif
+    show(); // Need to show again after changing flags
+
+    // Store the state for dialog handling
+    m_isAlwaysOnTop = enabled;
+}
+
+void MainWindow::temporarilyDisableAlwaysOnTop()
+{
+    // Don't change window flags - this causes flicker
+    // Instead, we'll ensure dialogs have the correct parent and flags
+    qDebug() << "Dialog about to show - keeping always on top active";
+}
+
+void MainWindow::restoreAlwaysOnTop()
+{
+    // No need to restore since we didn't change anything
+    qDebug() << "Dialog closed - always on top still active";
 }
 
 void MainWindow::restoreWindowState()
@@ -2324,7 +2353,10 @@ void MainWindow::initializeManagers()
     m_fileManager = new FileManager(m_tabWidget, m_tabManager, m_settings, this);
     m_crossSheetNavigator = new CrossSheetNavigator(m_tabManager, this);
     m_windowManager = new WindowManager(this, m_settings, this);
-    
+
+    // Connect tab rename to MainWindow method (handles always-on-top properly)
+    connect(m_tabWidget, &QTabWidget::tabBarDoubleClicked, this, &MainWindow::renameTab);
+
     // Connect manager signals to MainWindow slots
     connect(m_fileManager, &FileManager::fileStateChanged, 
             this, [this](bool hasUnsavedChanges) {
@@ -2336,10 +2368,12 @@ void MainWindow::initializeManagers()
                 setWindowTitle(title);
             });
     
-    connect(m_fileManager, &FileManager::currentFileChanged, 
+    connect(m_fileManager, &FileManager::currentFileChanged,
             this, [this](const QString& filePath) {
                 LOG_DEBUG("MainWindow: Current file changed to " + filePath);
             });
+
+    // Note: FileManager dialog signals removed - using direct dialog flags instead
     
     connect(m_tabManager, &TabManager::currentTabChanged,
             this, [this](int index) {
@@ -2367,8 +2401,9 @@ void MainWindow::initializeManagers()
     // Load initial worksheets through FileManager
     m_fileManager->loadWorksheets();
     
-    // Fix any existing tab names to handle & characters properly
-    m_tabManager->fixExistingTabNames();
-    
     LOG_DEBUG("MainWindow: Manager initialization completed");
 }
+ 
+ 
+ 
+ 

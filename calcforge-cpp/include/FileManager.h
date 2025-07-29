@@ -50,6 +50,8 @@ signals:
     void fileStateChanged(bool hasUnsavedChanges);
     void currentFileChanged(const QString& filePath);
     void recentFilesChanged(const QStringList& recentFiles);
+    void requestTemporaryDisableAlwaysOnTop();
+    void requestRestoreAlwaysOnTop();
 
 private slots:
     void onWorksheetModified();

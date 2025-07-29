@@ -71,5 +71,8 @@ if %EXITCODE% NEQ 0 (
 )
 
 echo.
-echo Press any key to continue...
-pause > nul
+echo CalcForge session ended.
+echo.
+REM Uncomment the next line if you want to keep the command prompt open:
+REM pause
+REM Command prompt will close automatically

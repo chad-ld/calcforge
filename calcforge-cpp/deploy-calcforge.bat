@@ -27,7 +27,6 @@ windeployqt --release --no-translations --no-system-d3d-compiler --no-opengl-sw 
 if %ERRORLEVEL% neq 0 (
     echo ERROR: windeployqt failed!
     echo Make sure Qt6 is in your PATH.
-    pause
     exit /b 1
 )
 
@@ -44,11 +43,6 @@ echo Portable ZIP package created: deploy\CalcForge-Portable.zip
 echo You can now run CalcForge.exe from that folder without needing Qt in PATH.
 echo.
 
-set /p run="Run the deployed version? (y/n): "
-if /i "%run%"=="y" (
-    echo.
-    echo Running deployed CalcForge...
-    deploy\CalcForge\CalcForge.exe
-)
-
-pause
+echo.
+echo To run the deployed version: deploy\CalcForge\CalcForge.exe
+echo Deployment complete!

@@ -15,6 +15,7 @@
 #include <QSplitter>
 #include <QLabel>
 #include <QShortcut>
+#include "CustomTabWidget.h"
 
 class WorksheetWidget;
 struct LineChange;
@@ -70,6 +71,10 @@ private slots:
     void showLoadDropdown();
     void showSaveDropdown();
     void toggleAlwaysOnTop(bool enabled);
+
+    // Helper methods for dialog handling with always-on-top
+    void temporarilyDisableAlwaysOnTop();
+    void restoreAlwaysOnTop();
 
 private:
     void setupUI();
@@ -146,7 +151,7 @@ public:
     QWidget *m_centralWidget;
     QVBoxLayout *m_mainLayout;
     QHBoxLayout *m_topLayout;
-    QTabWidget *m_tabWidget;
+    CustomTabWidget *m_tabWidget;
     
     // Top bar controls
     QPushButton *m_addButton;
@@ -167,6 +172,9 @@ public:
     
     // Settings
     QSettings *m_settings;
+
+    // Always on top state tracking
+    bool m_isAlwaysOnTop;
     QByteArray m_splitterState;
 
     // Global font size management

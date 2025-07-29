@@ -10,6 +10,9 @@
 #include <QHBoxLayout>
 #include <QTabBar>
 
+// Forward declaration to avoid circular include
+class MainWindow;
+
 TabManager::TabManager(QTabWidget* tabWidget, QSettings* settings, QObject* parent)
     : QObject(parent)
     , m_tabWidget(tabWidget)
@@ -47,12 +50,12 @@ CalcForgeResult<int> TabManager::addTab(const QString& name)
     // Setup the worksheet
     setupWorksheetWidget(worksheet, tabName);
     
-    // Add to tab widget - try rich text format to bypass mnemonics
-    QString richTextName = QString("<span>%1</span>").arg(tabName.toHtmlEscaped());
-    int index = m_tabWidget->addTab(worksheet, richTextName);
-    
-    // Store original name in map for accurate retrieval
-    m_originalTabNames[index] = tabName;
+    // Add to tab widget - escape ampersands to prevent mnemonic interpretation
+    QString escapedTabName = tabName;
+    escapedTabName.replace("&", "&&");  // Escape single & to && for proper display
+    int index = m_tabWidget->addTab(worksheet, escapedTabName);
+
+    LOG_DEBUG(QString("TabManager: Added tab - Original: '%1', Escaped: '%2'").arg(tabName).arg(escapedTabName));
     
     // Setup custom close button for this tab
     setupCustomCloseButton(index);
@@ -86,20 +89,6 @@ CalcForgeResult<bool> TabManager::closeTab(int index)
     // Remove the tab
     m_tabWidget->removeTab(index);
     
-    // Clean up original name mapping
-    m_originalTabNames.remove(index);
-    // Shift indices down for remaining tabs
-    QMap<int, QString> newMapping;
-    for (auto it = m_originalTabNames.begin(); it != m_originalTabNames.end(); ++it) {
-        int oldIndex = it.key();
-        if (oldIndex > index) {
-            newMapping[oldIndex - 1] = it.value();
-        } else {
-            newMapping[oldIndex] = it.value();
-        }
-    }
-    m_originalTabNames = newMapping;
-    
     // Delete the widget
     if (worksheet) {
         worksheet->deleteLater();
@@ -121,15 +110,17 @@ CalcForgeResult<bool> TabManager::renameTab(int index, const QString& newName)
     QString finalName = newName;
     
     if (finalName.isEmpty()) {
-        // Show input dialog
+        // Show input dialog with proper parent for Always on Top compatibility
         bool ok;
+        QWidget* parentWidget = qobject_cast<QWidget*>(parent());
         finalName = QInputDialog::getText(
-            nullptr,
+            parentWidget,  // Use proper parent to ensure dialog appears above main window
             "Rename Tab",
             "Enter new tab name:",
             QLineEdit::Normal,
             currentName,  // Use original name in dialog
-            &ok
+            &ok,
+            Qt::Dialog | Qt::WindowStaysOnTopHint  // Ensure dialog stays on top
         );
         
         if (!ok || finalName.isEmpty()) {
@@ -137,21 +128,19 @@ CalcForgeResult<bool> TabManager::renameTab(int index, const QString& newName)
         }
     }
     
-    // Check for duplicate names
+    // Check for duplicate names (compare unescaped names)
     for (int i = 0; i < m_tabWidget->count(); ++i) {
-        if (i != index && m_tabWidget->tabText(i) == finalName) {
+        if (i != index && getTabName(i) == finalName) {
             return CalcForgeResult<bool>::error("Tab name '" + finalName + "' already exists");
         }
     }
     
-    // Apply the rename - try rich text format to bypass mnemonics
-    QString richTextName = QString("<span>%1</span>").arg(finalName.toHtmlEscaped());
-    m_tabWidget->setTabText(index, richTextName);
-    
-    // Store original name in map for accurate retrieval
-    m_originalTabNames[index] = finalName;
-    
-    LOG_DEBUG(QString("TabManager: Renamed tab - Original: '%1', RichText: '%2'").arg(finalName).arg(richTextName));
+    // Apply the rename - escape ampersands to prevent mnemonic interpretation
+    QString escapedFinalName = finalName;
+    escapedFinalName.replace("&", "&&");  // Escape single & to && for proper display
+    m_tabWidget->setTabText(index, escapedFinalName);
+
+    LOG_DEBUG(QString("TabManager: Renamed tab - Original: '%1', Escaped: '%2'").arg(finalName).arg(escapedFinalName));
     
     emit tabRenamed(index, currentName, finalName);
     LOG_DEBUG("TabManager: Renamed tab from '" + currentName + "' to '" + finalName + "'");
@@ -189,33 +178,13 @@ int TabManager::getTabCount() const
 QString TabManager::getTabName(int index) const
 {
     if (isValidTabIndex(index)) {
-        // Return original name from map if available
-        if (m_originalTabNames.contains(index)) {
-            return m_originalTabNames[index];
-        }
-        
-        // Fallback: extract text from rich text or handle escaped text
         QString displayText = m_tabWidget->tabText(index);
-        
-        // If it's rich text, try to extract plain text
-        if (displayText.contains("<span>") && displayText.contains("</span>")) {
-            // Extract text between <span> tags
-            int start = displayText.indexOf("<span>") + 6;
-            int end = displayText.indexOf("</span>");
-            if (start > 5 && end > start) {
-                QString extracted = displayText.mid(start, end - start);
-                // Convert HTML entities back to plain text
-                extracted.replace("&amp;", "&");
-                extracted.replace("&lt;", "<");
-                extracted.replace("&gt;", ">");
-                return extracted;
-            }
-        }
-        
-        // Fallback: un-escape display text for legacy tabs
-        QString unescaped = displayText;
-        unescaped.replace("&&", "&");
-        return unescaped;
+        // Un-escape the ampersands to get the original name
+        // Qt stores && as escaped ampersands, so we need to convert back to single &
+        QString unescapedText = displayText;
+        unescapedText.replace("&&", "&");
+        LOG_DEBUG(QString("TabManager: getTabName - Escaped: '%1', Unescaped: '%2'").arg(displayText).arg(unescapedText));
+        return unescapedText;
     }
     return QString();
 }
@@ -378,9 +347,9 @@ QString TabManager::generateUniqueTabName(const QString& baseName) const
         name = baseName + " " + QString::number(m_nextTabNumber);
         nameExists = false;
         
-        // Check if name already exists
+        // Check if name already exists (compare unescaped names)
         for (int i = 0; i < m_tabWidget->count(); ++i) {
-            if (m_tabWidget->tabText(i) == name) {
+            if (getTabName(i) == name) {
                 nameExists = true;
                 break;
             }
@@ -441,19 +410,4 @@ void TabManager::setupCustomCloseButton(int index)
     LOG_DEBUG("TabManager: Setup custom close button for tab index " + QString::number(index));
 }
 
-void TabManager::fixExistingTabNames()
-{
-    // Fix existing tabs that were created before the & escaping system
-    for (int i = 0; i < m_tabWidget->count(); ++i) {
-        if (!m_originalTabNames.contains(i)) {
-            // This tab wasn't created with the new system
-            QString currentText = m_tabWidget->tabText(i);
-            
-            // Convert to rich text format to handle & characters properly
-            QString richTextName = QString("<span>%1</span>").arg(currentText.toHtmlEscaped());
-            m_tabWidget->setTabText(i, richTextName);
-            m_originalTabNames[i] = currentText; // Store original
-            LOG_DEBUG("TabManager: Fixed tab " + QString::number(i) + " with rich text: " + currentText);
-        }
-    }
-}
+ 

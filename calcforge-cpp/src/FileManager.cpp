@@ -4,6 +4,7 @@
 #include "Logger.h"
 
 #include <QFileDialog>
+#include <QDialog>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -39,12 +40,25 @@ CalcForgeResult<bool> FileManager::loadWorksheetFile(const QString& filePath)
             QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) :
             QDir(m_currentFile).absolutePath();
             
-        path = QFileDialog::getOpenFileName(
-            qobject_cast<QWidget*>(parent()),  // Use proper parent widget
-            "Load CalcForge Worksheet",
-            defaultDir,
-            "CalcForge Files (*.json *.cf);;All Files (*)"
-        );
+        QWidget* parentWidget = qobject_cast<QWidget*>(parent());
+
+        // Create file dialog with proper flags to appear above always-on-top parent
+        QFileDialog dialog(parentWidget);
+        dialog.setWindowTitle("Load CalcForge Worksheet");
+        dialog.setDirectory(defaultDir);
+        dialog.setNameFilter("CalcForge Files (*.json *.cf);;All Files (*)");
+        dialog.setFileMode(QFileDialog::ExistingFile);
+        dialog.setAcceptMode(QFileDialog::AcceptOpen);
+
+        // Set window flags to ensure dialog appears above always-on-top parent
+        dialog.setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+
+        if (dialog.exec() == QDialog::Accepted) {
+            QStringList files = dialog.selectedFiles();
+            if (!files.isEmpty()) {
+                path = files.first();
+            }
+        }
         
         if (path.isEmpty()) {
             return CalcForgeResult<bool>::success(false); // User cancelled
@@ -100,12 +114,26 @@ CalcForgeResult<bool> FileManager::saveWorksheetFileAs()
         QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) :
         QDir(m_currentFile).absolutePath();
         
-    QString path = QFileDialog::getSaveFileName(
-        qobject_cast<QWidget*>(parent()),  // Use proper parent widget
-        "Save CalcForge Worksheet As",
-        defaultDir,
-        "CalcForge Files (*.json *.cf);;All Files (*)"
-    );
+    QWidget* parentWidget = qobject_cast<QWidget*>(parent());
+
+    // Create save dialog with proper flags to appear above always-on-top parent
+    QFileDialog dialog(parentWidget);
+    dialog.setWindowTitle("Save CalcForge Worksheet As");
+    dialog.setDirectory(defaultDir);
+    dialog.setNameFilter("CalcForge Files (*.json *.cf);;All Files (*)");
+    dialog.setFileMode(QFileDialog::AnyFile);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+
+    // Set window flags to ensure dialog appears above always-on-top parent
+    dialog.setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+
+    QString path;
+    if (dialog.exec() == QDialog::Accepted) {
+        QStringList files = dialog.selectedFiles();
+        if (!files.isEmpty()) {
+            path = files.first();
+        }
+    }
     
     if (path.isEmpty()) {
         return CalcForgeResult<bool>::success(false); // User cancelled
@@ -166,7 +194,19 @@ void FileManager::loadRecentFile(const QString& filePath)
         saveRecentFiles();
         emit recentFilesChanged(m_recentFiles);
         
-        QMessageBox::warning(nullptr, "Load Error", result.errorMessage());
+        QWidget* parentWidget = qobject_cast<QWidget*>(parent());
+
+        // Create message box with proper flags to appear above always-on-top parent
+        QMessageBox msgBox(parentWidget);
+        msgBox.setWindowTitle("Load Error");
+        msgBox.setText(result.errorMessage());
+        msgBox.setIcon(QMessageBox::Warning);
+        msgBox.setStandardButtons(QMessageBox::Ok);
+
+        // Set window flags to ensure dialog appears above always-on-top parent
+        msgBox.setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+
+        msgBox.exec();
     }
 }
 
@@ -292,7 +332,8 @@ bool FileManager::saveWorksheetsToFile(const QString& filePath)
         WorksheetWidget* worksheet = getWorksheetWidget(i);
         if (worksheet) {
             QJsonObject worksheetObj;
-            worksheetObj["name"] = m_tabWidget->tabText(i);
+            // Use TabManager to get the unescaped tab name
+            worksheetObj["name"] = m_tabManager->getTabName(i);
             worksheetObj["content"] = worksheet->getContent();
             worksheets.append(worksheetObj);
         }
@@ -423,4 +464,4 @@ void FileManager::connectWorksheetSignals(WorksheetWidget* worksheet)
                 this, &FileManager::onWorksheetModified);
         // Add other worksheet signals as needed
     }
-}
+} 

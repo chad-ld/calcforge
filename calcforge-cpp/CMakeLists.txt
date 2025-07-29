@@ -61,6 +61,7 @@ set(SOURCES
     src/AutoCompleteWidget.cpp
     src/HelpDialog.cpp
     src/RegexUtils.cpp
+    src/CustomTabWidget.cpp
     # Phase 2 refactoring: Manager classes
     src/FileManager.cpp
     src/TabManager.cpp  
@@ -94,6 +95,7 @@ set(HEADERS
     include/CalcForgeException.h
     include/RegexUtils.h
     include/ICalculator.h
+    include/CustomTabWidget.h
     # Phase 2 refactoring: Manager classes  
     include/FileManager.h
     include/TabManager.h

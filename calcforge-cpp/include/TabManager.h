@@ -4,7 +4,6 @@
 #include <QObject>
 #include <QTabWidget>
 #include <QSettings>
-#include <QMap>
 #include "CalcForgeResult.h"
 
 class WorksheetWidget;
@@ -52,9 +51,6 @@ public:
     
     // Font management for all tabs
     void applyGlobalFontSize(int fontSize);
-    
-    // Fix existing tabs to handle & characters properly
-    void fixExistingTabNames();
 
 signals:
     void tabAdded(int index, const QString& name);
@@ -86,7 +82,6 @@ private:
     // Internal state
     int m_currentFontSize;
     int m_nextTabNumber;
-    QMap<int, QString> m_originalTabNames;  // Map to store original tab names without escaping
 };
 
 #endif // TABMANAGER_H
