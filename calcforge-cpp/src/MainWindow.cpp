@@ -1838,7 +1838,7 @@ WorksheetWidget* MainWindow::getSheetByName(const QString &sheetName) const
 {
     // Search through all tabs for a matching sheet name (case-insensitive)
     for (int i = 0; i < m_tabWidget->count(); ++i) {
-        QString tabName = m_tabWidget->tabText(i);
+        QString tabName = m_tabManager->getTabName(i);
         if (tabName.compare(sheetName, Qt::CaseInsensitive) == 0) {
             return qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
         }
@@ -1850,7 +1850,7 @@ QString MainWindow::getCurrentSheetName() const
 {
     int currentIndex = m_tabWidget->currentIndex();
     if (currentIndex >= 0 && currentIndex < m_tabWidget->count()) {
-        return m_tabWidget->tabText(currentIndex);
+        return m_tabManager->getTabName(currentIndex);
     }
     return QString(); // No current sheet
 }
@@ -1872,7 +1872,7 @@ int MainWindow::getTabCount() const
 QString MainWindow::getTabName(int index) const
 {
     if (m_tabWidget && index >= 0 && index < m_tabWidget->count()) {
-        return m_tabWidget->tabText(index);
+        return m_tabManager->getTabName(index);
     }
     return QString();
 }
@@ -2081,7 +2081,7 @@ void MainWindow::onLineNumberingChanged(const QString &sheetName, const QList<Li
             continue;
         }
 
-        QString currentSheetName = m_tabWidget->tabText(i);
+        QString currentSheetName = m_tabManager->getTabName(i);
 
         // Skip the sheet that triggered the change
         if (currentSheetName.compare(sheetName, Qt::CaseInsensitive) == 0) {

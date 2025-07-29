@@ -7,6 +7,7 @@
 #include "LNReferenceAutoUpdater.h"
 #include "LineChangeDetector.h"
 #include "SyntaxHighlighter.h"
+#include "CustomTabWidget.h"
 #include "Logger.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -845,13 +846,13 @@ QString WorksheetWidget::getCurrentSheetName() const
     }
 
     if (parent) {
-        // Look for a QTabWidget in the parent
-        QTabWidget *tabWidget = parent->findChild<QTabWidget*>();
+        // Look for a CustomTabWidget in the parent
+        CustomTabWidget *tabWidget = parent->findChild<CustomTabWidget*>();
         if (tabWidget) {
             // Find the index of this worksheet
             for (int i = 0; i < tabWidget->count(); ++i) {
                 if (tabWidget->widget(i) == this) {
-                    return tabWidget->tabText(i);
+                    return tabWidget->tabText(i);  // CustomTabWidget returns unescaped text
                 }
             }
         }
