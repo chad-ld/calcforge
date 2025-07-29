@@ -114,16 +114,16 @@ void WindowManager::setupResizeEdges()
 void WindowManager::updateCornerPositions()
 {
     if (!m_mainWindow) return;
-    
+
     int width = m_mainWindow->width();
     int height = m_mainWindow->height();
-    
+
     if (m_bottomLeftCorner) {
-        m_bottomLeftCorner->move(0, height - 10);
+        m_bottomLeftCorner->move(0, height - 12);
     }
-    
+
     if (m_bottomRightCorner) {
-        m_bottomRightCorner->move(width - 10, height - 10);
+        m_bottomRightCorner->move(width - 12, height - 12);
     }
 }
 
@@ -288,22 +288,44 @@ bool WindowManager::isStayOnTop() const
 void WindowManager::createResizeCorners()
 {
     if (!m_mainWindow) return;
-    
-    // Create bottom-left corner
+
+    // Create bottom-left corner with visible blue square and hover effect
     m_bottomLeftCorner = new QWidget(m_mainWindow);
-    m_bottomLeftCorner->setFixedSize(10, 10);
-    m_bottomLeftCorner->setStyleSheet("background-color: transparent;");
+    m_bottomLeftCorner->setFixedSize(12, 12);
+    m_bottomLeftCorner->setStyleSheet(
+        "QWidget {"
+        "  background-color: #484F58;"
+        "  border: 1px solid #6B7280;"
+        "  border-radius: 2px;"
+        "}"
+        "QWidget:hover {"
+        "  background-color: #0c7ff2;"
+        "  border: 1px solid #0969DA;"
+        "}"
+    );
     m_bottomLeftCorner->setCursor(Qt::SizeBDiagCursor);
+    m_bottomLeftCorner->setToolTip("Drag to resize window");
     m_bottomLeftCorner->show();
-    
-    // Create bottom-right corner  
+
+    // Create bottom-right corner with visible blue square and hover effect
     m_bottomRightCorner = new QWidget(m_mainWindow);
-    m_bottomRightCorner->setFixedSize(10, 10);
-    m_bottomRightCorner->setStyleSheet("background-color: transparent;");
+    m_bottomRightCorner->setFixedSize(12, 12);
+    m_bottomRightCorner->setStyleSheet(
+        "QWidget {"
+        "  background-color: #484F58;"
+        "  border: 1px solid #6B7280;"
+        "  border-radius: 2px;"
+        "}"
+        "QWidget:hover {"
+        "  background-color: #0c7ff2;"
+        "  border: 1px solid #0969DA;"
+        "}"
+    );
     m_bottomRightCorner->setCursor(Qt::SizeFDiagCursor);
+    m_bottomRightCorner->setToolTip("Drag to resize window");
     m_bottomRightCorner->show();
-    
-    LOG_DEBUG("WindowManager: Created resize corners");
+
+    LOG_DEBUG("WindowManager: Created visible resize corners with hover effects");
 }
 
 void WindowManager::createResizeEdges()

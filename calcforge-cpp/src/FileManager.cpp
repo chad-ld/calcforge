@@ -1,5 +1,6 @@
 #include "FileManager.h"
 #include "WorksheetWidget.h"
+#include "ExpressionEditor.h"
 #include "TabManager.h"
 #include "MainWindow.h"
 #include "Logger.h"
@@ -13,6 +14,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QCoreApplication>
+#include <QTimer>
 
 FileManager::FileManager(QTabWidget* tabWidget, TabManager* tabManager, QSettings* settings, QObject* parent)
     : QObject(parent)
@@ -335,6 +337,18 @@ bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
                 LOG_DEBUG("FileManager: Triggered cross-sheet recalculation after loading worksheets");
             }
         }
+
+        // Ensure first tab is focused after loading
+        QTimer::singleShot(50, [this]() {
+            if (m_tabWidget && m_tabWidget->count() > 0) {
+                m_tabWidget->setCurrentIndex(0);
+                WorksheetWidget* firstWorksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
+                if (firstWorksheet) {
+                    firstWorksheet->getEditor()->setFocus();
+                    LOG_DEBUG("FileManager: Set focus to first tab after loading");
+                }
+            }
+        });
     }
 
     return true;
