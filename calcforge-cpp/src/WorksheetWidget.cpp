@@ -351,6 +351,7 @@ void WorksheetWidget::setContent(const QString &content)
 {
     // Set flag to disable auto-updates during content loading
     m_isLoadingContent = true;
+    LOG_DEBUG("WorksheetWidget::setContent - Set m_isLoadingContent = true");
 
     // Clear stored line values to prevent stale references
     if (m_calculationEngine) {
@@ -375,6 +376,7 @@ void WorksheetWidget::setContent(const QString &content)
 
     // Clear the loading flag
     m_isLoadingContent = false;
+    LOG_DEBUG("WorksheetWidget::setContent - Set m_isLoadingContent = false");
 
     // Trigger evaluation
     startEvaluationTimer();
@@ -613,26 +615,34 @@ void WorksheetWidget::onTextChanged()
 
         // Check for line insertions/deletions that affect cross-sheet references
         // Only emit signal if there are actual line number changes (not just modifications)
+        LOG_DEBUG(QString("Checking for cross-sheet line changes. isPasteOperation: %1").arg(isPasteOperation));
         if (!isPasteOperation) {
             LineChangeDetector changeDetector;
             QList<LineChange> changes = changeDetector.detectChanges(preprocessedOldLines, preprocessedNewLines);
+            LOG_DEBUG(QString("LineChangeDetector found %1 total changes").arg(changes.size()));
 
             // Check if any changes affect line numbering
             bool hasLineNumberChanges = false;
             for (const LineChange &change : changes) {
+                LOG_DEBUG(QString("Change type: %1 at line %2 (count: %3)").arg(change.type).arg(change.startLine).arg(change.count));
                 if (change.type == LineChange::Insertion || change.type == LineChange::Deletion) {
                     hasLineNumberChanges = true;
                     break;
                 }
             }
 
+            LOG_DEBUG(QString("Has line number changes: %1").arg(hasLineNumberChanges));
             if (hasLineNumberChanges) {
                 // Get the current sheet name to include in the signal
                 QString currentSheetName = getCurrentSheetName();
                 LOG_DEBUG(QString("Emitting lineNumberingChanged signal for sheet '%1' with %2 changes")
                          .arg(currentSheetName).arg(changes.size()));
                 emit lineNumberingChanged(currentSheetName, changes);
+            } else {
+                LOG_DEBUG("No line number changes detected - only modifications");
             }
+        } else {
+            LOG_DEBUG("Skipping cross-sheet line change detection due to paste operation");
         }
     }
 

@@ -1303,6 +1303,7 @@ void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &cont
 
     // Connect line numbering changes for cross-sheet LN auto-updates
     connect(worksheet, &WorksheetWidget::lineNumberingChanged, this, &MainWindow::onLineNumberingChanged);
+    LOG_DEBUG("MainWindow: Connected lineNumberingChanged signal for cross-sheet LN auto-updates");
 
     // Connect value changes for cross-sheet recalculation
     connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
@@ -1944,6 +1945,18 @@ void MainWindow::setupCrossSheetSupport(WorksheetWidget *worksheet, const QStrin
 
     engine->setCurrentSheetName(tabName);
     LOG_DEBUG(QString("setupCrossSheetSupport: Set up cross-sheet support for sheet: %1").arg(tabName));
+
+    // Disconnect any existing connections to prevent duplicates
+    disconnect(worksheet, &WorksheetWidget::lineNumberingChanged, this, &MainWindow::onLineNumberingChanged);
+    disconnect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+
+    // Connect MainWindow signals for cross-sheet LN auto-updates
+    connect(worksheet, &WorksheetWidget::lineNumberingChanged, this, &MainWindow::onLineNumberingChanged);
+    LOG_DEBUG("MainWindow: Connected lineNumberingChanged signal for cross-sheet LN auto-updates");
+
+    // Connect value changes for cross-sheet recalculation
+    connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
+    LOG_DEBUG("MainWindow: Connected valuesChanged signal for cross-sheet recalculation");
 }
 
 void MainWindow::highlightIncomingCrossSheetReferences(WorksheetWidget *targetSheet)
@@ -2072,6 +2085,7 @@ void MainWindow::recalculateAllWorksheets()
 
 void MainWindow::onLineNumberingChanged(const QString &sheetName, const QList<LineChange> &changes)
 {
+    LOG_DEBUG(QString("=== MainWindow::onLineNumberingChanged CALLED - sheet '%1', changes: %2 ===").arg(sheetName).arg(changes.size()));
     LOG_DEBUG(QString("=== Cross-Sheet LN Auto-Update triggered by sheet '%1' ===").arg(sheetName));
 
     // Update LN references in all OTHER worksheets that reference the changed sheet
@@ -2166,8 +2180,48 @@ bool MainWindow::updateCrossSheetReferences(WorksheetWidget *worksheet, const QS
 
     // If any references were updated, update the worksheet content
     if (anyUpdated) {
+        // Save cursor position and scroll position before updating content
+        ExpressionEditor* editor = worksheet->getEditor();
+        int savedCursorPosition = 0;
+        int savedLineNumber = 1;
+        int savedPositionInBlock = 0;
+        int savedVerticalScroll = 0;
+        int savedHorizontalScroll = 0;
+
+        if (editor) {
+            QTextCursor cursor = editor->textCursor();
+            savedCursorPosition = cursor.position();
+            savedLineNumber = cursor.blockNumber() + 1;
+            savedPositionInBlock = cursor.positionInBlock();
+
+            // Save scroll positions
+            savedVerticalScroll = editor->verticalScrollBar()->value();
+            savedHorizontalScroll = editor->horizontalScrollBar()->value();
+
+            LOG_DEBUG(QString("Saving cursor position: line %1, position in block %2, absolute position %3")
+                      .arg(savedLineNumber).arg(savedPositionInBlock).arg(savedCursorPosition));
+            LOG_DEBUG(QString("Saving scroll position: vertical %1, horizontal %2")
+                      .arg(savedVerticalScroll).arg(savedHorizontalScroll));
+        }
+
         QString updatedContent = lines.join('\n');
         worksheet->setContent(updatedContent);
+
+        // Restore cursor position and scroll position after updating content
+        if (editor) {
+            QTextCursor cursor = editor->textCursor();
+            cursor.setPosition(qMin(savedCursorPosition, editor->toPlainText().length()));
+            editor->setTextCursor(cursor);
+
+            // Restore scroll positions
+            editor->verticalScrollBar()->setValue(savedVerticalScroll);
+            editor->horizontalScrollBar()->setValue(savedHorizontalScroll);
+
+            LOG_DEBUG(QString("Restored cursor position to absolute position %1").arg(cursor.position()));
+            LOG_DEBUG(QString("Restored scroll position: vertical %1, horizontal %2")
+                      .arg(savedVerticalScroll).arg(savedHorizontalScroll));
+        }
+
         LOG_INFO(QString("Updated cross-sheet references in worksheet due to changes in sheet '%1'").arg(changedSheetName));
         return true;
     }

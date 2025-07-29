@@ -646,6 +646,7 @@ void ExpressionEditor::onTextChanged()
         }
     }
 
+    LOG_DEBUG("ExpressionEditor: Emitting contentChanged signal");
     emit contentChanged();
 }
 
