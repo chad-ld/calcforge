@@ -896,6 +896,7 @@ taskkill /F /IM CalcForge.exe
 2. **Test current state**: Verify functionality works
 3. **Make incremental changes**: Small, focused modifications
 4. **Build and test**: `.\build-clean.bat` → `.\run-calcforge.bat`
+5. **Wait for user confirmation**: Always wait for user to confirm they've tested the app before checking logs or results
 
 #### **Debug Logging**
 CalcForge includes comprehensive debug logging:
@@ -932,6 +933,7 @@ git push origin calcforge-cpp
 
 #### **⚠️ Important Git Guidelines**
 - **Always ask before pushing** to remote repository
+- **Wait for user testing confirmation** before checking logs or assuming success
 - **Test thoroughly** before committing
 - **Use descriptive commit messages** with technical details
 - **Add files selectively** - avoid `git add .`
