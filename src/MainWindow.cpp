@@ -146,23 +146,13 @@ MainWindow::MainWindow(QWidget *parent)
     // Restore window state
     restoreWindowState();
 
-    // Check if worksheets exist before creating initial tab to avoid flicker
-    QString appDir = QCoreApplication::applicationDirPath();
-    QString worksheetsPath = appDir + "/worksheets.json";
-    QString examplePath = appDir + "/example_worksheets.json";
+    // Load worksheets synchronously to avoid flicker, but defer calculations
+    if (m_fileManager) {
+        m_fileManager->loadWorksheets();
+    }
 
-    QFile worksheetsFile(worksheetsPath);
-    QFile exampleFile(examplePath);
-
-    if (worksheetsFile.exists() || exampleFile.exists()) {
-        // Worksheets exist - load them directly without creating initial tab
-        QTimer::singleShot(0, this, [this]() {
-            if (m_fileManager) {
-                m_fileManager->loadWorksheets();
-            }
-        });
-    } else {
-        // No worksheets exist - create initial tab immediately
+    // Ensure we have at least one tab
+    if (m_tabWidget->count() == 0) {
         createInitialTab();
     }
 

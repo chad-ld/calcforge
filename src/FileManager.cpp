@@ -425,35 +425,34 @@ bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
         }
     }
 
-    // Trigger cross-sheet recalculation after all worksheets are loaded
-    // This ensures cross-sheet references work correctly on startup
+    // Set focus to first tab immediately (no flicker)
     if (m_tabManager->getTabCount() > 0) {
-        // Get the MainWindow to trigger recalculation
-        QWidget* parent = qobject_cast<QWidget*>(this->parent());
-        while (parent && !qobject_cast<class MainWindow*>(parent)) {
-            parent = qobject_cast<QWidget*>(parent->parent());
+        m_tabWidget->setCurrentIndex(0);
+        WorksheetWidget* firstWorksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
+        if (firstWorksheet) {
+            firstWorksheet->getEditor()->setFocus();
+            LOG_DEBUG("FileManager: Set focus to first tab after loading");
         }
+    }
 
-        if (parent) {
-            class MainWindow* mainWindow = qobject_cast<class MainWindow*>(parent);
-            if (mainWindow) {
-                mainWindow->triggerCrossSheetRecalculation();
-                LOG_DEBUG("FileManager: Triggered cross-sheet recalculation after loading worksheets");
+    // Defer only the heavy calculations to avoid blocking startup
+    QTimer::singleShot(500, [this]() {
+        if (m_tabManager->getTabCount() > 0) {
+            // Get the MainWindow to trigger recalculation
+            QWidget* parent = qobject_cast<QWidget*>(this->parent());
+            while (parent && !qobject_cast<class MainWindow*>(parent)) {
+                parent = qobject_cast<QWidget*>(parent->parent());
             }
-        }
 
-        // Ensure first tab is focused after loading
-        QTimer::singleShot(50, [this]() {
-            if (m_tabWidget && m_tabWidget->count() > 0) {
-                m_tabWidget->setCurrentIndex(0);
-                WorksheetWidget* firstWorksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
-                if (firstWorksheet) {
-                    firstWorksheet->getEditor()->setFocus();
-                    LOG_DEBUG("FileManager: Set focus to first tab after loading");
+            if (parent) {
+                class MainWindow* mainWindow = qobject_cast<class MainWindow*>(parent);
+                if (mainWindow) {
+                    mainWindow->triggerCrossSheetRecalculation();
+                    LOG_DEBUG("FileManager: Triggered deferred cross-sheet recalculation");
                 }
             }
-        });
-    }
+        }
+    });
 
     // Clear loading flag - workspace changes after this point should be tracked
     m_isLoading = false;
