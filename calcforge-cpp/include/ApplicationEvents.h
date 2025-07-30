@@ -35,6 +35,7 @@ public:
     void emitTabAdded(int index, const QString& name);
     void emitTabClosed(int index, const QString& name);
     void emitTabRenamed(int index, const QString& oldName, const QString& newName);
+    void emitTabMoved(int from, int to);
     void emitCurrentTabChanged(int index);
     void emitTabSetupRequested(const QString& worksheetName);
     
@@ -62,6 +63,7 @@ signals:
     void tabAdded(int index, const QString& name);
     void tabClosed(int index, const QString& name);
     void tabRenamed(int index, const QString& oldName, const QString& newName);
+    void tabMoved(int from, int to);
     void currentTabChanged(int index);
     void tabSetupRequested(const QString& worksheetName);
     

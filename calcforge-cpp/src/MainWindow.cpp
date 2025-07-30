@@ -549,6 +549,11 @@ void MainWindow::setupUI()
     // Note: Tab rename will be connected after TabManager is created in Phase 3
     connect(m_tabWidget, &QTabWidget::currentChanged, this, &MainWindow::onTabChanged);
 
+    // Connect tab moved signal for change detection (signal is on QTabBar, not QTabWidget)
+    if (tabBar) {
+        connect(tabBar, &QTabBar::tabMoved, this, &MainWindow::onTabMoved);
+    }
+
     // Create a container for the tab bar
     QWidget *tabBarContainer = new QWidget(this);
     tabBarContainer->setStyleSheet("QWidget { background-color: transparent; }");
@@ -760,6 +765,22 @@ void MainWindow::onTabChanged(int index)
         //         LOG_DEBUG("onTabChanged: Triggered incoming cross-sheet highlighting");
         //     }
         // });
+    }
+}
+
+void MainWindow::onTabMoved(int from, int to)
+{
+    LOG_DEBUG(QString("MainWindow: Tab moved from index %1 to index %2").arg(from).arg(to));
+
+    // Tab reordering is a workspace change that should trigger save prompt
+    if (m_fileManager) {
+        m_fileManager->markAsModified();
+        LOG_DEBUG("MainWindow: Marked as modified due to tab reordering (workspace change)");
+    }
+
+    // Emit event for other components that might need to know about tab reordering
+    if (m_eventBus) {
+        m_eventBus->applicationEvents()->emitTabMoved(from, to);
     }
 }
 
@@ -1292,25 +1313,21 @@ void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &cont
                 onSplitterMoved(newState);
             });
 
-    // Connect line numbering changes to emit events
+    // Phase 4.1: Pure event-driven approach - only emit events, no direct method calls
     connect(worksheet, &WorksheetWidget::lineNumberingChanged,
             this, [this](const QString& sheetName, const QList<LineChange>& changes) {
                 if (m_eventBus) {
                     m_eventBus->worksheetEvents()->emitLineNumberingChanged(sheetName, changes);
                 }
-                onLineNumberingChanged(sheetName, changes);
             });
 
-    // Connect value changes to emit events
     connect(worksheet, &WorksheetWidget::valuesChanged,
             this, [this](const QString& sheetName) {
                 if (m_eventBus) {
                     m_eventBus->worksheetEvents()->emitValuesChanged(sheetName);
                 }
-                onValuesChanged(sheetName);
             });
 
-    // Connect content changes to emit events
     connect(worksheet, &WorksheetWidget::contentChanged,
             this, [this, sheetName]() {
                 if (m_eventBus) {
@@ -2456,6 +2473,23 @@ void MainWindow::initializeManagers()
             this, [this](const QString& sheetName, int lineNumber, int cursorPosition) {
                 LOG_DEBUG(QString("MainWindow: Navigation requested to sheet %1, line %2")
                          .arg(sheetName).arg(lineNumber));
+            });
+
+    // Phase 4.1: Subscribe to worksheet events instead of direct method calls
+    connect(m_eventBus->worksheetEvents(), &WorksheetEvents::lineNumberingChanged,
+            this, [this](const QString& sheetName, const QList<LineChange>& changes) {
+                onLineNumberingChanged(sheetName, changes);
+            });
+
+    connect(m_eventBus->worksheetEvents(), &WorksheetEvents::valuesChanged,
+            this, [this](const QString& sheetName) {
+                onValuesChanged(sheetName);
+            });
+
+    connect(m_eventBus->worksheetEvents(), &WorksheetEvents::crossSheetRecalculationRequested,
+            this, [this]() {
+                LOG_DEBUG("MainWindow: Cross-sheet recalculation requested via events");
+                triggerCrossSheetRecalculation();
             });
     
     // Connect to event system for worksheet setup

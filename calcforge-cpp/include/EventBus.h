@@ -41,6 +41,11 @@ public:
     void emitFileStateChanged(bool hasUnsavedChanges);
     void emitCrossSheetRecalculationNeeded();
 
+    // Phase 4.1: Enhanced event coordination methods
+    void emitNavigationRequested(const QString& sheetName, int lineNumber, int cursorPosition = -1);
+    void emitCalculationCompleted(const QString& sheetName);
+    void emitCalculationError(const QString& sheetName, const QString& error);
+
 private:
     std::unique_ptr<WorksheetEvents> m_worksheetEvents;
     std::unique_ptr<ApplicationEvents> m_applicationEvents;

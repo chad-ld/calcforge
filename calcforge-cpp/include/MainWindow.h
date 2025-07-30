@@ -54,6 +54,7 @@ private slots:
     void closeTab(int index);
     void renameTab(int index);
     void onTabChanged(int index);
+    void onTabMoved(int from, int to);
     void onSplitterMoved(const QByteArray &newState);
     void showHelp();
     void updateCurrencyRates();

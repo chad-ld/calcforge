@@ -60,7 +60,19 @@ FileManager::FileManager(QTabWidget* tabWidget, TabManager* tabManager, QSetting
             }
         });
 
-        LOG_DEBUG("FileManager: Connected to TabManager signals (tabClosed, tabAdded)");
+        connect(m_tabManager, &TabManager::tabRenamed, this, [this](int index, const QString& oldName, const QString& newName) {
+            LOG_DEBUG(QString("FileManager: Tab renamed signal received - index: %1, old: %2, new: %3").arg(index).arg(oldName).arg(newName));
+            // Only mark as modified if we're not in the loading phase
+            if (!m_isLoading) {
+                // Renaming a tab is a workspace change that should be saved
+                markAsModified();
+                LOG_DEBUG("FileManager: Marked as modified due to tab rename (workspace change)");
+            } else {
+                LOG_DEBUG("FileManager: Skipping modification marking during loading phase");
+            }
+        });
+
+        LOG_DEBUG("FileManager: Connected to TabManager signals (tabClosed, tabAdded, tabRenamed)");
     } else {
         LOG_DEBUG("FileManager: WARNING - m_tabManager is null, cannot connect to tabClosed signal");
     }

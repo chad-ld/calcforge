@@ -65,6 +65,12 @@ void ApplicationEvents::emitTabRenamed(int index, const QString& oldName, const 
     emit tabRenamed(index, oldName, newName);
 }
 
+void ApplicationEvents::emitTabMoved(int from, int to)
+{
+    LOG_DEBUG(QString("ApplicationEvents: Tab moved - From: %1, To: %2").arg(from).arg(to));
+    emit tabMoved(from, to);
+}
+
 void ApplicationEvents::emitCurrentTabChanged(int index)
 {
     LOG_DEBUG(QString("ApplicationEvents: Current tab changed - Index: %1").arg(index));

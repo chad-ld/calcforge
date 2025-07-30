@@ -36,23 +36,39 @@ void EventBus::setInstance(EventBus* instance)
 
 void EventBus::setupEventConnections()
 {
-    // Connect cross-cutting concerns between worksheet and application events
-    
+    // Phase 4.1: Enhanced cross-cutting event coordination
+
     // When worksheet content changes, it may affect file state
     connect(m_worksheetEvents.get(), &WorksheetEvents::contentChanged,
             this, [this](const QString& sheetName) {
                 Q_UNUSED(sheetName)
                 // Content change implies the file has been modified
                 m_applicationEvents->emitFileStateChanged(true);
+                LOG_DEBUG("EventBus: Content change triggered file state update");
             });
-    
-    // When cross-sheet recalculation is requested, log it at application level
+
+    // When cross-sheet recalculation is requested, coordinate application-level response
     connect(m_worksheetEvents.get(), &WorksheetEvents::crossSheetRecalculationRequested,
-            this, []() {
-                LOG_DEBUG("EventBus: Cross-sheet recalculation requested via worksheet events");
+            this, [this]() {
+                LOG_DEBUG("EventBus: Cross-sheet recalculation requested - coordinating response");
+                // Could trigger additional application-level events here if needed
             });
-    
-    LOG_DEBUG("EventBus: Event connections established");
+
+    // When line values change, it may trigger cross-sheet updates
+    connect(m_worksheetEvents.get(), &WorksheetEvents::lineValueChanged,
+            this, [this](const QString& sheetName, int lineNumber, double value) {
+                LOG_DEBUG(QString("EventBus: Line value changed - Sheet: %1, Line: %2, Value: %3")
+                         .arg(sheetName).arg(lineNumber).arg(value));
+                // This could trigger cross-sheet dependency updates
+            });
+
+    // When calculation errors occur, log them at application level
+    connect(m_worksheetEvents.get(), &WorksheetEvents::calculationError,
+            this, [this](const QString& sheetName, const QString& error) {
+                LOG_DEBUG(QString("EventBus: Calculation error in sheet %1: %2").arg(sheetName).arg(error));
+            });
+
+    LOG_DEBUG("EventBus: Enhanced event connections established");
 }
 
 // Convenience methods for common event patterns
@@ -79,4 +95,20 @@ void EventBus::emitFileStateChanged(bool hasUnsavedChanges)
 void EventBus::emitCrossSheetRecalculationNeeded()
 {
     m_worksheetEvents->emitCrossSheetReferencesChanged("");
+}
+
+// Phase 4.1: Enhanced event coordination methods
+void EventBus::emitNavigationRequested(const QString& sheetName, int lineNumber, int cursorPosition)
+{
+    m_worksheetEvents->emitNavigationRequested(sheetName, lineNumber, cursorPosition);
+}
+
+void EventBus::emitCalculationCompleted(const QString& sheetName)
+{
+    m_worksheetEvents->emitCalculationCompleted(sheetName);
+}
+
+void EventBus::emitCalculationError(const QString& sheetName, const QString& error)
+{
+    m_worksheetEvents->emitCalculationError(sheetName, error);
 }

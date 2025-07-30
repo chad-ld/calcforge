@@ -65,6 +65,9 @@ CalcForgeResult<int> TabManager::addTab(const QString& name)
     // Set as current tab
     m_tabWidget->setCurrentIndex(index);
     
+    // Emit both direct signal and EventBus event for consistency
+    emit tabAdded(index, tabName);
+
     if (m_eventBus) {
         m_eventBus->applicationEvents()->emitTabAdded(index, tabName);
         m_eventBus->applicationEvents()->emitTabSetupRequested(tabName);
@@ -147,6 +150,9 @@ CalcForgeResult<bool> TabManager::renameTab(int index, const QString& newName)
 
     LOG_DEBUG(QString("TabManager: Renamed tab - Original: '%1', Escaped: '%2'").arg(finalName).arg(escapedFinalName));
     
+    // Emit both direct signal and EventBus event for consistency
+    emit tabRenamed(index, currentName, finalName);
+
     if (m_eventBus) {
         m_eventBus->applicationEvents()->emitTabRenamed(index, currentName, finalName);
     }
