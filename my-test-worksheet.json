@@ -1,9 +1,0 @@
-{
-  "version": "2.0",
-  "tabs": [
-    {
-      "name": "Recent File Test",
-      "content": "1000 + 500\n::: This should be the most recent file\n\n25 * 8\n::: Testing recent file loading\n\nLN1 + LN3\n::: Should be 1700"
-    }
-  ]
-}

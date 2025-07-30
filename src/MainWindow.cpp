@@ -2021,7 +2021,7 @@ void MainWindow::highlightIncomingCrossSheetReferences(WorksheetWidget *targetSh
             continue; // Skip the target sheet itself
         }
 
-        QString sourceSheetName = m_tabWidget->tabText(i);
+        QString sourceSheetName = m_tabManager->getTabName(i);
 
         // Get the current line from the source sheet
         int currentLine = sourceSheet->getEditor()->getCurrentLineNumber();

@@ -1038,7 +1038,7 @@ void WorksheetWidget::handleCrossSheetBackgroundHighlighting(const QString &curr
         LOG_DEBUG(QString("All tabs: %1").arg(allTabNames.join(", ")));
 
         for (int i = 0; i < tabWidget->count(); ++i) {
-            QString tabName = tabWidget->tabText(i);
+            QString tabName = tabWidget->tabText(i);  // CustomTabWidget returns unescaped text
             LOG_DEBUG(QString("Tab %1: '%2' (comparing with '%3')").arg(i).arg(tabName).arg(sheetName));
             if (tabName.compare(sheetName, Qt::CaseInsensitive) == 0) {
                 targetSheet = qobject_cast<WorksheetWidget*>(tabWidget->widget(i));

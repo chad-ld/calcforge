@@ -256,7 +256,8 @@ WorksheetWidget* TabManager::getCurrentWorksheetWidget() const
 WorksheetWidget* TabManager::getWorksheetByName(const QString& name) const
 {
     for (int i = 0; i < m_tabWidget->count(); ++i) {
-        if (m_tabWidget->tabText(i).compare(name, Qt::CaseInsensitive) == 0) {
+        // Use getTabName() to get the properly unescaped tab name for comparison
+        if (getTabName(i).compare(name, Qt::CaseInsensitive) == 0) {
             return getWorksheetWidget(i);
         }
     }
