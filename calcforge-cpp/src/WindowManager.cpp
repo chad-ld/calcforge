@@ -1,4 +1,5 @@
 #include "WindowManager.h"
+#include "EventBus.h"
 #include "Logger.h"
 
 #include <QMainWindow>
@@ -12,10 +13,11 @@
 #include <windows.h>
 #endif
 
-WindowManager::WindowManager(QMainWindow* mainWindow, QSettings* settings, QObject* parent)
+WindowManager::WindowManager(QMainWindow* mainWindow, QSettings* settings, EventBus* eventBus, QObject* parent)
     : QObject(parent)
     , m_mainWindow(mainWindow)
     , m_settings(settings)
+    , m_eventBus(eventBus)
     , m_bottomLeftCorner(nullptr)
     , m_bottomRightCorner(nullptr)
     , m_leftEdgeIndicator(nullptr)
@@ -94,7 +96,9 @@ void WindowManager::saveWindowState()
     m_settings->sync();
     
     LOG_DEBUG("WindowManager: Saved window state");
-    emit windowStateChanged();
+    if (m_eventBus) {
+        m_eventBus->applicationEvents()->emitWindowStateChanged();
+    }
 }
 
 void WindowManager::setupResizeCorners()
@@ -277,7 +281,9 @@ void WindowManager::setStayOnTop(bool enabled)
     m_settings->sync();
     
     LOG_DEBUG(QString("WindowManager: Stay on top %1").arg(enabled ? "enabled" : "disabled"));
-    emit stayOnTopChanged(enabled);
+    if (m_eventBus) {
+        m_eventBus->applicationEvents()->emitStayOnTopChanged(enabled);
+    }
 }
 
 bool WindowManager::isStayOnTop() const

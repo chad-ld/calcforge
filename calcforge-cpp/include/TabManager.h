@@ -7,6 +7,7 @@
 #include "CalcForgeResult.h"
 
 class WorksheetWidget;
+class EventBus;
 
 /**
  * TabManager handles all tab-related operations for CalcForge
@@ -20,7 +21,7 @@ class TabManager : public QObject
     Q_OBJECT
 
 public:
-    explicit TabManager(QTabWidget* tabWidget, QSettings* settings, QObject* parent = nullptr);
+    explicit TabManager(QTabWidget* tabWidget, QSettings* settings, EventBus* eventBus, QObject* parent = nullptr);
     ~TabManager() = default;
 
     // Tab operations
@@ -78,6 +79,7 @@ private:
     // Dependencies (injected)
     QTabWidget* m_tabWidget;
     QSettings* m_settings;
+    EventBus* m_eventBus;
     
     // Internal state
     int m_currentFontSize;

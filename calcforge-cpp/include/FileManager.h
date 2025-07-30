@@ -11,6 +11,7 @@
 class WorksheetWidget;
 class TabManager;
 class MainWindow;
+class EventBus;
 
 /**
  * FileManager handles all file I/O operations for CalcForge
@@ -24,7 +25,7 @@ class FileManager : public QObject
     Q_OBJECT
 
 public:
-    explicit FileManager(QTabWidget* tabWidget, TabManager* tabManager, QSettings* settings, QObject* parent = nullptr);
+    explicit FileManager(QTabWidget* tabWidget, TabManager* tabManager, QSettings* settings, EventBus* eventBus, QObject* parent = nullptr);
     ~FileManager() = default;
 
     // Core file operations
@@ -74,10 +75,12 @@ private:
     QTabWidget* m_tabWidget;
     TabManager* m_tabManager;
     QSettings* m_settings;
+    EventBus* m_eventBus;
     
     // Internal state
     QString m_currentFile;
     bool m_isModified;
+    bool m_isLoading;  // Flag to prevent marking as modified during initial load
     QStringList m_recentFiles;
     static const int MAX_RECENT_FILES = 10;
     

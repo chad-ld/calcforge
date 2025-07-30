@@ -70,6 +70,10 @@ set(SOURCES
     # Phase 3.2 refactoring: Business logic separation
     src/WorksheetModel.cpp
     src/CalculationService.cpp
+    # Phase 4.1 refactoring: Event system
+    src/WorksheetEvents.cpp
+    src/ApplicationEvents.cpp
+    src/EventBus.cpp
 )
 
 # Header files
@@ -107,6 +111,10 @@ set(HEADERS
     # Phase 3.2 refactoring: Business logic separation
     include/WorksheetModel.h
     include/CalculationService.h
+    # Phase 4.1 refactoring: Event system
+    include/WorksheetEvents.h
+    include/ApplicationEvents.h
+    include/EventBus.h
 )
 
 # Windows resource file for icon

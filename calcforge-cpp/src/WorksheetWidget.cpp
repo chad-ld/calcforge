@@ -12,6 +12,9 @@
 // Phase 3.2: Business logic separation
 #include "WorksheetModel.h"
 #include "CalculationService.h"
+
+// Phase 4.1: Event system
+#include "EventBus.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
@@ -139,6 +142,8 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
     // Phase 3.2: Business logic separation
     , m_model(std::make_unique<WorksheetModel>(this))
     , m_calculationService(std::make_unique<CalculationService>(this))
+    // Phase 4.1: Event system
+    , m_eventBus(nullptr)
     // Legacy support
     , m_calculationEngine(nullptr)
     , m_dependencyTracker(std::make_unique<DependencyTracker>())
@@ -692,6 +697,12 @@ void WorksheetWidget::onTextChanged()
 
     m_lastContent = currentContent;
 
+    // Phase 4.1: Sync model with editor content to ensure save works correctly
+    if (m_model && m_model->getContent() != currentContent) {
+        m_model->setContent(currentContent);
+        LOG_DEBUG("WorksheetWidget: Synced model content with editor");
+    }
+
     // Emit contentChanged signal to notify MainWindow of modifications
     emit contentChanged();
 
@@ -1158,4 +1169,11 @@ void WorksheetWidget::forceRecalculation()
 
     // Continue with the normal evaluation process but skip change detection
     evaluateLines(currentLines, changedLines);
+}
+
+// Phase 4.1: Event system integration
+void WorksheetWidget::setEventBus(EventBus* eventBus)
+{
+    m_eventBus = eventBus;
+    LOG_DEBUG("WorksheetWidget: Event bus set");
 }

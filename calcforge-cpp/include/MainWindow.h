@@ -26,6 +26,9 @@ class TabManager;
 class CrossSheetNavigator;
 class WindowManager;
 
+// Phase 4.1: Event system
+class EventBus;
+
 /**
  * Main application window for CalcForge C++
  * Manages tabs, menu bar, toolbar, and overall application state
@@ -194,6 +197,9 @@ public:
     TabManager* m_tabManager;
     CrossSheetNavigator* m_crossSheetNavigator;
     WindowManager* m_windowManager;
+
+    // Phase 4.1: Event system
+    EventBus* m_eventBus;
 };
 
 #endif // MAINWINDOW_H

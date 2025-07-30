@@ -2,6 +2,7 @@
 #include "WorksheetWidget.h"
 #include "ExpressionEditor.h"
 #include "ResultsDisplay.h"
+#include "EventBus.h"
 #include "Logger.h"
 
 #include <QInputDialog>
@@ -13,14 +14,15 @@
 // Forward declaration to avoid circular include
 class MainWindow;
 
-TabManager::TabManager(QTabWidget* tabWidget, QSettings* settings, QObject* parent)
+TabManager::TabManager(QTabWidget* tabWidget, QSettings* settings, EventBus* eventBus, QObject* parent)
     : QObject(parent)
     , m_tabWidget(tabWidget)
     , m_settings(settings)
+    , m_eventBus(eventBus)
     , m_currentFontSize(16)  // Increased from 14 to 16 (2 increments larger)
     , m_nextTabNumber(1)
 {
-    if (!m_tabWidget || !m_settings) {
+    if (!m_tabWidget || !m_settings || !m_eventBus) {
         LOG_DEBUG("TabManager: Invalid dependencies injected");
         return;
     }
@@ -63,7 +65,10 @@ CalcForgeResult<int> TabManager::addTab(const QString& name)
     // Set as current tab
     m_tabWidget->setCurrentIndex(index);
     
-    emit tabAdded(index, tabName);
+    if (m_eventBus) {
+        m_eventBus->applicationEvents()->emitTabAdded(index, tabName);
+        m_eventBus->applicationEvents()->emitTabSetupRequested(tabName);
+    }
     LOG_DEBUG("TabManager: Added tab '" + tabName + "' at index " + QString::number(index));
     
     return CalcForgeResult<int>::success(index);
@@ -142,7 +147,9 @@ CalcForgeResult<bool> TabManager::renameTab(int index, const QString& newName)
 
     LOG_DEBUG(QString("TabManager: Renamed tab - Original: '%1', Escaped: '%2'").arg(finalName).arg(escapedFinalName));
     
-    emit tabRenamed(index, currentName, finalName);
+    if (m_eventBus) {
+        m_eventBus->applicationEvents()->emitTabRenamed(index, currentName, finalName);
+    }
     LOG_DEBUG("TabManager: Renamed tab from '" + currentName + "' to '" + finalName + "'");
     
     return CalcForgeResult<bool>::success(true);
@@ -277,14 +284,18 @@ void TabManager::applyGlobalFontSize(int fontSize)
 void TabManager::onTabChanged(int index)
 {
     if (isValidTabIndex(index)) {
-        emit currentTabChanged(index);
+        if (m_eventBus) {
+            m_eventBus->applicationEvents()->emitCurrentTabChanged(index);
+        }
         LOG_DEBUG("TabManager: Current tab changed to index " + QString::number(index));
     }
 }
 
 void TabManager::onSplitterMoved(const QByteArray& newState)
 {
-    emit splitterMoved(newState);
+    if (m_eventBus) {
+        m_eventBus->applicationEvents()->emitGlobalSplitterStateChanged(newState);
+    }
 }
 
 WorksheetWidget* TabManager::createWorksheetWidget()
@@ -400,8 +411,15 @@ void TabManager::setupCustomCloseButton(int index)
     closeButton->setToolTip("Close tab");
 
     // Connect close button to close this specific tab
-    connect(closeButton, &QPushButton::clicked, [this, index]() {
-        closeTab(index);
+    // Use buttonContainer to dynamically find the correct tab index to avoid stale index issues
+    connect(closeButton, &QPushButton::clicked, [this, buttonContainer]() {
+        QTabBar *tabBar = m_tabWidget->tabBar();
+        for (int i = 0; i < tabBar->count(); ++i) {
+            if (tabBar->tabButton(i, QTabBar::RightSide) == buttonContainer) {
+                closeTab(i);
+                break;
+            }
+        }
     });
 
     buttonLayout->addWidget(closeButton);

@@ -17,6 +17,9 @@
 #include "CrossSheetNavigator.h"
 #include "WindowManager.h"
 
+// Phase 4.1: Event system
+#include "EventBus.h"
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
@@ -95,6 +98,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_tabManager(nullptr)
     , m_crossSheetNavigator(nullptr)
     , m_windowManager(nullptr)
+    , m_eventBus(nullptr)
     , m_isAlwaysOnTop(false)
 {
     // Initialize settings
@@ -1298,20 +1302,48 @@ void MainWindow::loadSingleWorksheet(const QString &tabName, const QString &cont
               .arg(m_splitterState.size()).arg(QString::fromUtf8(m_splitterState)));
     worksheet->setSplitterState(m_splitterState);
 
-    // Connect splitter changes to update global state and sync all tabs
-    connect(worksheet, &WorksheetWidget::splitterMoved, this, &MainWindow::onSplitterMoved);
+    // Phase 4.1: Connect worksheet to event system instead of direct signals
+    QString sheetName = getCurrentSheetName();
 
-    // Connect line numbering changes for cross-sheet LN auto-updates
-    connect(worksheet, &WorksheetWidget::lineNumberingChanged, this, &MainWindow::onLineNumberingChanged);
-    LOG_DEBUG("MainWindow: Connected lineNumberingChanged signal for cross-sheet LN auto-updates");
-
-    // Connect value changes for cross-sheet recalculation
-    connect(worksheet, &WorksheetWidget::valuesChanged, this, &MainWindow::onValuesChanged);
-
-    // Connect content changes to FileManager (Phase 3 refactor)
-    if (m_fileManager) {
-        connect(worksheet, &WorksheetWidget::contentChanged, m_fileManager, &FileManager::markAsModified);
+    // Set the event bus on the worksheet
+    if (m_eventBus) {
+        worksheet->setEventBus(m_eventBus);
     }
+
+    // Connect splitter changes to emit events
+    connect(worksheet, &WorksheetWidget::splitterMoved,
+            this, [this, sheetName](const QByteArray& newState) {
+                if (m_eventBus) {
+                    m_eventBus->worksheetEvents()->emitSplitterMoved(sheetName, newState);
+                }
+                onSplitterMoved(newState);
+            });
+
+    // Connect line numbering changes to emit events
+    connect(worksheet, &WorksheetWidget::lineNumberingChanged,
+            this, [this](const QString& sheetName, const QList<LineChange>& changes) {
+                if (m_eventBus) {
+                    m_eventBus->worksheetEvents()->emitLineNumberingChanged(sheetName, changes);
+                }
+                onLineNumberingChanged(sheetName, changes);
+            });
+
+    // Connect value changes to emit events
+    connect(worksheet, &WorksheetWidget::valuesChanged,
+            this, [this](const QString& sheetName) {
+                if (m_eventBus) {
+                    m_eventBus->worksheetEvents()->emitValuesChanged(sheetName);
+                }
+                onValuesChanged(sheetName);
+            });
+
+    // Connect content changes to emit events
+    connect(worksheet, &WorksheetWidget::contentChanged,
+            this, [this, sheetName]() {
+                if (m_eventBus) {
+                    m_eventBus->worksheetEvents()->emitContentChanged(sheetName);
+                }
+            });
 }
 
 void MainWindow::loadExampleWorksheets()
@@ -2409,18 +2441,23 @@ QSet<QString> MainWindow::getReferencedSheets(const QString &sheetName) const
 void MainWindow::initializeManagers()
 {
     LOG_DEBUG("MainWindow: Initializing manager classes with dependency injection");
-    
+
+    // Phase 4.1: Initialize event system first
+    m_eventBus = new EventBus(this);
+    EventBus::setInstance(m_eventBus);
+    LOG_DEBUG("MainWindow: Event system initialized");
+
     // Create managers in dependency order (TabManager first, then FileManager)
-    m_tabManager = new TabManager(m_tabWidget, m_settings, this);
-    m_fileManager = new FileManager(m_tabWidget, m_tabManager, m_settings, this);
-    m_crossSheetNavigator = new CrossSheetNavigator(m_tabManager, this);
-    m_windowManager = new WindowManager(this, m_settings, this);
+    m_tabManager = new TabManager(m_tabWidget, m_settings, m_eventBus, this);
+    m_fileManager = new FileManager(m_tabWidget, m_tabManager, m_settings, m_eventBus, this);
+    m_crossSheetNavigator = new CrossSheetNavigator(m_tabManager, m_eventBus, this);
+    m_windowManager = new WindowManager(this, m_settings, m_eventBus, this);
 
     // Connect tab rename to MainWindow method (handles always-on-top properly)
     connect(m_tabWidget, &QTabWidget::tabBarDoubleClicked, this, &MainWindow::renameTab);
 
-    // Connect manager signals to MainWindow slots
-    connect(m_fileManager, &FileManager::fileStateChanged, 
+    // Phase 4.1: Connect to event system instead of direct signals
+    connect(m_eventBus->applicationEvents(), &ApplicationEvents::fileStateChanged,
             this, [this](bool hasUnsavedChanges) {
                 // Update window title to show modified state
                 QString title = "CalcForge";
@@ -2429,30 +2466,39 @@ void MainWindow::initializeManagers()
                 }
                 setWindowTitle(title);
             });
-    
-    connect(m_fileManager, &FileManager::currentFileChanged,
+
+    connect(m_eventBus->applicationEvents(), &ApplicationEvents::currentFileChanged,
             this, [this](const QString& filePath) {
                 LOG_DEBUG("MainWindow: Current file changed to " + filePath);
             });
 
     // Note: FileManager dialog signals removed - using direct dialog flags instead
     
-    connect(m_tabManager, &TabManager::currentTabChanged,
+    connect(m_eventBus->applicationEvents(), &ApplicationEvents::currentTabChanged,
             this, [this](int index) {
                 LOG_DEBUG("MainWindow: Current tab changed to index " + QString::number(index));
             });
-    
-    connect(m_crossSheetNavigator, &CrossSheetNavigator::navigationRequested,
+
+    connect(m_eventBus->worksheetEvents(), &WorksheetEvents::navigationRequested,
             this, [this](const QString& sheetName, int lineNumber, int cursorPosition) {
                 LOG_DEBUG(QString("MainWindow: Navigation requested to sheet %1, line %2")
                          .arg(sheetName).arg(lineNumber));
             });
     
-    // Connect TabManager's worksheet setup signal to setup cross-sheet support
-    connect(m_tabManager, &TabManager::worksheetNeedsSetup,
-            this, [this](WorksheetWidget* worksheet, const QString& name) {
-                setupCrossSheetSupport(worksheet);
-                LOG_DEBUG("MainWindow: Cross-sheet support setup for worksheet '" + name + "'");
+    // Connect to event system for worksheet setup
+    connect(m_eventBus->applicationEvents(), &ApplicationEvents::tabSetupRequested,
+            this, [this](const QString& worksheetName) {
+                // Find the worksheet by name and set up cross-sheet support
+                for (int i = 0; i < m_tabWidget->count(); ++i) {
+                    if (m_tabWidget->tabText(i) == worksheetName) {
+                        WorksheetWidget* worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(i));
+                        if (worksheet) {
+                            setupCrossSheetSupport(worksheet);
+                            LOG_DEBUG("MainWindow: Cross-sheet support setup for worksheet '" + worksheetName + "'");
+                        }
+                        break;
+                    }
+                }
             });
     
     // Initialize window manager components

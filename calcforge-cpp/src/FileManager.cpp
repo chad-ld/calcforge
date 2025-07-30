@@ -3,6 +3,7 @@
 #include "ExpressionEditor.h"
 #include "TabManager.h"
 #include "MainWindow.h"
+#include "EventBus.h"
 #include "Logger.h"
 
 #include <QFileDialog>
@@ -16,21 +17,54 @@
 #include <QCoreApplication>
 #include <QTimer>
 
-FileManager::FileManager(QTabWidget* tabWidget, TabManager* tabManager, QSettings* settings, QObject* parent)
+FileManager::FileManager(QTabWidget* tabWidget, TabManager* tabManager, QSettings* settings, EventBus* eventBus, QObject* parent)
     : QObject(parent)
     , m_tabWidget(tabWidget)
     , m_tabManager(tabManager)
     , m_settings(settings)
+    , m_eventBus(eventBus)
     , m_isModified(false)
+    , m_isLoading(false)
 {
-    if (!m_tabWidget || !m_tabManager || !m_settings) {
+    if (!m_tabWidget || !m_tabManager || !m_settings || !m_eventBus) {
         LOG_DEBUG("FileManager: Invalid dependencies injected");
         return;
     }
     
     // Load recent files from settings
     loadRecentFiles();
-    
+
+    // Connect to TabManager signals to track tab changes
+    if (m_tabManager) {
+        connect(m_tabManager, &TabManager::tabClosed, this, [this](int index, const QString& tabName) {
+            LOG_DEBUG(QString("FileManager: Tab closed signal received - index: %1, name: %2").arg(index).arg(tabName));
+            // Only mark as modified if we're not in the loading phase
+            if (!m_isLoading) {
+                // Closing a tab is a workspace change that should be saved
+                markAsModified();
+                LOG_DEBUG("FileManager: Marked as modified due to tab closure (workspace change)");
+            } else {
+                LOG_DEBUG("FileManager: Skipping modification marking during loading phase");
+            }
+        });
+
+        connect(m_tabManager, &TabManager::tabAdded, this, [this](int index, const QString& tabName) {
+            LOG_DEBUG(QString("FileManager: Tab added signal received - index: %1, name: %2").arg(index).arg(tabName));
+            // Only mark as modified if we're not in the loading phase
+            if (!m_isLoading) {
+                // Adding a tab is a workspace change that should be saved
+                markAsModified();
+                LOG_DEBUG("FileManager: Marked as modified due to tab addition (workspace change)");
+            } else {
+                LOG_DEBUG("FileManager: Skipping modification marking during loading phase");
+            }
+        });
+
+        LOG_DEBUG("FileManager: Connected to TabManager signals (tabClosed, tabAdded)");
+    } else {
+        LOG_DEBUG("FileManager: WARNING - m_tabManager is null, cannot connect to tabClosed signal");
+    }
+
     LOG_DEBUG("FileManager: Initialized with dependency injection");
 }
 
@@ -73,7 +107,9 @@ CalcForgeResult<bool> FileManager::loadWorksheetFile(const QString& filePath)
         markAsSaved();
         addToRecentFiles(path);
         
-        emit currentFileChanged(m_currentFile);
+        if (m_eventBus) {
+            m_eventBus->applicationEvents()->emitCurrentFileChanged(m_currentFile);
+        }
         LOG_DEBUG("FileManager: Successfully loaded worksheet: " + path);
         return CalcForgeResult<bool>::success(true);
     }
@@ -95,7 +131,9 @@ CalcForgeResult<bool> FileManager::saveWorksheetFile(const QString& filePath)
         markAsSaved();
         addToRecentFiles(path);
         
-        emit currentFileChanged(m_currentFile);
+        if (m_eventBus) {
+            m_eventBus->applicationEvents()->emitCurrentFileChanged(m_currentFile);
+        }
         LOG_DEBUG("FileManager: Successfully saved worksheet: " + path);
         
         // Show success confirmation
@@ -149,7 +187,9 @@ void FileManager::markAsModified()
 {
     if (!m_isModified) {
         m_isModified = true;
-        emit fileStateChanged(true);
+        if (m_eventBus) {
+            m_eventBus->applicationEvents()->emitFileStateChanged(true);
+        }
         LOG_DEBUG("FileManager: Marked as modified");
     }
 }
@@ -158,14 +198,50 @@ void FileManager::markAsSaved()
 {
     if (m_isModified) {
         m_isModified = false;
-        emit fileStateChanged(false);
+        if (m_eventBus) {
+            m_eventBus->applicationEvents()->emitFileStateChanged(false);
+        }
         LOG_DEBUG("FileManager: Marked as saved");
+    }
+
+    // Also mark all worksheets as saved
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget* worksheet = getWorksheetWidget(i);
+        if (worksheet && worksheet->isModified()) {
+            worksheet->setModified(false);
+            LOG_DEBUG(QString("FileManager: Marked worksheet %1 as saved").arg(i));
+        }
     }
 }
 
 bool FileManager::hasUnsavedChanges() const
 {
-    return m_isModified;
+    LOG_DEBUG(QString("FileManager::hasUnsavedChanges() - Global m_isModified: %1, Tab count: %2").arg(m_isModified).arg(m_tabWidget->count()));
+
+    // Check global modified state
+    if (m_isModified) {
+        LOG_DEBUG("FileManager::hasUnsavedChanges() - Returning true due to global m_isModified flag");
+        return true;
+    }
+
+    // Check if any individual worksheet has unsaved changes
+    for (int i = 0; i < m_tabWidget->count(); ++i) {
+        WorksheetWidget* worksheet = getWorksheetWidget(i);
+        if (worksheet) {
+            bool isModified = worksheet->isModified();
+            LOG_DEBUG(QString("FileManager::hasUnsavedChanges() - Tab %1 (%2): isModified = %3")
+                     .arg(i)
+                     .arg(m_tabWidget->tabText(i))
+                     .arg(isModified));
+            if (isModified) {
+                LOG_DEBUG(QString("FileManager::hasUnsavedChanges() - Tab %1 has unsaved changes").arg(i));
+                return true;
+            }
+        }
+    }
+
+    LOG_DEBUG("FileManager::hasUnsavedChanges() - No unsaved changes found, returning false");
+    return false;
 }
 
 void FileManager::addToRecentFiles(const QString& filePath)
@@ -184,7 +260,9 @@ void FileManager::addToRecentFiles(const QString& filePath)
     }
     
     saveRecentFiles();
-    emit recentFilesChanged(m_recentFiles);
+    if (m_eventBus) {
+        m_eventBus->applicationEvents()->emitRecentFilesChanged(m_recentFiles);
+    }
     LOG_DEBUG("FileManager: Added to recent files: " + filePath);
 }
 
@@ -195,7 +273,9 @@ void FileManager::loadRecentFile(const QString& filePath)
         // Remove invalid file from recent files
         m_recentFiles.removeAll(filePath);
         saveRecentFiles();
-        emit recentFilesChanged(m_recentFiles);
+        if (m_eventBus) {
+            m_eventBus->applicationEvents()->emitRecentFilesChanged(m_recentFiles);
+        }
         
         QWidget* parentWidget = qobject_cast<QWidget*>(parent());
 
@@ -262,9 +342,14 @@ void FileManager::onWorksheetModified()
 
 bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
 {
+    // Set loading flag to prevent marking workspace as modified during load
+    m_isLoading = true;
+    LOG_DEBUG("FileManager: Started loading worksheets, set m_isLoading = true");
+
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
         LOG_DEBUG("FileManager: Cannot open file: " + filePath);
+        m_isLoading = false;
         return false;
     }
     
@@ -276,6 +361,7 @@ bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
     
     if (parseError.error != QJsonParseError::NoError) {
         LOG_DEBUG("FileManager: JSON parse error: " + parseError.errorString());
+        m_isLoading = false;
         return false;
     }
     
@@ -350,6 +436,10 @@ bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
             }
         });
     }
+
+    // Clear loading flag - workspace changes after this point should be tracked
+    m_isLoading = false;
+    LOG_DEBUG("FileManager: Finished loading worksheets, set m_isLoading = false");
 
     return true;
 }

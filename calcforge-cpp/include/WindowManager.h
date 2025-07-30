@@ -11,6 +11,7 @@
 class QMainWindow;
 class QMouseEvent;
 class QResizeEvent;
+class EventBus;
 
 /**
  * WindowManager handles window management operations for CalcForge
@@ -24,7 +25,7 @@ class WindowManager : public QObject
     Q_OBJECT
 
 public:
-    explicit WindowManager(QMainWindow* mainWindow, QSettings* settings, QObject* parent = nullptr);
+    explicit WindowManager(QMainWindow* mainWindow, QSettings* settings, EventBus* eventBus, QObject* parent = nullptr);
     ~WindowManager();
 
     // Window state management
@@ -78,6 +79,7 @@ private:
     // Dependencies (injected)
     QMainWindow* m_mainWindow;
     QSettings* m_settings;
+    EventBus* m_eventBus;
     
     // Resize corner widgets
     QWidget* m_bottomLeftCorner;

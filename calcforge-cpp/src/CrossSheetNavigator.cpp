@@ -3,6 +3,7 @@
 #include "WorksheetWidget.h"
 #include "ExpressionEditor.h"
 #include "LineChangeDetector.h"
+#include "EventBus.h"
 #include "Logger.h"
 
 #include <QRegularExpression>
@@ -10,13 +11,14 @@
 #include <QTextBlock>
 #include <QRegularExpressionMatchIterator>
 
-CrossSheetNavigator::CrossSheetNavigator(TabManager* tabManager, QObject* parent)
+CrossSheetNavigator::CrossSheetNavigator(TabManager* tabManager, EventBus* eventBus, QObject* parent)
     : QObject(parent)
     , m_tabManager(tabManager)
+    , m_eventBus(eventBus)
     , m_hasNavigationHistory(false)
 {
-    if (!m_tabManager) {
-        LOG_DEBUG("CrossSheetNavigator: Invalid TabManager dependency injected");
+    if (!m_tabManager || !m_eventBus) {
+        LOG_DEBUG("CrossSheetNavigator: Invalid dependencies injected");
         return;
     }
     
@@ -100,7 +102,9 @@ void CrossSheetNavigator::triggerCrossSheetRecalculation()
 {
     LOG_DEBUG("CrossSheetNavigator: Triggering cross-sheet recalculation");
     recalculateAllWorksheets();
-    emit crossSheetRecalculationTriggered();
+    if (m_eventBus) {
+        m_eventBus->worksheetEvents()->emitCrossSheetReferencesChanged("");
+    }
 }
 
 void CrossSheetNavigator::recalculateAllWorksheets()
@@ -305,7 +309,9 @@ void CrossSheetNavigator::performNavigation(const QString& sheetName, int lineNu
     // Highlight incoming cross-sheet references
     highlightIncomingCrossSheetReferences(targetSheet);
     
-    emit navigationRequested(sheetName, lineNumber, cursorPosition);
+    if (m_eventBus) {
+        m_eventBus->worksheetEvents()->emitNavigationRequested(sheetName, lineNumber, cursorPosition);
+    }
 }
 
 void CrossSheetNavigator::highlightIncomingCrossSheetReferences(WorksheetWidget* targetSheet)

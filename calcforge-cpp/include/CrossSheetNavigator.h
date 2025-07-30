@@ -10,6 +10,7 @@
 
 class TabManager;
 class WorksheetWidget;
+class EventBus;
 
 /**
  * CrossSheetNavigator handles cross-sheet references and navigation for CalcForge
@@ -24,7 +25,7 @@ class CrossSheetNavigator : public QObject
     Q_OBJECT
 
 public:
-    explicit CrossSheetNavigator(TabManager* tabManager, QObject* parent = nullptr);
+    explicit CrossSheetNavigator(TabManager* tabManager, EventBus* eventBus, QObject* parent = nullptr);
     ~CrossSheetNavigator() = default;
 
     // Navigation operations
@@ -87,6 +88,7 @@ private:
     
     // Dependencies (injected)
     TabManager* m_tabManager;
+    EventBus* m_eventBus;
     
     // Internal state
     NavigationHistory m_navigationHistory;

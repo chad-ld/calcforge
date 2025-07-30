@@ -21,6 +21,9 @@ struct LineChange;
 class WorksheetModel;
 class CalculationService;
 
+// Phase 4.1: Event system
+class EventBus;
+
 /**
  * Individual worksheet widget containing expression editor and results display
  * Phase 3.2: Now uses WorksheetModel and CalculationService for business logic separation
@@ -57,10 +60,13 @@ public:
 
     // Expression evaluation for tooltips (delegated to service)
     QString evaluateExpression(const QString &expression) const;
-    
+
     // Splitter state
     QByteArray getSplitterState() const;
     void setSplitterState(const QByteArray &state);
+
+    // Phase 4.1: Event system integration
+    void setEventBus(EventBus* eventBus);
 
 signals:
     void contentChanged();
@@ -145,6 +151,9 @@ private:
     // Phase 3.2: Business logic separation
     std::unique_ptr<WorksheetModel> m_model;
     std::unique_ptr<CalculationService> m_calculationService;
+
+    // Phase 4.1: Event system
+    EventBus* m_eventBus;
 
     // Legacy support (will be removed in future phases)
     CalculationEngine *m_calculationEngine;
