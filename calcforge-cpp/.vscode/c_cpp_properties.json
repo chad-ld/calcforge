@@ -1,0 +1,46 @@
+{
+    "configurations": [
+        {
+            "name": "Win32-MSVC",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Qt/6.5.0/msvc2022_64/include/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "QT_CORE_LIB",
+                "QT_WIDGETS_LIB",
+                "_WIN32",
+                "_WIN64"
+            ],
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.*/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "msvc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        },
+        {
+            "name": "Win32-MinGW",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Qt/6.5.0/mingw_64/include/**",
+                "C:/msys64/mingw64/include/**"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "QT_CORE_LIB",
+                "QT_WIDGETS_LIB"
+            ],
+            "compilerPath": "C:/msys64/mingw64/bin/g++.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        }
+    ],
+    "version": 4
+}

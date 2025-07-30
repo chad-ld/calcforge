@@ -1,0 +1,152 @@
+name: Build Executables
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            extension: .exe
+          - os: macos-latest
+            platform: macos
+            extension: ''
+          - os: ubuntu-latest
+            platform: linux
+            extension: ''
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PySide6 pint requests pyinstaller Pillow
+
+    - name: Build executable (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        pyinstaller --onefile --windowed --icon=calcforge.ico --name=CalcForge calcforge.py
+
+    - name: Install py2app and dependencies (macOS)
+      if: matrix.platform == 'macos'
+      run: |
+        pip install py2app PySide6 pint requests Pillow
+
+    - name: Build macOS .app with py2app
+      if: matrix.platform == 'macos'
+      run: python setup.py py2app
+
+    - name: Better sign the .app bundle with hardened runtime and entitlements
+      if: matrix.platform == 'macos'
+      run: |
+        # First, remove any existing signature
+        codesign --remove-signature dist/CalcForge.app || true
+        # Sign with hardened runtime and entitlements
+        codesign --force --deep --options runtime --entitlements entitlements.plist --sign - dist/CalcForge.app
+        # Verify the signature
+        codesign --verify --verbose dist/CalcForge.app
+
+    - name: Create a disk image (DMG) for easier installation
+      if: matrix.platform == 'macos'
+      run: |
+        mkdir -p dist/dmg
+        cp -R dist/CalcForge.app dist/dmg/
+        hdiutil create -volname CalcForge -srcfolder dist/dmg -ov -format UDZO dist/CalcForge-macOS.dmg
+
+    - name: Zip .app bundle as fallback
+      if: matrix.platform == 'macos'
+      run: cd dist && zip -r CalcForge-macOS.zip CalcForge.app
+
+    - name: Build executable (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        pyinstaller --onefile --name=CalcForge calcforge.py
+
+    - name: Upload macOS DMG artifact
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v4
+      with:
+        name: CalcForge-macOS-DMG
+        path: dist/CalcForge-macOS.dmg
+
+    - name: Upload macOS ZIP artifact (fallback)
+      if: matrix.platform == 'macos'
+      uses: actions/upload-artifact@v4
+      with:
+        name: CalcForge-macOS-ZIP
+        path: dist/CalcForge-macOS.zip
+
+    - name: Upload artifacts
+      if: matrix.platform != 'macos'
+      uses: actions/upload-artifact@v4
+      with:
+        name: CalcForge-${{ matrix.platform }}
+        path: dist/CalcForge${{ matrix.extension }}
+        if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Check macOS artifacts
+      run: |
+        # List all downloaded artifacts
+        find . -type f | sort
+    
+    - name: Rename files for release
+      run: |
+        # Create a releases directory
+        mkdir -p releases
+        
+        # Copy and rename files with platform labels
+        if [ -f "CalcForge-windows/CalcForge.exe" ]; then
+          cp CalcForge-windows/CalcForge.exe releases/CalcForge-Windows.exe
+        fi
+        
+        # Use our DMG file as the primary macOS release
+        if [ -f "CalcForge-macOS-DMG/CalcForge-macOS.dmg" ]; then
+          cp CalcForge-macOS-DMG/CalcForge-macOS.dmg releases/CalcForge-macOS.dmg
+        fi
+        
+        # Use the ZIP as fallback
+        if [ -f "CalcForge-macOS-ZIP/CalcForge-macOS.zip" ]; then
+          cp CalcForge-macOS-ZIP/CalcForge-macOS.zip releases/CalcForge-macOS.zip
+        fi
+        
+        if [ -f "CalcForge-linux/CalcForge" ]; then
+          cp CalcForge-linux/CalcForge releases/CalcForge-Linux
+        fi
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          releases/CalcForge-Windows.exe
+          releases/CalcForge-macOS.dmg
+          releases/CalcForge-macOS.zip
+          releases/CalcForge-Linux
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

@@ -1,0 +1,8 @@
+{
+  "Source Data": "100\n200\n300\n400\n500\n::: Base values for testing\n\nsum(1-5)\n::: Sum = 1500\n\nmean(1-5)\n::: Mean = 300\n\nmax(1-5)\n::: Max = 500",
+  "Simple Refs": "S.Source Data.LN1\n::: Should show 100\n\nS.Source Data.LN2 * 2\n::: Should show 400 (200 * 2)\n\nS.Source Data.LN7 / 10\n::: Should show 150 (1500 / 10)\n\nLN1 + S.Source Data.LN3\n::: Mix local and cross-sheet: 100 + 300 = 400",
+  "Complex Refs": "S.Source Data.LN1 + S.Source Data.LN2 + S.Source Data.LN3\n::: Sum of first 3: 100+200+300 = 600\n\nS.Simple Refs.LN1 * S.Simple Refs.LN3\n::: Cross-sheet to cross-sheet: 100 * 150 = 15000\n\nsum(S.Source Data.LN1, S.Source Data.LN2, S.Simple Refs.LN1)\n::: Statistical with cross-sheet: sum(100,200,100) = 400\n\nmax(S.Source Data.LN1, S.Simple Refs.LN3, 1000)\n::: Max with cross-sheet: max(100,150,1000) = 1000\n\nS.Source Data.LN7 + S.Simple Refs.LN5\n::: Chain reference: 1500 + 400 = 1900",
+  "Auto-Update Test": "::: Test LN auto-updates when lines change\nS.Source Data.LN1\n::: Original: references line 1 (100)\n\nS.Source Data.LN3\n::: Original: references line 3 (300)\n\nS.Source Data.LN5\n::: Original: references line 5 (500)\n\nS.Source Data.LN1 + S.Source Data.LN3 + S.Source Data.LN5\n::: Original: 100 + 300 + 500 = 900\n\nsum(S.Source Data.LN1, S.Source Data.LN2, S.Source Data.LN3)\n::: Original: sum(100, 200, 300) = 600\n\nmax(S.Source Data.LN4, S.Source Data.LN5)\n::: Original: max(400, 500) = 500",
+  "Circular Test A": "S.Circular Test B.LN1 + 10\n::: This will reference B which references back\n\n50\n::: Independent value\n\nLN2 * 2\n::: Should be 100",
+  "Circular Test B": "S.Circular Test A.LN2 + 5\n::: This references A which references back\n\n25\n::: Independent value\n\nLN2 * 3\n::: Should be 75"
+}

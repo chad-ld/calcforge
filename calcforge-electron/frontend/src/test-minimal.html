@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CalcForge Test</title>
+    <style>
+        body {
+            background-color: red !important;
+            color: yellow !important;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            margin: 0;
+            font-size: 24px !important;
+        }
+        .test-container {
+            border: 5px solid blue !important;
+            padding: 20px;
+            margin: 20px 0;
+            background-color: green !important;
+        }
+        h1 {
+            color: white !important;
+            background-color: black !important;
+            padding: 10px !important;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔥 CALCFORGE TEST PAGE 🔥</h1>
+    <div class="test-container">
+        <h2>🟢 IF YOU CAN SEE THIS, HTML/CSS IS WORKING! 🟢</h2>
+        <p>This is a minimal test page to verify basic functionality.</p>
+        <button onclick="alert('JavaScript is working!')" style="background: orange; color: black; padding: 10px; font-size: 16px;">🚀 TEST JAVASCRIPT 🚀</button>
+        <br><br>
+        <button onclick="require('electron').remote.getCurrentWindow().webContents.openDevTools()" style="background: purple; color: white; padding: 10px; font-size: 16px;">🔧 OPEN DEVTOOLS 🔧</button>
+    </div></body>
+    
+    <div class="test-container">
+        <h2>Debug Info</h2>
+        <p>Current URL: <span id="current-url"></span></p>
+        <p>User Agent: <span id="user-agent"></span></p>
+    </div>
+
+    <script>
+        console.log('Minimal test script loaded');
+        document.getElementById('current-url').textContent = window.location.href;
+        document.getElementById('user-agent').textContent = navigator.userAgent;
+        
+        // Test if we can access the backend
+        fetch('http://localhost:8000/')
+            .then(response => response.text())
+            .then(data => {
+                console.log('Backend connection successful:', data);
+                document.body.innerHTML += '<div class="test-container"><h2>✅ Backend Connection: SUCCESS</h2></div>';
+            })
+            .catch(error => {
+                console.error('Backend connection failed:', error);
+                document.body.innerHTML += '<div class="test-container"><h2>❌ Backend Connection: FAILED</h2><p>' + error + '</p></div>';
+            });
+    </script>
+</body>
+</html>

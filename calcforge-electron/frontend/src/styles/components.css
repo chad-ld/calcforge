@@ -1,0 +1,501 @@
+/* CalcForge UI Components */
+
+/* Tab Component - GitHub-style rounded buttons */
+.tab {
+    background: #21262D;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 200px;
+    height: 28px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #C9D1D9;
+    user-select: none;
+    position: relative;
+    outline: none;
+}
+
+.tab:hover {
+    background: #30363D;
+    color: #C9D1D9;
+}
+
+.tab.active {
+    background: #21262D;
+    color: #C9D1D9;
+    border: 2px solid #0c7ff2;
+    z-index: 1;
+}
+
+.tab:focus {
+    outline: none;
+    border: 2px solid #0c7ff2;
+}
+
+.tab-name {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tab-close {
+    background: transparent;
+    border: none;
+    color: #7D8590;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 2px;
+    font-size: 14px;
+    line-height: 1;
+    transition: all 0.2s ease;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-close:hover {
+    background: #30363D;
+    color: #C9D1D9;
+}
+
+/* Editor Container */
+.editor-container,
+.results-container {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    background: var(--bg-primary);
+}
+
+/* Editor Wrapper - Container for textarea and overlay */
+.editor-wrapper {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Expression editor textarea */
+.expression-editor-textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: var(--spacing-sm);
+    padding-bottom: 25px;
+    outline: none;
+    color: var(--syntax-number);
+    resize: none;
+    overflow-x: auto;
+    overflow-y: auto;
+    min-height: 200px;
+    width: 100%;
+    box-sizing: border-box;
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
+    position: relative;
+    z-index: 1;
+}
+
+/* Textarea uses global scrollbar styling from main.css */
+
+/* Textarea placeholder */
+.expression-editor-textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 0.7;
+    white-space: pre-line;
+}
+
+.expression-editor-textarea:focus::placeholder {
+    opacity: 0.5;
+}
+
+/* Syntax highlighting overlay */
+.syntax-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: var(--spacing-sm);
+    padding-bottom: 25px;
+    overflow-x: auto;
+    overflow-y: auto;
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 2;
+    color: transparent;
+}
+
+.line-numbers {
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-primary);
+    padding: var(--spacing-sm) var(--spacing-xs);
+    padding-bottom: 25px;
+    font-family: 'Roboto Mono', 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    text-align: right;
+    user-select: none;
+    min-width: 45px;
+    white-space: pre;
+    overflow: hidden;
+}
+
+.line-numbers .line-number {
+    display: block;
+    padding-right: 6px;
+    margin: 0;
+    line-height: 1.5;
+    text-align: right;
+}
+
+.line-numbers .line-number.current {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.line-numbers .line-number.comment {
+    color: var(--success);
+}
+
+.line-numbers .line-number.error {
+    color: var(--error);
+}
+
+/* Results display */
+.results-display {
+    flex: 1;
+    padding: var(--spacing-sm);
+    padding-bottom: 25px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--syntax-number) !important;
+    overflow-x: auto;
+    overflow-y: auto;
+    white-space: pre;
+    word-wrap: normal;
+}
+
+/* Force all results to use white text, except syntax highlighting */
+.results-display,
+.results-display *,
+.result-line,
+.result-line.error,
+.result-line.empty {
+    color: var(--syntax-number) !important;
+    font-weight: normal;
+    font-style: normal;
+    opacity: 1;
+}
+
+/* Allow syntax highlighting colors in results column */
+.results-display .syntax-comment {
+    color: #00FF00 !important;
+    font-weight: bold !important;
+}
+
+.result-line {
+    display: block;
+    min-height: 21px;
+    padding: 0;
+    margin: 0;
+}
+
+/* Autocomplete Popup */
+.autocomplete-popup {
+    position: fixed;
+    background: var(--bg-overlay);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    display: none;
+    max-width: 500px;
+    max-height: 200px;
+    overflow: hidden;
+}
+
+.autocomplete-popup.visible {
+    display: flex;
+}
+
+.autocomplete-list {
+    min-width: 200px;
+    max-height: 200px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-primary);
+}
+
+.autocomplete-item {
+    padding: var(--spacing-sm);
+    cursor: pointer;
+    transition: background-color var(--transition-fast);
+    border-bottom: 1px solid var(--border-secondary);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background: var(--bg-tertiary);
+}
+
+.autocomplete-item.selected {
+    border-left: 3px solid var(--accent-primary);
+}
+
+.autocomplete-description {
+    width: 300px;
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    overflow-y: auto;
+}
+
+.autocomplete-description h4 {
+    margin: 0 0 var(--spacing-xs) 0;
+    color: var(--accent-primary);
+    font-size: 14px;
+}
+
+.autocomplete-description p {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.function-examples {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.function-examples code {
+    background: var(--bg-tertiary);
+    padding: 2px 4px;
+    border-radius: 2px;
+    color: var(--syntax-number);  /* Phase 1: Force white */
+}
+
+/* Error Toast */
+.error-toast {
+    position: fixed;
+    top: var(--spacing-md);
+    right: var(--spacing-md);
+    background: var(--error);
+    color: white;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 2000;
+    transform: translateX(100%);
+    transition: transform var(--transition-normal);
+    max-width: 400px;
+}
+
+.error-toast.visible {
+    transform: translateX(0);
+}
+
+.toast-content {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.toast-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.toast-message {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    transition: background-color var(--transition-fast);
+}
+
+.toast-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Loading Overlay */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(13, 17, 23, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 3000;
+}
+
+.loading-overlay.visible {
+    display: flex;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-primary);
+    border-top: 3px solid var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    margin-top: var(--spacing-md);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(13, 17, 23, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2500;
+}
+
+.modal-overlay.visible {
+    display: flex;
+}
+
+.modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    max-width: 600px;
+    max-height: 80vh;
+    width: 90%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-primary);
+    padding: var(--spacing-md);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text-primary);
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 24px;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
+}
+
+.modal-close:hover {
+    background: var(--border-primary);
+    color: var(--text-primary);
+}
+
+.modal-content {
+    padding: var(--spacing-md);
+    overflow-y: auto;
+    flex: 1;
+}
+
+.help-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.help-section h3 {
+    margin: 0 0 var(--spacing-sm) 0;
+    color: var(--accent-primary);
+    font-size: 16px;
+}
+
+.help-section ul {
+    margin: 0;
+    padding-left: var(--spacing-md);
+}
+
+.help-section li {
+    margin-bottom: var(--spacing-xs);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.help-section code {
+    background: var(--bg-tertiary);
+    color: var(--syntax-number);  /* Phase 1: Force white */
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
