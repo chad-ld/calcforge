@@ -29,6 +29,9 @@ class WindowManager;
 // Phase 4.1: Event system
 class EventBus;
 
+// Phase 4.2: Plugin system
+class PluginManager;
+
 /**
  * Main application window for CalcForge C++
  * Manages tabs, menu bar, toolbar, and overall application state
@@ -201,6 +204,9 @@ public:
 
     // Phase 4.1: Event system
     EventBus* m_eventBus;
+
+    // Phase 4.2: Plugin system
+    PluginManager* m_pluginManager;
 };
 
 #endif // MAINWINDOW_H

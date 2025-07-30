@@ -19,6 +19,7 @@ TabManager::TabManager(QTabWidget* tabWidget, QSettings* settings, EventBus* eve
     , m_tabWidget(tabWidget)
     , m_settings(settings)
     , m_eventBus(eventBus)
+    , m_pluginManager(nullptr)  // Phase 4.2: No plugin manager in legacy constructor
     , m_currentFontSize(16)  // Increased from 14 to 16 (2 increments larger)
     , m_nextTabNumber(1)
 {
@@ -37,6 +38,32 @@ TabManager::TabManager(QTabWidget* tabWidget, QSettings* settings, EventBus* eve
     m_settings->endGroup();
     
     LOG_DEBUG("TabManager: Initialized with dependency injection");
+}
+
+TabManager::TabManager(QTabWidget* tabWidget, QSettings* settings, EventBus* eventBus, PluginManager* pluginManager, QObject* parent)
+    : QObject(parent)
+    , m_tabWidget(tabWidget)
+    , m_settings(settings)
+    , m_eventBus(eventBus)
+    , m_pluginManager(pluginManager)  // Phase 4.2: Plugin manager support
+    , m_currentFontSize(16)  // Increased from 14 to 16 (2 increments larger)
+    , m_nextTabNumber(1)
+{
+    if (!m_tabWidget || !m_settings || !m_eventBus) {
+        LOG_DEBUG("TabManager: Invalid dependencies injected");
+        return;
+    }
+
+    // Connect tab widget signals
+    connect(m_tabWidget, QOverload<int>::of(&QTabWidget::currentChanged),
+            this, &TabManager::onTabChanged);
+
+    // Load font size from settings
+    m_settings->beginGroup("UI");
+    m_currentFontSize = m_settings->value("fontSize", 16).toInt();  // Changed default from 14 to 16
+    m_settings->endGroup();
+
+    LOG_DEBUG("TabManager: Initialized with dependency injection and plugin support");
 }
 
 CalcForgeResult<int> TabManager::addTab(const QString& name)
@@ -307,7 +334,21 @@ void TabManager::onSplitterMoved(const QByteArray& newState)
 WorksheetWidget* TabManager::createWorksheetWidget()
 {
     try {
-        WorksheetWidget* worksheet = new WorksheetWidget();
+        // Phase 4.2: Use plugin-aware constructor if plugin manager is available
+        WorksheetWidget* worksheet = nullptr;
+        if (m_pluginManager) {
+            try {
+                worksheet = new WorksheetWidget(m_pluginManager);
+                LOG_DEBUG("TabManager: Created WorksheetWidget with plugin support");
+            } catch (const std::exception& e) {
+                LOG_DEBUG(QString("TabManager: Plugin-aware WorksheetWidget creation failed: %1, falling back to standard").arg(e.what()));
+                worksheet = new WorksheetWidget();
+                LOG_DEBUG("TabManager: Created WorksheetWidget without plugin support (fallback)");
+            }
+        } else {
+            worksheet = new WorksheetWidget();
+            LOG_DEBUG("TabManager: Created WorksheetWidget without plugin support");
+        }
         return worksheet;
     } catch (const std::exception& e) {
         LOG_DEBUG("TabManager: Failed to create WorksheetWidget: " + QString(e.what()));

@@ -7,11 +7,15 @@
 #include <QRegularExpression>
 #include <functional>
 #include <cmath>
+#include <memory>
+#include <vector>
 #include "UnitConverter.h"
 #include "TimecodeCalculator.h"
 #include "AspectRatioCalculator.h"
 #include "DateCalculator.h"
 #include "CurrencyConverter.h"
+#include "PluginManager.h"
+#include "ICalculator.h"
 #include "PercentageCalculator.h"
 
 // Forward declarations
@@ -25,7 +29,8 @@ class CalculationEngine
 {
 public:
     CalculationEngine();
-    
+    CalculationEngine(PluginManager* pluginManager);  // Phase 4.2: Plugin-aware constructor
+
     /**
      * Evaluate a single mathematical expression
      * @param expression The expression to evaluate (e.g., "2 + 3 * 4")
@@ -78,6 +83,13 @@ public:
      * @param widget Pointer to the worksheet widget
      */
     void setWorksheetWidget(WorksheetWidget *widget);
+
+    /**
+     * Phase 4.2: Plugin system integration
+     */
+    void setPluginManager(PluginManager* pluginManager);
+    void initializeCalculators();
+    QStringList getAvailableCalculatorTypes() const;
 
     /**
      * Set the sheet lookup function for cross-sheet references
@@ -330,19 +342,15 @@ private:
     // Line number to value mapping for LN references
     QHash<int, double> m_lineValues;
 
-    // Unit converter for handling unit conversions
+    // Phase 4.2: Plugin-based calculator system
+    PluginManager* m_pluginManager;
+    std::vector<std::unique_ptr<ICalculator>> m_calculators;
+
+    // Legacy calculators (for backward compatibility during transition)
     UnitConverter m_unitConverter;
-
-    // Timecode calculator for handling TC functions
     TimecodeCalculator m_timecodeCalculator;
-
-    // Aspect ratio calculator for handling AR functions
     AspectRatioCalculator m_aspectRatioCalculator;
-
-    // Date calculator for handling D functions
     DateCalculator m_dateCalculator;
-
-    // Currency converter for handling currency conversions
     CurrencyConverter m_currencyConverter;
 
     // Percentage calculator for handling percentage calculations

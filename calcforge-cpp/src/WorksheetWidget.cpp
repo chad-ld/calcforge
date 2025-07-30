@@ -177,6 +177,50 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
     connect(m_evaluationTimer, &QTimer::timeout, this, &WorksheetWidget::evaluateAndHighlight);
 }
 
+WorksheetWidget::WorksheetWidget(PluginManager* pluginManager, QWidget *parent)
+    : QWidget(parent)
+    , m_editor(nullptr)
+    , m_results(nullptr)
+    , m_columnsSplitter(nullptr)
+    , m_calculationEngine(nullptr)
+    , m_settings(nullptr)
+    , m_dependencyTracker(std::make_unique<DependencyTracker>())
+    , m_referenceAutoUpdater(std::make_unique<LNReferenceAutoUpdater>(this))
+    , m_isLoadingContent(false)
+{
+    // Initialize settings
+    m_settings = new QSettings("CalcForge", "CalcForge", this);
+
+    // Phase 4.2: Initialize calculation engine with plugin manager
+    if (pluginManager) {
+        m_calculationEngine = new CalculationEngine(pluginManager);
+        LOG_DEBUG("WorksheetWidget: Initialized with plugin-aware calculation engine");
+    } else {
+        m_calculationEngine = new CalculationEngine();
+        LOG_DEBUG("WorksheetWidget: Initialized with standard calculation engine");
+    }
+
+    // Set the worksheet widget reference for content access
+    m_calculationEngine->setWorksheetWidget(this);
+
+    // Test the calculation engine
+    QString testResult = m_calculationEngine->evaluateExpression("2 + 2", 1);
+    LOG_INFO(QString("Calculation engine initialized - test: 2 + 2 = %1").arg(testResult));
+
+    // Phase 3.2: Initialize business logic separation
+    setupBusinessLogic();
+
+    // Setup UI
+    setupUI();
+    setupConnections();
+
+    // Initialize evaluation timer
+    m_evaluationTimer = new QTimer(this);
+    m_evaluationTimer->setSingleShot(true);
+    m_evaluationTimer->setInterval(150); // 150ms delay for evaluation (faster response)
+    connect(m_evaluationTimer, &QTimer::timeout, this, &WorksheetWidget::evaluateAndHighlight);
+}
+
 WorksheetWidget::~WorksheetWidget()
 {
     delete m_calculationEngine;

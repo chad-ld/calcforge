@@ -20,6 +20,9 @@
 // Phase 4.1: Event system
 #include "EventBus.h"
 
+// Phase 4.2: Plugin system
+#include "PluginManager.h"
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
@@ -2437,8 +2440,33 @@ void MainWindow::initializeManagers()
     EventBus::setInstance(m_eventBus);
     LOG_DEBUG("MainWindow: Event system initialized");
 
+    // Phase 4.2: Initialize plugin system (TEMPORARILY DISABLED FOR DEBUGGING)
+    // TODO: Re-enable once we confirm CalcForge starts without plugin system
+    m_pluginManager = nullptr;
+    LOG_DEBUG("MainWindow: Plugin system temporarily disabled for debugging");
+
+    /*
+    try {
+        m_pluginManager = new PluginManager(this);
+        if (m_pluginManager) {
+            m_pluginManager->registerBuiltInCalculators();
+            m_pluginManager->discoverPlugins();
+            LOG_DEBUG("MainWindow: Plugin system initialized successfully");
+        } else {
+            LOG_DEBUG("MainWindow: Failed to create plugin manager");
+            m_pluginManager = nullptr;
+        }
+    } catch (const std::exception& e) {
+        LOG_DEBUG(QString("MainWindow: Plugin system initialization failed: %1").arg(e.what()));
+        m_pluginManager = nullptr;
+    } catch (...) {
+        LOG_DEBUG("MainWindow: Plugin system initialization failed with unknown error");
+        m_pluginManager = nullptr;
+    }
+    */
+
     // Create managers in dependency order (TabManager first, then FileManager)
-    m_tabManager = new TabManager(m_tabWidget, m_settings, m_eventBus, this);
+    m_tabManager = new TabManager(m_tabWidget, m_settings, m_eventBus, m_pluginManager, this);
     m_fileManager = new FileManager(m_tabWidget, m_tabManager, m_settings, m_eventBus, this);
     m_crossSheetNavigator = new CrossSheetNavigator(m_tabManager, m_eventBus, this);
     m_windowManager = new WindowManager(this, m_settings, m_eventBus, this);

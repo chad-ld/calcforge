@@ -24,6 +24,9 @@ class CalculationService;
 // Phase 4.1: Event system
 class EventBus;
 
+// Phase 4.2: Plugin system
+class PluginManager;
+
 /**
  * Individual worksheet widget containing expression editor and results display
  * Phase 3.2: Now uses WorksheetModel and CalculationService for business logic separation
@@ -35,6 +38,7 @@ class WorksheetWidget : public QWidget
 
 public:
     explicit WorksheetWidget(QWidget *parent = nullptr);
+    explicit WorksheetWidget(PluginManager* pluginManager, QWidget *parent = nullptr);  // Phase 4.2: Plugin-aware constructor
     ~WorksheetWidget();
     
     // Content management

@@ -74,6 +74,8 @@ set(SOURCES
     src/WorksheetEvents.cpp
     src/ApplicationEvents.cpp
     src/EventBus.cpp
+    # Phase 4.2 refactoring: Plugin system
+    src/PluginManager.cpp
 )
 
 # Header files
@@ -115,6 +117,9 @@ set(HEADERS
     include/WorksheetEvents.h
     include/ApplicationEvents.h
     include/EventBus.h
+    # Phase 4.2 refactoring: Plugin system
+    include/ICalculatorPlugin.h
+    include/PluginManager.h
 )
 
 # Windows resource file for icon

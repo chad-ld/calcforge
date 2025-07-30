@@ -9,7 +9,7 @@
 #include <numeric>
 #include <stdexcept>
 
-CalculationEngine::CalculationEngine() : m_worksheetWidget(nullptr)
+CalculationEngine::CalculationEngine() : m_worksheetWidget(nullptr), m_pluginManager(nullptr)
 {
     // Initialize mathematical constants
     m_constants["pi"] = M_PI;
@@ -53,6 +53,24 @@ CalculationEngine::CalculationEngine() : m_worksheetWidget(nullptr)
     // Note: round, pow, factorial, gcd, lcm are handled separately as multi-argument functions
 }
 
+CalculationEngine::CalculationEngine(PluginManager* pluginManager)
+    : CalculationEngine()  // Delegate to default constructor
+{
+    m_pluginManager = pluginManager;
+    if (m_pluginManager) {
+        try {
+            initializeCalculators();
+            LOG_DEBUG("CalculationEngine: Initialized with plugin manager");
+        } catch (const std::exception& e) {
+            LOG_DEBUG(QString("CalculationEngine: Plugin initialization failed: %1").arg(e.what()));
+            m_pluginManager = nullptr; // Disable plugin system on error
+        } catch (...) {
+            LOG_DEBUG("CalculationEngine: Plugin initialization failed with unknown error");
+            m_pluginManager = nullptr; // Disable plugin system on error
+        }
+    }
+}
+
 QString CalculationEngine::evaluateExpression(const QString &expression, int lineNumber)
 {
     QString expr = expression.trimmed();
@@ -83,6 +101,33 @@ QString CalculationEngine::evaluateExpression(const QString &expression, int lin
 
     // Try to evaluate as a mathematical expression
     try {
+        // Phase 4.2: Try plugin-based calculators first
+        if (m_pluginManager && !m_calculators.empty()) {
+            for (const auto& calculator : m_calculators) {
+                if (calculator->canHandle(processedExpr)) {
+                    auto result = calculator->calculate(processedExpr);
+                    if (result.isValid()) {
+                        QString calculatorResult = result.value();
+
+                        // Try to extract numeric value for LN references
+                        bool ok;
+                        double numericValue = calculatorResult.toDouble(&ok);
+                        if (ok) {
+                            m_lineValues[lineNumber] = numericValue;
+                        } else {
+                            // Try to extract numeric value from formatted result
+                            m_lineValues[lineNumber] = extractNumericValueFromResult(calculatorResult);
+                        }
+
+                        LOG_DEBUG(QString("Plugin calculator '%1' handled expression: %2 -> %3")
+                                 .arg(calculator->getType()).arg(processedExpr).arg(calculatorResult));
+                        return calculatorResult;
+                    }
+                }
+            }
+        }
+
+        // Fallback to legacy calculators for backward compatibility
         // Check for timecode function first
         QString timecodeResult = handleTimecodeFunction(processedExpr);
         if (!timecodeResult.isEmpty()) {
@@ -2079,4 +2124,49 @@ double CalculationEngine::extractNumericValueFromResult(const QString &result)
     return 0.0;
 }
 
+// Phase 4.2: Plugin system integration methods
+void CalculationEngine::setPluginManager(PluginManager* pluginManager)
+{
+    m_pluginManager = pluginManager;
+    if (m_pluginManager) {
+        initializeCalculators();
+        LOG_DEBUG("CalculationEngine: Plugin manager set and calculators initialized");
+    }
+}
 
+void CalculationEngine::initializeCalculators()
+{
+    if (!m_pluginManager) {
+        LOG_DEBUG("CalculationEngine: No plugin manager available for calculator initialization");
+        return;
+    }
+
+    // Clear existing plugin-based calculators
+    m_calculators.clear();
+
+    // Get all calculators from plugin manager
+    m_calculators = m_pluginManager->getCalculators();
+
+    LOG_DEBUG(QString("CalculationEngine: Initialized %1 calculators from plugin manager")
+             .arg(m_calculators.size()));
+}
+
+QStringList CalculationEngine::getAvailableCalculatorTypes() const
+{
+    QStringList types;
+
+    // Add plugin-based calculator types
+    if (m_pluginManager) {
+        types.append(m_pluginManager->getAvailableCalculatorTypes());
+    }
+
+    // Add legacy calculator types for backward compatibility
+    types.append("UnitConverter");
+    types.append("TimecodeCalculator");
+    types.append("AspectRatioCalculator");
+    types.append("DateCalculator");
+    types.append("CurrencyConverter");
+
+    types.removeDuplicates();
+    return types;
+}

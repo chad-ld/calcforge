@@ -8,6 +8,7 @@
 
 class WorksheetWidget;
 class EventBus;
+class PluginManager;
 
 /**
  * TabManager handles all tab-related operations for CalcForge
@@ -22,6 +23,7 @@ class TabManager : public QObject
 
 public:
     explicit TabManager(QTabWidget* tabWidget, QSettings* settings, EventBus* eventBus, QObject* parent = nullptr);
+    explicit TabManager(QTabWidget* tabWidget, QSettings* settings, EventBus* eventBus, PluginManager* pluginManager, QObject* parent = nullptr);  // Phase 4.2: Plugin-aware constructor
     ~TabManager() = default;
 
     // Tab operations
@@ -80,6 +82,7 @@ private:
     QTabWidget* m_tabWidget;
     QSettings* m_settings;
     EventBus* m_eventBus;
+    PluginManager* m_pluginManager;  // Phase 4.2: Plugin system
     
     // Internal state
     int m_currentFontSize;
