@@ -1,9 +1,9 @@
-CalcForge v4.1 - C++ Native Windows Version
+CalcForge v5.0 - C++ Native Windows Version
 ===========================================
 
 Build Information:
-- Version: 4.1
-- Build Date: 2025-07-18
+- Version: 5.0
+- Build Date: 2025-07-30
 - Platform: Windows 64-bit
 - Compiler: MSVC 2022
 - Qt Version: 6.9.1
@@ -30,6 +30,8 @@ Features Included:
 ✅ Help System with comprehensive documentation
 
 Recent Updates:
+- VERSION 5.0 (July 30, 2025): Major version update reflecting architectural improvements
+- LATEST (July 30, 2025): Fixed cross-sheet navigation with ampersands in sheet names
 - Fixed LN variables to work with unit conversions and all special functions
 - Added comprehensive area conversions (acres, hectares, square meters, etc.)
 - Expanded volume conversions (cubic meters, cubic feet, cubic inches, etc.)

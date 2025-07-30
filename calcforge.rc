@@ -5,8 +5,8 @@ IDI_ICON1 ICON "calcforge.ico"
 
 // Version information
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION 5,0,0,0
+PRODUCTVERSION 5,0,0,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -19,12 +19,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "CalcForge"
             VALUE "FileDescription", "CalcForge - Advanced Calculator"
-            VALUE "FileVersion", "1.0.0.0"
+            VALUE "FileVersion", "5.0.0.0"
             VALUE "InternalName", "CalcForge"
             VALUE "LegalCopyright", "Copyright (C) 2025"
             VALUE "OriginalFilename", "CalcForge.exe"
             VALUE "ProductName", "CalcForge"
-            VALUE "ProductVersion", "1.0.0.0"
+            VALUE "ProductVersion", "5.0.0.0"
         END
     END
     BLOCK "VarFileInfo"

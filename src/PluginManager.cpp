@@ -10,7 +10,7 @@
 #include <QFileInfo>
 #include <QDirIterator>
 
-const QString PluginManager::CALCFORGE_VERSION = "4.0.0";
+const QString PluginManager::CALCFORGE_VERSION = "5.0.0";
 const QString PluginManager::DEFAULT_PLUGIN_SUBDIR = "plugins";
 
 PluginManager::PluginManager(QObject* parent)

@@ -150,7 +150,7 @@ public:
     QString getPluginName() const override { return m_name; }
     QString getVersion() const override { return m_version; }
     QString getAuthor() const override { return m_author; }
-    QString getMinimumCalcForgeVersion() const override { return "4.0.0"; }
+    QString getMinimumCalcForgeVersion() const override { return "5.0.0"; }
     
     bool initialize() override { return true; }
     void cleanup() override {}

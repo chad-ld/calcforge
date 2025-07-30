@@ -1,10 +1,6 @@
 {
     "tabs": [
         {
-            "content": "25000*.01",
-            "name": "Misc Calcs"
-        },
-        {
             "content": "::: BASIC MATHEMATICS\n5 + 3\n10 - 4\n7 * 6\n15 / 3\n2**3\n(2 + 3) * 4\n2 + 3 * 4\n-5\n\n::: MATHEMATICAL CONSTANTS\npi\ne\n\n::: BASIC MATHEMATICAL FUNCTIONS\nsqrt(16)\nsqrt(2)\nsin(0)\ncos(pi)\ntan(pi/4)\nlog(e)\nlog10(100)\nexp(1)\nabs(-5)\nceil(3.2)\nfloor(3.8)\nround(3.14159, 2)\n\n::: ADVANCED MATHEMATICAL FUNCTIONS\n::: Inverse trigonometric functions\nasin(0.5)\nacos(0.707)\natan(1)\n\n::: Hyperbolic functions\nsinh(1)\ncosh(1)\ntanh(1)\nasinh(1.175)\nacosh(1.543)\natanh(0.762)\n\n::: Utility functions\ndegrees(pi)\nradians(180)\nfactorial(5)\npow(2, 3)\ngcd(12, 8)\nlcm(12, 8)\nlog2(8)\ntruncate(3.14159, 2)\n\n::: SAMPLE DATA FOR STATISTICS\n10\n20\n30\n40\n50\n\n::: STATISTICAL FUNCTIONS\nsum(54-58)\nmean(54-58)\nmedian(54-58)\nmin(54-58)\nmax(54-58)\ncount(54-58)\nvariance(54-58)\nstdev(54-58)\nproduct(54-58)\nrange(54-58)\ngeomean(54-58)\nharmmean(54-58)\nsumsq(54-58)\nmode(54-58)\n\n::: ADVANCED STATISTICAL FUNCTIONS\nperc5(54-58)\nperc95(54-58)\n\n:::mean fps \n.29382\n.20392\n.20320\nmeanfps(81-83)\n\n::: STATISTICAL WITH ROUNDING\nmean(54-58)\nstdev(54-58)\n\n::: LN REFERENCES\n2000\n1.2948\nLN2\nLN3 * 2\nLN91 + LN93 + LN3\n\n::: SIMPLE FUNCTION CALLS\nsqrt(LN91)\nabs(LN81)\nround(LN92, 3)\n\n::: BASIC ARITHMETIC WITH LN\n(LN91 + LN93) / 2\nLN02 * LN33\nLN05 - LN06",
             "name": "Math & Statistics"
         },

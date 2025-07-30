@@ -1,4 +1,4 @@
-# CalcForge v4.1 - Portable Distribution
+# CalcForge v5.0 - Portable Distribution
 
 ## 🚀 **What is CalcForge?**
 
@@ -63,6 +63,10 @@ This portable distribution contains everything you need to run CalcForge:
 - **Percentage Functions**: percent(25%, 1000) → 250, percent(250, %, 1000) → 25%
 
 ## 🚀 **Getting Started**
+
+### **Recent Updates**
+✅ **Version 5.0 Release** - Major version update reflecting significant architectural improvements and feature enhancements
+✅ **Cross-Sheet Navigation Fix** - Ctrl+Enter and Ctrl+Backspace shortcuts now work correctly with sheet names containing ampersands (&) and other special characters
 
 ### **Installation**
 1. **No installation required!** This is a portable application
@@ -153,7 +157,7 @@ CalcForge uses JSON format for worksheets:
 
 ## 🎉 **Version Information**
 
-**CalcForge v4.1 C++**
+**CalcForge v5.0 C++**
 - Built with Qt 6.9.1 and MSVC 2022
 - All features from Python and Electron versions
 - Native Windows performance

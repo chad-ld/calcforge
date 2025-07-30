@@ -111,7 +111,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_globalFontSize = 17; // Default font size (15 base + 2 for pixel adjustment)
     
     // Set window properties for custom styling
-    setWindowTitle("CalcForge v4.0");
+    setWindowTitle("CalcForge v5.0");
     setMinimumSize(800, 600);
 
     // Enable frameless window for custom title bar but allow resizing
@@ -213,7 +213,7 @@ void MainWindow::setupUI()
     headerTopLayout->setSpacing(8);
 
     // Title label (left side)
-    QLabel *titleLabel = new QLabel("CalcForge v4.0", this);
+    QLabel *titleLabel = new QLabel("CalcForge v5.0", this);
     titleLabel->setStyleSheet(
         "QLabel {"
         "  color: #ffffff;"
@@ -982,10 +982,10 @@ void MainWindow::exitApplication()
 void MainWindow::showAbout()
 {
     QMessageBox::about(this, "About CalcForge",
-                      "CalcForge v4.0\n\n"
+                      "CalcForge v5.0\n\n"
                       "Advanced Calculator with Mathematical Operations and Unit Conversion\n\n"
                       "Built with Qt 6 and C++ for maximum performance\n"
-                      "Copyright © 2024 CalcForge Project");
+                      "Copyright © 2025 CalcForge Project");
 }
 
 void MainWindow::loadWorksheets()
@@ -1068,9 +1068,9 @@ void MainWindow::loadWorksheetFromFile(const QString &filePath)
         QString defaultWorksheetsPath = QDir(appDir).absoluteFilePath("worksheets.json");
         if (filePath != defaultWorksheetsPath) {
             m_fileManager->addToRecentFiles(filePath);
-            setWindowTitle(QString("CalcForge v4.0 - %1").arg(QFileInfo(filePath).baseName()));
+            setWindowTitle(QString("CalcForge v5.0 - %1").arg(QFileInfo(filePath).baseName()));
         } else {
-            setWindowTitle("CalcForge v4.0");
+            setWindowTitle("CalcForge v5.0");
         }
     }
 
@@ -1124,7 +1124,7 @@ void MainWindow::loadExampleWorksheetsAndSave()
                 // FileManager handles file state internally
                 m_fileManager->addToRecentFiles(worksheetsPath);
             }
-            setWindowTitle("CalcForge v4.0");
+            setWindowTitle("CalcForge v5.0");
             qDebug() << "Successfully saved example worksheets as worksheets.json";
         } else {
             qWarning() << "Failed to save example worksheets as worksheets.json";

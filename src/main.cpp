@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
 
     // Set application properties
     app.setApplicationName("CalcForge");
-    app.setApplicationVersion("4.0.0");
+    app.setApplicationVersion("5.0.0");
     app.setOrganizationName("CalcForge");
     app.setOrganizationDomain("calcforge.org");
 

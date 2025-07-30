@@ -1,9 +1,9 @@
-# CalcForge v4.0 - Deployment Information
+# CalcForge v5.0 - Deployment Information
 
 ## 📦 **Deployment Package Details**
 
 ### **Package Information**
-- **Version**: CalcForge v4.0 C++ Native Windows
+- **Version**: CalcForge v5.0 C++ Native Windows
 - **Build Date**: 2025-07-18
 - **Platform**: Windows 64-bit
 - **Compiler**: MSVC 2022
