@@ -2,8 +2,10 @@
 #include "TabManager.h"
 #include "WorksheetWidget.h"
 #include "ExpressionEditor.h"
+#include "ResultsDisplay.h"
 #include "LineChangeDetector.h"
 #include "EventBus.h"
+#include "ApplicationEvents.h"
 #include "Logger.h"
 
 #include <QRegularExpression>
@@ -21,7 +23,11 @@ CrossSheetNavigator::CrossSheetNavigator(TabManager* tabManager, EventBus* event
         LOG_DEBUG("CrossSheetNavigator: Invalid dependencies injected");
         return;
     }
-    
+
+    // Connect to EventBus signals for cross-sheet reference updates
+    connect(m_eventBus->applicationEvents(), &ApplicationEvents::tabRenamed,
+            this, &CrossSheetNavigator::onTabRenamed);
+
     LOG_DEBUG("CrossSheetNavigator: Initialized with dependency injection");
 }
 
@@ -181,6 +187,142 @@ bool CrossSheetNavigator::updateCrossSheetReferences(WorksheetWidget* worksheet,
     }
     
     return hasChanges;
+}
+
+void CrossSheetNavigator::updateCrossSheetReferencesForRenamedSheet(const QString& oldSheetName, const QString& newSheetName)
+{
+    if (oldSheetName.isEmpty() || newSheetName.isEmpty() || oldSheetName == newSheetName) {
+        return;
+    }
+
+    LOG_DEBUG(QString("CrossSheetNavigator: Updating cross-sheet references from '%1' to '%2'")
+              .arg(oldSheetName).arg(newSheetName));
+
+    if (!m_tabManager) {
+        LOG_DEBUG("CrossSheetNavigator: TabManager not available for reference updates");
+        return;
+    }
+
+    // Pattern to match cross-sheet references to the old sheet name: S.OldSheetName.LN#
+    QString escapedOldName = QRegularExpression::escape(oldSheetName);
+    QRegularExpression crossSheetPattern(
+        QString(R"(\bS\.%1\.LN(\d+)\b)").arg(escapedOldName),
+        QRegularExpression::CaseInsensitiveOption
+    );
+
+    int updatedWorksheets = 0;
+    int totalReferencesUpdated = 0;
+
+    // Update references in all worksheets
+    for (int i = 0; i < m_tabManager->getTabCount(); ++i) {
+        WorksheetWidget* worksheet = m_tabManager->getWorksheetWidget(i);
+        if (!worksheet) {
+            continue;
+        }
+
+        QString content = worksheet->getContent();
+        QString updatedContent = content;
+        int referencesInThisSheet = 0;
+
+        // Find and replace all cross-sheet references to the old sheet name
+        QRegularExpressionMatchIterator iterator = crossSheetPattern.globalMatch(content);
+        QList<QRegularExpressionMatch> matches;
+
+        // Collect all matches first to avoid position shifts during replacement
+        while (iterator.hasNext()) {
+            matches.append(iterator.next());
+        }
+
+        // Process matches from right to left to avoid position shifts
+        for (int j = matches.size() - 1; j >= 0; --j) {
+            const QRegularExpressionMatch& match = matches[j];
+            QString oldReference = match.captured(0);  // e.g., "S.Conversions.LN2"
+            QString lineNumber = match.captured(1);    // e.g., "2"
+            QString newReference = QString("S.%1.LN%2").arg(newSheetName).arg(lineNumber);
+
+            updatedContent.replace(match.capturedStart(), match.capturedLength(), newReference);
+            referencesInThisSheet++;
+
+            LOG_DEBUG(QString("  Updated reference: '%1' → '%2'").arg(oldReference).arg(newReference));
+        }
+
+        // Update the worksheet content if changes were made
+        if (referencesInThisSheet > 0) {
+            // Save cursor position and scroll position before updating content
+            ExpressionEditor* editor = worksheet->getEditor();
+            int savedCursorPosition = 0;
+            int savedVerticalScroll = 0;
+            int savedHorizontalScroll = 0;
+
+            if (editor) {
+                QTextCursor cursor = editor->textCursor();
+                savedCursorPosition = cursor.position();
+
+                // Save scroll positions
+                savedVerticalScroll = editor->verticalScrollBar()->value();
+                savedHorizontalScroll = editor->horizontalScrollBar()->value();
+
+                LOG_DEBUG(QString("  Saving position for worksheet %1: cursor=%2, scroll=(%3,%4)")
+                         .arg(i).arg(savedCursorPosition).arg(savedHorizontalScroll).arg(savedVerticalScroll));
+            }
+
+            // Save results scroll position
+            ResultsDisplay* results = worksheet->getResults();
+            int savedResultsVerticalScroll = 0;
+            int savedResultsHorizontalScroll = 0;
+
+            if (results) {
+                savedResultsVerticalScroll = results->verticalScrollBar()->value();
+                savedResultsHorizontalScroll = results->horizontalScrollBar()->value();
+            }
+
+            worksheet->setContent(updatedContent);
+
+            // Restore cursor position and scroll position after updating content
+            if (editor) {
+                QTextCursor cursor = editor->textCursor();
+                cursor.setPosition(qMin(savedCursorPosition, editor->toPlainText().length()));
+                editor->setTextCursor(cursor);
+
+                // Restore scroll positions
+                editor->verticalScrollBar()->setValue(savedVerticalScroll);
+                editor->horizontalScrollBar()->setValue(savedHorizontalScroll);
+
+                LOG_DEBUG(QString("  Restored position for worksheet %1: cursor=%2, scroll=(%3,%4)")
+                         .arg(i).arg(cursor.position()).arg(savedHorizontalScroll).arg(savedVerticalScroll));
+            }
+
+            // Restore results scroll position
+            if (results) {
+                results->verticalScrollBar()->setValue(savedResultsVerticalScroll);
+                results->horizontalScrollBar()->setValue(savedResultsHorizontalScroll);
+            }
+
+            updatedWorksheets++;
+            totalReferencesUpdated += referencesInThisSheet;
+
+            LOG_DEBUG(QString("  Updated %1 references in worksheet '%2'")
+                     .arg(referencesInThisSheet)
+                     .arg(m_tabManager->getTabName(i)));
+        }
+    }
+
+    LOG_DEBUG(QString("CrossSheetNavigator: Updated %1 cross-sheet references across %2 worksheets")
+              .arg(totalReferencesUpdated).arg(updatedWorksheets));
+
+    // Trigger recalculation if any references were updated
+    if (totalReferencesUpdated > 0) {
+        triggerCrossSheetRecalculation();
+    }
+}
+
+void CrossSheetNavigator::onTabRenamed(int index, const QString& oldName, const QString& newName)
+{
+    LOG_DEBUG(QString("CrossSheetNavigator: Tab renamed from '%1' to '%2' at index %3")
+              .arg(oldName).arg(newName).arg(index));
+
+    // Update all cross-sheet references to use the new sheet name
+    updateCrossSheetReferencesForRenamedSheet(oldName, newName);
 }
 
 bool CrossSheetNavigator::hasCircularCrossSheetDependencies(const QString& sheetName) const

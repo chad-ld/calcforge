@@ -40,8 +40,9 @@ public:
     // Cross-sheet reference management
     void triggerCrossSheetRecalculation();
     void recalculateAllWorksheets();
-    bool updateCrossSheetReferences(WorksheetWidget* worksheet, const QString& changedSheetName, 
+    bool updateCrossSheetReferences(WorksheetWidget* worksheet, const QString& changedSheetName,
                                    const QList<LineChange>& changes);
+    void updateCrossSheetReferencesForRenamedSheet(const QString& oldSheetName, const QString& newSheetName);
     
     // Circular dependency detection
     bool hasCircularCrossSheetDependencies(const QString& sheetName) const;
@@ -58,6 +59,7 @@ signals:
 public slots:
     void onLineNumberingChanged(const QString& sheetName, const QList<LineChange>& changes);
     void onValuesChanged(const QString& sheetName);
+    void onTabRenamed(int index, const QString& oldName, const QString& newName);
 
 private:
     // Navigation history structure
