@@ -13,12 +13,10 @@ copy "build\Release\CalcForge.exe" "deploy\CalcForge\"
 
 REM Copy data files for portable operation
 echo Copying data files...
-if exist "worksheets.json" copy "worksheets.json" "deploy\CalcForge\"
-if exist "example_worksheets.json" copy "example_worksheets.json" "deploy\CalcForge\"
-if exist "combined_worksheets.json" copy "combined_worksheets.json" "deploy\CalcForge\"
-if exist "comprehensive_worksheets.json" copy "comprehensive_worksheets.json" "deploy\CalcForge\"
-if exist "exchange_rates.json" copy "exchange_rates.json" "deploy\CalcForge\"
-if exist "api_key_example.txt" copy "api_key_example.txt" "deploy\CalcForge\"
+if exist "config_files_backup\worksheets.json" copy "config_files_backup\worksheets.json" "deploy\CalcForge\"
+if exist "config_files_backup\example_worksheets.json" copy "config_files_backup\example_worksheets.json" "deploy\CalcForge\"
+if exist "config_files_backup\exchange_rates.json" copy "config_files_backup\exchange_rates.json" "deploy\CalcForge\"
+if exist "config_files_backup\api_key_example.txt" copy "config_files_backup\api_key_example.txt" "deploy\CalcForge\"
 
 REM Use Qt's deployment tool to copy required DLLs
 echo Running windeployqt to copy Qt libraries...
