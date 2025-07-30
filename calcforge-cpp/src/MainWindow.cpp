@@ -707,41 +707,14 @@ void MainWindow::closeTab(int index)
 
 void MainWindow::renameTab(int index)
 {
-    if (index < 0 || index >= m_tabWidget->count()) {
-        return;
-    }
-
-    QString currentName = m_tabWidget->tabText(index);
-    // Un-escape ampersands to get the original name for the dialog
-    currentName.replace("&&", "&");
-
-    bool ok;
-
-    // Create input dialog with proper flags to appear above always-on-top window
-    QInputDialog dialog(this);
-    dialog.setWindowTitle("Rename Sheet");
-    dialog.setLabelText("New name:");
-    dialog.setTextValue(currentName);
-    dialog.setInputMode(QInputDialog::TextInput);
-
-    // Set window flags to ensure dialog appears above always-on-top parent
-    dialog.setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
-
-    // Show dialog and get result
-    ok = (dialog.exec() == QDialog::Accepted);
-    QString newName = ok ? dialog.textValue() : QString();
-
-    if (ok && !newName.isEmpty() && newName != currentName) {
-        // Escape ampersands to prevent mnemonic interpretation
-        QString escapedNewName = newName;
-        escapedNewName.replace("&", "&&");
-        m_tabWidget->setTabText(index, escapedNewName);
-
-        // Mark as modified if needed
-        WorksheetWidget *worksheet = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(index));
-        if (worksheet) {
-            worksheet->setModified(true);
+    // Phase 3: Delegate to TabManager for proper ampersand handling
+    if (m_tabManager) {
+        auto result = m_tabManager->renameTab(index);
+        if (!result.isValid()) {
+            LOG_DEBUG("MainWindow: Failed to rename tab: " + result.errorMessage());
         }
+    } else {
+        LOG_DEBUG("MainWindow: TabManager not available for tab rename");
     }
 }
 
