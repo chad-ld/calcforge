@@ -146,15 +146,25 @@ MainWindow::MainWindow(QWidget *parent)
     // Restore window state
     restoreWindowState();
 
-    // Load existing worksheets or create initial tab if none exist
-    if (m_fileManager) {
-        m_fileManager->loadWorksheets();
-    }
+    // Create initial tab immediately for fast UI response
+    createInitialTab();
 
-    // Ensure we have at least one tab
-    if (m_tabWidget->count() == 0) {
-        createInitialTab();
-    }
+    // Defer heavy operations until after window is shown
+    QTimer::singleShot(0, this, [this]() {
+        // Load worksheets asynchronously after UI is shown
+        if (m_fileManager) {
+            m_fileManager->loadWorksheets();
+        }
+
+        // Remove the initial tab if worksheets were loaded
+        if (m_tabWidget->count() > 1) {
+            // Remove the initial empty tab if we loaded actual worksheets
+            WorksheetWidget* firstTab = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
+            if (firstTab && firstTab->getContent().trimmed().isEmpty()) {
+                m_tabWidget->removeTab(0);
+            }
+        }
+    });
 
     // Set always on top by default after window is shown
     QTimer::singleShot(100, this, [this]() {
@@ -1074,10 +1084,12 @@ void MainWindow::loadWorksheetFromFile(const QString &filePath)
         }
     }
 
-    // After all worksheets are loaded, trigger coordinated cross-sheet calculation
-    if (m_tabWidget->count() > 0) {
-        recalculateAllWorksheets();
-    }
+    // Defer calculations until after UI is fully loaded (500ms delay for better UX)
+    QTimer::singleShot(500, this, [this]() {
+        if (m_tabWidget->count() > 0) {
+            recalculateAllWorksheets();
+        }
+    });
 
     // Set focus to first tab if any tabs were loaded
     if (m_tabWidget->count() > 0) {
@@ -2540,10 +2552,10 @@ void MainWindow::initializeManagers()
     m_windowManager->setupResizeCorners();
     m_windowManager->setupResizeEdges();
     m_windowManager->restoreWindowState();
-    
-    // Load initial worksheets through FileManager
-    m_fileManager->loadWorksheets();
-    
+
+    // Note: Worksheet loading is now deferred to after window is shown
+    // This is handled in the MainWindow constructor's QTimer::singleShot
+
     LOG_DEBUG("MainWindow: Manager initialization completed");
 }
  

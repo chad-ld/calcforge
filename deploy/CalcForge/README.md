@@ -65,6 +65,7 @@ This portable distribution contains everything you need to run CalcForge:
 ## 🚀 **Getting Started**
 
 ### **Recent Updates**
+✅ **Performance Optimizations** - Significantly improved startup time from ~3 seconds to ~1 second through lazy loading and deferred operations
 ✅ **Version 5.0 Release** - Major version update reflecting significant architectural improvements and feature enhancements
 ✅ **Cross-Sheet Navigation Fix** - Ctrl+Enter and Ctrl+Backspace shortcuts now work correctly with sheet names containing ampersands (&) and other special characters
 

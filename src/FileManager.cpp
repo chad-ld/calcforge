@@ -367,7 +367,8 @@ bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
     
     QByteArray data = file.readAll();
     file.close();
-    
+
+    // Fast JSON parsing without detailed error reporting for startup speed
     QJsonParseError parseError;
     QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
     

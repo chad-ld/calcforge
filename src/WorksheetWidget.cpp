@@ -159,9 +159,8 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
     // Set the worksheet widget reference for content access
     m_calculationEngine->setWorksheetWidget(this);
 
-    // Test the calculation engine
-    QString testResult = m_calculationEngine->evaluateExpression("2 + 2", 1);
-    LOG_INFO(QString("Calculation engine initialized - test: 2 + 2 = %1").arg(testResult));
+    // Skip calculation engine testing during startup for faster performance
+    LOG_DEBUG("Calculation engine initialized for WorksheetWidget");
 
     // Phase 3.2: Initialize business logic separation
     setupBusinessLogic();
@@ -173,7 +172,7 @@ WorksheetWidget::WorksheetWidget(QWidget *parent)
     // Initialize evaluation timer
     m_evaluationTimer = new QTimer(this);
     m_evaluationTimer->setSingleShot(true);
-    m_evaluationTimer->setInterval(150); // 150ms delay for evaluation (faster response)
+    m_evaluationTimer->setInterval(100); // 100ms delay for evaluation (faster response)
     connect(m_evaluationTimer, &QTimer::timeout, this, &WorksheetWidget::evaluateAndHighlight);
 }
 
@@ -203,9 +202,8 @@ WorksheetWidget::WorksheetWidget(PluginManager* pluginManager, QWidget *parent)
     // Set the worksheet widget reference for content access
     m_calculationEngine->setWorksheetWidget(this);
 
-    // Test the calculation engine
-    QString testResult = m_calculationEngine->evaluateExpression("2 + 2", 1);
-    LOG_INFO(QString("Calculation engine initialized - test: 2 + 2 = %1").arg(testResult));
+    // Skip calculation engine testing during startup for faster performance
+    LOG_DEBUG("Calculation engine initialized for WorksheetWidget (with PluginManager)");
 
     // Phase 3.2: Initialize business logic separation
     setupBusinessLogic();
@@ -217,7 +215,7 @@ WorksheetWidget::WorksheetWidget(PluginManager* pluginManager, QWidget *parent)
     // Initialize evaluation timer
     m_evaluationTimer = new QTimer(this);
     m_evaluationTimer->setSingleShot(true);
-    m_evaluationTimer->setInterval(150); // 150ms delay for evaluation (faster response)
+    m_evaluationTimer->setInterval(100); // 100ms delay for evaluation (faster response)
     connect(m_evaluationTimer, &QTimer::timeout, this, &WorksheetWidget::evaluateAndHighlight);
 }
 

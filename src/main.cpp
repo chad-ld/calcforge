@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QDebug>
+#include <QTimer>
 #include "MainWindow.h"
 
 int main(int argc, char *argv[])
@@ -34,6 +35,11 @@ int main(int argc, char *argv[])
 
     // Process events immediately for faster perceived startup
     app.processEvents();
+
+    // Additional event processing for smoother startup
+    QTimer::singleShot(0, [&app]() {
+        app.processEvents();
+    });
 
     return app.exec();
 }

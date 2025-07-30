@@ -30,6 +30,7 @@ Features Included:
 ✅ Help System with comprehensive documentation
 
 Recent Updates:
+- PERFORMANCE (July 30, 2025): Optimized startup time from ~3 seconds to ~1 second
 - VERSION 5.0 (July 30, 2025): Major version update reflecting architectural improvements
 - LATEST (July 30, 2025): Fixed cross-sheet navigation with ampersands in sheet names
 - Fixed LN variables to work with unit conversions and all special functions
