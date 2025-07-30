@@ -338,11 +338,13 @@ void FileManager::loadExampleWorksheets()
             loadExampleWorksheetsAndSave();
         }
     } else {
-        LOG_DEBUG("FileManager: No example worksheets found, creating default tab");
-        // Create a default empty worksheet if no files exist
-        if (m_tabWidget->count() == 0) {
-            // This would typically be handled by TabManager, but for now:
-            // The calling code should handle creating a default tab
+        LOG_DEBUG("FileManager: No example worksheets found, ensuring default tab exists");
+        // Ensure we have at least one tab if no files exist
+        if (m_tabManager->getTabCount() == 0) {
+            auto result = m_tabManager->addTab("Sheet 1");
+            if (result.isValid()) {
+                LOG_DEBUG("FileManager: Created default tab since no worksheets found");
+            }
         }
     }
 }
@@ -398,27 +400,30 @@ bool FileManager::loadWorksheetContentFromFile(const QString& filePath)
         worksheets = root["tabs"].toArray();
     }
     
-    bool isFirstWorksheet = true;
+    // Load all worksheets as new tabs (no initial tab to reuse)
     for (const QJsonValue& value : worksheets) {
         if (value.isObject()) {
             QJsonObject worksheet = value.toObject();
             QString name = worksheet["name"].toString();
             QString content = worksheet["content"].toString();
-            
+
             if (!name.isEmpty()) {
-                if (isFirstWorksheet && m_tabManager->getTabCount() > 0) {
-                    // Reuse existing tab for first worksheet to avoid duplication
-                    loadIntoExistingTab(0, name, content);
-                    isFirstWorksheet = false;
-                } else {
-                    // Add new tabs for additional worksheets
-                    loadSingleWorksheet(name, content);
-                }
+                // Always create new tabs to avoid flicker from tab manipulation
+                loadSingleWorksheet(name, content);
             }
         }
     }
 
     LOG_DEBUG(QString("FileManager: Loaded %1 worksheets from file").arg(m_tabManager->getTabCount()));
+
+    // Ensure we have at least one tab
+    if (m_tabManager->getTabCount() == 0) {
+        LOG_DEBUG("FileManager: No worksheets loaded, creating default tab");
+        auto result = m_tabManager->addTab("Sheet 1");
+        if (result.isValid()) {
+            LOG_DEBUG("FileManager: Created default tab");
+        }
+    }
 
     // Trigger cross-sheet recalculation after all worksheets are loaded
     // This ensures cross-sheet references work correctly on startup

@@ -146,25 +146,25 @@ MainWindow::MainWindow(QWidget *parent)
     // Restore window state
     restoreWindowState();
 
-    // Create initial tab immediately for fast UI response
-    createInitialTab();
+    // Check if worksheets exist before creating initial tab to avoid flicker
+    QString appDir = QCoreApplication::applicationDirPath();
+    QString worksheetsPath = appDir + "/worksheets.json";
+    QString examplePath = appDir + "/example_worksheets.json";
 
-    // Defer heavy operations until after window is shown
-    QTimer::singleShot(0, this, [this]() {
-        // Load worksheets asynchronously after UI is shown
-        if (m_fileManager) {
-            m_fileManager->loadWorksheets();
-        }
+    QFile worksheetsFile(worksheetsPath);
+    QFile exampleFile(examplePath);
 
-        // Remove the initial tab if worksheets were loaded
-        if (m_tabWidget->count() > 1) {
-            // Remove the initial empty tab if we loaded actual worksheets
-            WorksheetWidget* firstTab = qobject_cast<WorksheetWidget*>(m_tabWidget->widget(0));
-            if (firstTab && firstTab->getContent().trimmed().isEmpty()) {
-                m_tabWidget->removeTab(0);
+    if (worksheetsFile.exists() || exampleFile.exists()) {
+        // Worksheets exist - load them directly without creating initial tab
+        QTimer::singleShot(0, this, [this]() {
+            if (m_fileManager) {
+                m_fileManager->loadWorksheets();
             }
-        }
-    });
+        });
+    } else {
+        // No worksheets exist - create initial tab immediately
+        createInitialTab();
+    }
 
     // Set always on top by default after window is shown
     QTimer::singleShot(100, this, [this]() {
