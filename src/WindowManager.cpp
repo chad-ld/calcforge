@@ -258,7 +258,32 @@ void WindowManager::setStayOnTop(bool enabled)
     // Windows-specific implementation
     HWND hwnd = (HWND)m_mainWindow->winId();
     if (enabled) {
+        // Set window to topmost first
         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
+        // Force focus using Windows API - this is more aggressive than Qt methods
+        // Get the current foreground window and its thread
+        HWND foregroundWindow = GetForegroundWindow();
+        DWORD foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, NULL);
+        DWORD currentThreadId = GetCurrentThreadId();
+
+        // Attach to the foreground thread to allow focus stealing
+        if (foregroundThreadId != currentThreadId) {
+            AttachThreadInput(currentThreadId, foregroundThreadId, TRUE);
+        }
+
+        // Now we can successfully set foreground window
+        SetForegroundWindow(hwnd);
+        SetActiveWindow(hwnd);
+        SetFocus(hwnd);
+        BringWindowToTop(hwnd);
+
+        // Detach from the foreground thread
+        if (foregroundThreadId != currentThreadId) {
+            AttachThreadInput(currentThreadId, foregroundThreadId, FALSE);
+        }
+
+        LOG_DEBUG("WindowManager: Forced focus using Windows API with thread attachment");
     } else {
         SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
     }
@@ -272,6 +297,13 @@ void WindowManager::setStayOnTop(bool enabled)
     }
     m_mainWindow->setWindowFlags(flags);
     m_mainWindow->show(); // Required to apply flag changes
+
+    // Ensure the window gets focus when enabling always on top
+    if (enabled) {
+        m_mainWindow->activateWindow();
+        m_mainWindow->raise();
+        m_mainWindow->setFocus();
+    }
 #endif
     
     // Save setting

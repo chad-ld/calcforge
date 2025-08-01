@@ -160,6 +160,19 @@ MainWindow::MainWindow(QWidget *parent)
     QTimer::singleShot(100, this, [this]() {
         toggleAlwaysOnTop(true);
     });
+
+    // Additional aggressive focus grabbing with multiple attempts
+    QTimer::singleShot(200, this, [this]() {
+        forceWindowFocus();
+    });
+
+    QTimer::singleShot(500, this, [this]() {
+        forceWindowFocus();
+    });
+
+    QTimer::singleShot(1000, this, [this]() {
+        forceWindowFocus();
+    });
 }
 
 MainWindow::~MainWindow()
@@ -1544,8 +1557,94 @@ void MainWindow::toggleAlwaysOnTop(bool enabled)
     setWindowFlags(flags);
     show(); // Need to show again after changing flags
 
+    // Ensure the window gets focus when enabling always on top
+    if (enabled) {
+#ifdef Q_OS_WIN
+        // Use Windows API for more reliable focus stealing
+        HWND hwnd = reinterpret_cast<HWND>(winId());
+        HWND foregroundWindow = GetForegroundWindow();
+        DWORD foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, NULL);
+        DWORD currentThreadId = GetCurrentThreadId();
+
+        // Attach to the foreground thread to allow focus stealing
+        if (foregroundThreadId != currentThreadId) {
+            AttachThreadInput(currentThreadId, foregroundThreadId, TRUE);
+        }
+
+        // Force focus
+        SetForegroundWindow(hwnd);
+        SetActiveWindow(hwnd);
+        SetFocus(hwnd);
+        BringWindowToTop(hwnd);
+
+        // Detach from the foreground thread
+        if (foregroundThreadId != currentThreadId) {
+            AttachThreadInput(currentThreadId, foregroundThreadId, FALSE);
+        }
+#else
+        // Fallback to Qt methods for other platforms
+        activateWindow();
+        raise();
+        setFocus();
+#endif
+    }
+
     // Store the state for dialog handling
     m_isAlwaysOnTop = enabled;
+}
+
+void MainWindow::forceWindowFocus()
+{
+#ifdef Q_OS_WIN
+    HWND hwnd = reinterpret_cast<HWND>(winId());
+
+    // Multiple aggressive focus attempts
+    qDebug() << "Attempting to force window focus...";
+
+    // Method 1: Standard Windows API sequence
+    HWND foregroundWindow = GetForegroundWindow();
+    DWORD foregroundThreadId = GetWindowThreadProcessId(foregroundWindow, NULL);
+    DWORD currentThreadId = GetCurrentThreadId();
+
+    if (foregroundThreadId != currentThreadId) {
+        AttachThreadInput(currentThreadId, foregroundThreadId, TRUE);
+    }
+
+    // Force the window to be active and focused
+    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    SetActiveWindow(hwnd);
+    SetFocus(hwnd);
+
+    if (foregroundThreadId != currentThreadId) {
+        AttachThreadInput(currentThreadId, foregroundThreadId, FALSE);
+    }
+
+    // Method 2: Alternative approach using ShowWindow
+    ShowWindow(hwnd, SW_SHOW);
+    ShowWindow(hwnd, SW_RESTORE);
+
+    // Method 3: Flash the window to get attention and then focus
+    FLASHWINFO fwi;
+    fwi.cbSize = sizeof(FLASHWINFO);
+    fwi.hwnd = hwnd;
+    fwi.dwFlags = FLASHW_ALL;
+    fwi.uCount = 1;
+    fwi.dwTimeout = 0;
+    FlashWindowEx(&fwi);
+
+    // Final focus attempt
+    SetForegroundWindow(hwnd);
+
+    qDebug() << "Focus force attempt completed";
+#else
+    // Qt fallback for other platforms
+    activateWindow();
+    raise();
+    setFocus();
+    show();
+#endif
 }
 
 void MainWindow::temporarilyDisableAlwaysOnTop()

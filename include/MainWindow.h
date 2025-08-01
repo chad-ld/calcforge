@@ -132,6 +132,9 @@ private:
     WorksheetWidget* getSheetByName(const QString &sheetName) const;
     void highlightIncomingCrossSheetReferences(WorksheetWidget *targetSheet);
 
+    // Focus management
+    void forceWindowFocus();
+
 public:
     // Cross-sheet navigation support
     QString getCurrentSheetName() const;
