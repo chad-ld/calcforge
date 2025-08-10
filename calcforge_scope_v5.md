@@ -31,7 +31,7 @@
 # Quick build (for minor changes)
 .\build-quick.bat
 
-# Run application
+# Run application with Qt environment after building to test
 .\run-calcforge.bat
 ```
 

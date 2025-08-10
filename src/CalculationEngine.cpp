@@ -260,18 +260,18 @@ QString CalculationEngine::formatResult(double value)
     if (std::isinf(value)) {
         return value > 0 ? "∞" : "-∞";
     }
-    
+
     // Round to 6 decimal places to avoid floating point noise
     double rounded = std::round(value * 1000000.0) / 1000000.0;
-    
-    // Convert to integer if it's a whole number
-    if (std::abs(rounded - std::round(rounded)) < 1e-9) {
+
+    // Convert to integer if it's a whole number (use 1e-6 threshold since we round to 6 decimal places)
+    if (std::abs(rounded - std::round(rounded)) < 1e-6) {
         return QString::number(static_cast<long long>(std::round(rounded)));
     }
-    
+
     // Format as decimal, removing trailing zeros
     QString result = QString::number(rounded, 'f', 6);
-    
+
     // Remove trailing zeros and decimal point if not needed
     while (result.endsWith('0') && result.contains('.')) {
         result.chop(1);
@@ -279,7 +279,6 @@ QString CalculationEngine::formatResult(double value)
     if (result.endsWith('.')) {
         result.chop(1);
     }
-    
     return result;
 }
 
@@ -296,8 +295,10 @@ QString CalculationEngine::preprocessExpression(const QString &expr)
     processed.replace("^", "**");
 
     // Handle padded numbers (leading zeros) - convert 010 to 10, etc.
-    QRegularExpression paddedNumbers(R"(\b0+(\d+)\b)");
-    processed.replace(paddedNumbers, R"(\1)");
+    // DISABLED: This regex was incorrectly matching decimal numbers like 0.0001
+    // TODO: Implement a safer version that only matches whole numbers
+    // QRegularExpression paddedNumbers(R"(\b0+(\d+)\b)");
+    // processed.replace(paddedNumbers, R"(\1)");
 
     // Handle cases where we might have just zeros
     QRegularExpression justZeros(R"(\b0+\b)");
@@ -346,13 +347,13 @@ double CalculationEngine::parseExpression(const QString &expr)
 {
     int pos = 0;
     double result = parseAddSub(expr, pos);
-    
+
     // Make sure we consumed the entire expression
     skipWhitespace(expr, pos);
     if (pos < expr.length()) {
         throw std::runtime_error("Unexpected characters at end of expression");
     }
-    
+
     return result;
 }
 
@@ -471,12 +472,12 @@ double CalculationEngine::parseFactor(const QString &expr, int &pos)
 double CalculationEngine::parseNumber(const QString &expr, int &pos)
 {
     int start = pos;
-    
+
     // Parse integer part
     while (pos < expr.length() && expr[pos].isDigit()) {
         pos++;
     }
-    
+
     // Parse decimal part
     if (pos < expr.length() && expr[pos] == '.') {
         pos++;
@@ -484,7 +485,7 @@ double CalculationEngine::parseNumber(const QString &expr, int &pos)
             pos++;
         }
     }
-    
+
     // Parse scientific notation
     if (pos < expr.length() && (expr[pos] == 'e' || expr[pos] == 'E')) {
         pos++;
@@ -495,11 +496,11 @@ double CalculationEngine::parseNumber(const QString &expr, int &pos)
             pos++;
         }
     }
-    
+
     QString numberStr = expr.mid(start, pos - start);
     bool ok;
     double value = numberStr.toDouble(&ok);
-    
+
     if (!ok) {
         throw std::runtime_error("Invalid number: " + numberStr.toStdString());
     }
