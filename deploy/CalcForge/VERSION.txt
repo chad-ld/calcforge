@@ -3,7 +3,7 @@ CalcForge v5.0 - C++ Native Windows Version
 
 Build Information:
 - Version: 5.0
-- Build Date: 2025-07-30
+- Build Date: 2025-08-10
 - Platform: Windows 64-bit
 - Compiler: MSVC 2022
 - Qt Version: 6.9.1
@@ -30,6 +30,7 @@ Features Included:
 ✅ Help System with comprehensive documentation
 
 Recent Updates:
+- DECIMAL PRECISION FIX (August 10, 2025): Fixed critical bug where small decimal numbers (0.0001, .000001, .001) were incorrectly converted to 0.1
 - FLICKER-FREE (July 30, 2025): Completely eliminated visual flicker with optimized loading sequence
 - PERFORMANCE (July 30, 2025): Optimized startup time from ~3 seconds to ~1 second
 - VERSION 5.0 (July 30, 2025): Major version update reflecting architectural improvements
